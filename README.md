@@ -1,4 +1,4 @@
-# Toy Compiler – Lexical Analyzer Project
+# Custom Compiler – Lexical Analyzer Project
 
 This repository contains the implementation of a **Lexical Analyzer** (Lexer/Tokenizer) as part of our Compiler Construction course project.  
 The lexer is the first phase of a compiler and is responsible for scanning the source code, identifying lexemes, and producing a stream of tokens for further compilation stages.
@@ -103,11 +103,10 @@ fn int my_fn(int x, float y) {
 
 4. Run the lexer (example in Python):
    ```bash
-   python lexer.py sample_input.c
+   g++ lexer.cpp -o lexer
    ```
 
-5. Check the generated **token stream** in console output or log file.
-
+5. Check the generated **token stream** in console output.
 ---
 
 ## 📖 Notes
@@ -126,13 +125,10 @@ fn int my_fn(int x, float y) {
 
 ---
 
-## 🔗 Submission Guidelines
+## 🔗 Submission Format
 
 - Each group member’s code resides in their folder.  
-- Screenshots of **input program** and **output token stream** are included.  
-- Only one member will submit the GitHub repository link on the LMS.  
-- A private comment must mention all group members’ **names and roll numbers**.
-
+- Screenshots of **input program** and **output token stream** are included.   
 ---
 
 ## 📌 Future Work
@@ -140,7 +136,6 @@ fn int my_fn(int x, float y) {
 This repository will be extended into a **full mini-compiler project**, with upcoming branches covering:
 - Parser (syntax analysis)  
 - Semantic analyzer  
-- Intermediate code generation  
 - Optimization and final code generation  
 
 ---
