@@ -3,6 +3,7 @@
 #include <vector>
 #include <regex>
 #include <map>
+using namespace std;
 
 enum TokenType {
     T_FUNCTION, T_INT, T_FLOAT, T_BOOL, T_STRING, T_VOID,
@@ -17,22 +18,21 @@ enum TokenType {
 
 struct Token {
     TokenType type;
-    std::string value;
+    string value;
     int line;
     int column;
 };
 
 struct LexerState {
-    std::string input;
+    string input;
     size_t pos;
     int line;
     int column;
-    std::map<std::string, TokenType> keywords;
+    map<string, TokenType> keywords;
 };
 
-// Initialize keywords map
-std::map<std::string, TokenType> initializeKeywords() {
-    std::map<std::string, TokenType> keywords;
+map<string, TokenType> initializeKeywords() {
+    map<string, TokenType> keywords;
     keywords["fn"] = T_FUNCTION;
     keywords["int"] = T_INT;
     keywords["float"] = T_FLOAT;
@@ -49,8 +49,7 @@ std::map<std::string, TokenType> initializeKeywords() {
     return keywords;
 }
 
-// Create initial lexer state
-LexerState createLexerState(const std::string& source) {
+LexerState createLexerState(const string& source) {
     LexerState state;
     state.input = source;
     state.pos = 0;
@@ -60,9 +59,8 @@ LexerState createLexerState(const std::string& source) {
     return state;
 }
 
-// Skip whitespace and update position
 void skipWhitespace(LexerState& state) {
-    while (state.pos < state.input.length() && std::isspace(state.input[state.pos])) {
+    while (state.pos < state.input.length() && isspace(state.input[state.pos])) {
         if (state.input[state.pos] == '\n') {
             state.line++;
             state.column = 1;
@@ -73,13 +71,11 @@ void skipWhitespace(LexerState& state) {
     }
 }
 
-// Extract match from regex result
-std::string extractMatch(const std::smatch& match) {
+string extractMatch(const smatch& match) {
     return match.str();
 }
 
-// Get token type for operator
-TokenType getOperatorType(const std::string& op) {
+TokenType getOperatorType(const string& op) {
     if (op == "==") return T_EQUALOP;
     else if (op == "!=") return T_NE;
     else if (op == "<=") return T_LE;
@@ -89,7 +85,6 @@ TokenType getOperatorType(const std::string& op) {
     return T_UNKNOWN;
 }
 
-// Get token type for single character
 TokenType getSingleCharType(char ch) {
     switch (ch) {
         case '(': return T_LPAREN;
@@ -114,16 +109,13 @@ TokenType getSingleCharType(char ch) {
     }
 }
 
-// Try to match multi-character operators
-bool tryMatchOperator(LexerState& state, std::vector<Token>& tokens) {
-    std::string remaining = state.input.substr(state.pos);
-    std::regex operatorPattern(R"(==|!=|<=|>=|&&|\|\||->)");
-    std::smatch match;
-    
-    if (std::regex_search(remaining, match, operatorPattern) && match.position() == 0) {
-        std::string op = extractMatch(match);
+bool tryMatchOperator(LexerState& state, vector<Token>& tokens) {
+    string remaining = state.input.substr(state.pos);
+    regex operatorPattern(R"(==|!=|<=|>=|&&|\|\||->)");
+    smatch match;
+    if (regex_search(remaining, match, operatorPattern) && match.position() == 0) {
+        string op = extractMatch(match);
         TokenType type = getOperatorType(op);
-        
         tokens.push_back({type, op, state.line, state.column});
         state.pos += op.length();
         state.column += op.length();
@@ -132,14 +124,12 @@ bool tryMatchOperator(LexerState& state, std::vector<Token>& tokens) {
     return false;
 }
 
-// Try to match string literals
-bool tryMatchString(LexerState& state, std::vector<Token>& tokens) {
-    std::string remaining = state.input.substr(state.pos);
-    std::regex stringPattern(R"("([^"\\]|\\.)*")");
-    std::smatch match;
-    
-    if (std::regex_search(remaining, match, stringPattern) && match.position() == 0) {
-        std::string str = extractMatch(match);
+bool tryMatchString(LexerState& state, vector<Token>& tokens) {
+    string remaining = state.input.substr(state.pos);
+    regex stringPattern(R"("([^"\\]|\\.)*")");
+    smatch match;
+    if (regex_search(remaining, match, stringPattern) && match.position() == 0) {
+        string str = extractMatch(match);
         tokens.push_back({T_STRINGLIT, str, state.line, state.column});
         state.pos += str.length();
         state.column += str.length();
@@ -148,14 +138,12 @@ bool tryMatchString(LexerState& state, std::vector<Token>& tokens) {
     return false;
 }
 
-// Try to match float literals
-bool tryMatchFloat(LexerState& state, std::vector<Token>& tokens) {
-    std::string remaining = state.input.substr(state.pos);
-    std::regex floatPattern(R"(\d+\.\d+)");
-    std::smatch match;
-    
-    if (std::regex_search(remaining, match, floatPattern) && match.position() == 0) {
-        std::string num = extractMatch(match);
+bool tryMatchFloat(LexerState& state, vector<Token>& tokens) {
+    string remaining = state.input.substr(state.pos);
+    regex floatPattern(R"(\d+\.\d+)");
+    smatch match;
+    if (regex_search(remaining, match, floatPattern) && match.position() == 0) {
+        string num = extractMatch(match);
         tokens.push_back({T_FLOATLIT, num, state.line, state.column});
         state.pos += num.length();
         state.column += num.length();
@@ -164,14 +152,12 @@ bool tryMatchFloat(LexerState& state, std::vector<Token>& tokens) {
     return false;
 }
 
-// Try to match integer literals
-bool tryMatchInteger(LexerState& state, std::vector<Token>& tokens) {
-    std::string remaining = state.input.substr(state.pos);
-    std::regex intPattern(R"(\d+)");
-    std::smatch match;
-    
-    if (std::regex_search(remaining, match, intPattern) && match.position() == 0) {
-        std::string num = extractMatch(match);
+bool tryMatchInteger(LexerState& state, vector<Token>& tokens) {
+    string remaining = state.input.substr(state.pos);
+    regex intPattern(R"(\d+)");
+    smatch match;
+    if (regex_search(remaining, match, intPattern) && match.position() == 0) {
+        string num = extractMatch(match);
         tokens.push_back({T_INTLIT, num, state.line, state.column});
         state.pos += num.length();
         state.column += num.length();
@@ -180,21 +166,17 @@ bool tryMatchInteger(LexerState& state, std::vector<Token>& tokens) {
     return false;
 }
 
-// Try to match identifiers and keywords
-bool tryMatchIdentifier(LexerState& state, std::vector<Token>& tokens) {
-    std::string remaining = state.input.substr(state.pos);
-    std::regex identifierPattern(R"([a-zA-Z_][a-zA-Z0-9_]*)");
-    std::smatch match;
-    
-    if (std::regex_search(remaining, match, identifierPattern) && match.position() == 0) {
-        std::string identifier = extractMatch(match);
+bool tryMatchIdentifier(LexerState& state, vector<Token>& tokens) {
+    string remaining = state.input.substr(state.pos);
+    regex identifierPattern(R"([a-zA-Z_][a-zA-Z0-9_]*)");
+    smatch match;
+    if (regex_search(remaining, match, identifierPattern) && match.position() == 0) {
+        string identifier = extractMatch(match);
         TokenType type = T_IDENTIFIER;
-        
         auto keywordIt = state.keywords.find(identifier);
         if (keywordIt != state.keywords.end()) {
             type = keywordIt->second;
         }
-        
         tokens.push_back({type, identifier, state.line, state.column});
         state.pos += identifier.length();
         state.column += identifier.length();
@@ -203,48 +185,37 @@ bool tryMatchIdentifier(LexerState& state, std::vector<Token>& tokens) {
     return false;
 }
 
-// Try to match single character tokens
-bool tryMatchSingleChar(LexerState& state, std::vector<Token>& tokens) {
+bool tryMatchSingleChar(LexerState& state, vector<Token>& tokens) {
     if (state.pos >= state.input.length()) return false;
-    
     char ch = state.input[state.pos];
     TokenType type = getSingleCharType(ch);
-    
-    tokens.push_back({type, std::string(1, ch), state.line, state.column});
+    tokens.push_back({type, string(1, ch), state.line, state.column});
     state.pos++;
     state.column++;
     return true;
 }
 
-// Main tokenization function
-std::vector<Token> tokenize(const std::string& source) {
-    std::vector<Token> tokens;
+vector<Token> tokenize(const string& source) {
+    vector<Token> tokens;
     LexerState state = createLexerState(source);
-    
     while (state.pos < state.input.length()) {
         skipWhitespace(state);
-        
         if (state.pos >= state.input.length()) break;
-        
-        // Try to match different token types in order of precedence
         if (tryMatchOperator(state, tokens)) continue;
         if (tryMatchString(state, tokens)) continue;
         if (tryMatchFloat(state, tokens)) continue;
         if (tryMatchInteger(state, tokens)) continue;
         if (tryMatchIdentifier(state, tokens)) continue;
         if (tryMatchSingleChar(state, tokens)) continue;
-        
-        // If nothing matches, it's an unknown character
-        tokens.push_back({T_UNKNOWN, std::string(1, state.input[state.pos]), state.line, state.column});
+        tokens.push_back({T_UNKNOWN, string(1, state.input[state.pos]), state.line, state.column});
         state.pos++;
         state.column++;
     }
-    
     tokens.push_back({T_EOF, "", state.line, state.column});
     return tokens;
 }
 
-std::string tokenTypeToString(TokenType type) {
+string tokenTypeToString(TokenType type) {
     switch (type) {
         case T_FUNCTION: return "T_FUNCTION";
         case T_INT: return "T_INT";
@@ -292,23 +263,20 @@ std::string tokenTypeToString(TokenType type) {
 }
 
 int main() {
-    std::string code = R"(
+    string code = R"(
 fn my_fn(int x, float y) {
     string my_str = "hmm";
     bool my_bool = x == 40;
     return x;
 }
 )";
-    
-    std::vector<Token> tokens = tokenize(code);
-    
-    std::cout << "Tokenized output (Functional Regex Version):\n";
+    vector<Token> tokens = tokenize(code);
+    cout << "Tokenized output (Functional Regex Version):\n";
     for (const Token& token : tokens) {
         if (token.type != T_EOF) {
-            std::cout << tokenTypeToString(token.type) << "(\"" << token.value << "\"), ";
+            cout << tokenTypeToString(token.type) << "(\"" << token.value << "\"), ";
         }
     }
-    std::cout << std::endl;
-    
+    cout << endl;
     return 0;
 }
