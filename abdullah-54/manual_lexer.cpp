@@ -1,7 +1,3 @@
-// manual_lexer_improved.cpp
-// Non-regex DFA/state-machine lexer (improved)
-// Compile: g++ -std=c++17 manual_lexer_improved.cpp -o manual_lexer
-
 #include <iostream>
 #include <cstring>
 
@@ -100,10 +96,6 @@ bool isWhitespace(char ch)
 bool isDigit(char ch) { return ch >= '0' && ch <= '9'; }
 bool isAsciiAlpha(char ch) { return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z'); }
 
-// Conservative UTF-8 support for identifiers:
-// - Accept ASCII letters and underscore as start
-// - Accept digits and ASCII letters for subsequent
-// - Also allow bytes with high-bit set (>= 128) as identifier bytes (basic multibyte support)
 bool isIdentifierStart(unsigned char ch)
 {
     return ch == '_' || isAsciiAlpha((char)ch) || ch >= 128;
