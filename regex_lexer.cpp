@@ -298,16 +298,16 @@ int main() {
     int main() { 
         // this is a comment
         int x = 42;
-        float y = 3.14159f;
+        float y = 3.14159;
         char c = '\n';
         char* str = "Hello\tWorld! \"quoted\"";
         
         /* Multi-line comment */
         
         if (x > 0 && x <= MAX) {
-            printf("Value: %d\n", x);
+            print("Value: %d\n", x);
         } else if (x == 0 || x >= MAX) {
-            printf("Boundary value\n");
+            print("Boundary value\n");
         }
         
         for (int i = 0; i < 10; i++) {
@@ -317,7 +317,7 @@ int main() {
         }
         
         while (x > 0) {
-            x >>= 1;  // Right shift 
+            x >> 1;  // Right shift 
         }
         return 0;
     }

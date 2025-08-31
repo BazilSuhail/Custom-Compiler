@@ -5,6 +5,10 @@ The lexer is the first phase of a compiler and is responsible for scanning the s
 
 ---
 
+## Main Files
+- **`regex_lexer.cpp`** → Lexer implemented using **Regular Expressions**  
+- **`manual_lexer.cpp`** → Lexer implemented using **raw string comparisons and state machines** (no regex, no third-party libraries) 
+
 ## 📂 Repository Structure
 
 The project is structured by **group member folders < firstName - RollNumber >**, each containing individual implementations.  

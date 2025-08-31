@@ -353,7 +353,7 @@ int main() {
     }
 
     string var1 = "i am  lexer 💕🙌";
-    int 123var = 5;
+    int fort = 5;
     
     )";
     testLexer(invalidIdTest, "Function and Invalid Identifier Test");
