@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>C++ Lexer — Documentation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Small tweaks for code blocks */
+    pre code { white-space: pre-wrap; word-break: break-word; }
+    .kbd { background:#111827; color:#f8fafc; padding:0.15rem 0.35rem; border-radius:6px; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace; font-size:0.85rem }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 leading-relaxed">
+  <div class="max-w-6xl mx-auto p-6">
+    <header class="flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-3xl font-extrabold">C++ Lexer — Documentation</h1>
+        <p class="mt-2 text-slate-600">A compact, production-minded C++ lexer written in modern C++ (single-file demo). This doc explains the design, usage, token types and includes a runnable browser-side demo (approximate) and a convenient <span class="kbd">Copy Code</span> button for the full source.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="#demo" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700">Jump to Demo</a>
+        <a href="#usage" class="inline-flex items-center px-4 py-2 border border-slate-200 rounded-lg">Usage</a>
+      </div>
+    </header>
+
+    <hr class="my-6" />
+
+    <section id="overview" class="bg-white p-6 rounded-xl shadow-sm">
+      <h2 class="text-xl font-semibold">Overview</h2>
+      <p class="mt-2 text-slate-700">This lexer is designed to tokenize C/C++-like source code. It recognizes keywords, literals, identifiers, comments, preprocessor directives and common operators. The implementation emphasizes readability and correctness: it keeps track of <strong>line</strong> and <strong>column</strong> positions for each token and supports basic Unicode identifier starts (bytes &gt; 0x80) for demonstration purposes.</p>
+
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 border rounded-lg bg-slate-50">
+          <h3 class="font-medium">Design Highlights</h3>
+          <ul class="list-disc ml-5 mt-2 text-slate-700">
+            <li>Static keyword and operator maps for O(1) lookup.</li>
+            <li>Single-pass streaming lexer with line/column tracking.</li>
+            <li>Support for single-line (//) and multi-line (/* */) comments.</li>
+            <li>Robust handling of quoted literals and escape sequences.</li>
+            <li>Extensible token enum for easy additions (preprocessor, enums, etc.).</li>
+          </ul>
+        </div>
+        <div class="p-4 border rounded-lg bg-slate-50">
+          <h3 class="font-medium">What this demo DOES / DOESN'T do</h3>
+          <ul class="list-disc ml-5 mt-2 text-slate-700">
+            <li>✅ Shows token stream output (type, value, line, column) for the included sample code.</li>
+            <li>✅ Includes a <em>browser-side</em> mock tokenizer to preview behavior quickly.</li>
+            <li>❌ The browser demo is an <strong>approximation</strong> and not a full C++ lexer: it's intended for documentation and quick inspection only.</li>
+            <li>❌ It does not compile or execute C++ — to run the full lexer, build the provided C++ file with <span class="kbd">g++</span>.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="tokens" class="mt-6 bg-white p-6 rounded-xl shadow-sm">
+      <h2 class="text-xl font-semibold">Token Types (selected)</h2>
+      <p class="mt-2 text-slate-700">Below are the most important token types the lexer exposes. The enum in the source file maps human-friendly names to these types.</p>
+
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead class="bg-slate-100">
+            <tr>
+              <th class="p-3 text-sm font-medium text-slate-700">Token</th>
+              <th class="p-3 text-sm font-medium text-slate-700">Meaning</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="odd:bg-white even:bg-slate-50">
+              <td class="p-3 font-mono text-sm">T_IDENTIFIER</td>
+              <td class="p-3 text-sm">Names: variables, function names, typedefs (not keywords)</td>
+            </tr>
+            <tr class="odd:bg-white even:bg-slate-50">
+              <td class="p-3 font-mono text-sm">T_INTLIT / T_FLOATLIT</td>
+              <td class="p-3 text-sm">Integer and floating-point literals</td>
+            </tr>
+            <tr class="odd:bg-white even:bg-slate-50">
+              <td class="p-3 font-mono text-sm">T_STRINGLIT / T_CHARLIT</td>
+              <td class="p-3 text-sm">Quoted string and character literals (handles escapes)</td>
+            </tr>
+            <tr class="odd:bg-white even:bg-slate-50">
+              <td class="p-3 font-mono text-sm">T_SINGLE_COMMENT / T_MULTI_COMMENT</td>
+              <td class="p-3 text-sm">Comments are captured as tokens with their text</td>
+            </tr>
+            <tr class="odd:bg-white even:bg-slate-50">
+              <td class="p-3 font-mono text-sm">T_INCLUDE / T_DEFINE</td>
+              <td class="p-3 text-sm">Preprocessor directives (#include, #define)</td>
+            </tr>
+            <tr class="odd:bg-white even:bg-slate-50">
+              <td class="p-3 font-mono text-sm">T_ERROR</td>
+              <td class="p-3 text-sm">Used to report lexical errors (unterminated string, invalid char)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="usage" class="mt-6 bg-white p-6 rounded-xl shadow-sm">
+      <h2 class="text-xl font-semibold">Usage</h2>
+      <p class="mt-2 text-slate-700">Build and run the lexer from the command line:</p>
+      <pre class="mt-3 bg-slate-800 text-slate-50 rounded-md p-4 overflow-auto"><code>g++ -std=c++17 lexer.cpp -O2 -o lexer
+./lexer input.c
+</code></pre>
+      <p class="mt-3 text-slate-700">The lexer prints a token stream where each token includes: type, lexeme (value), line and column.</p>
+    </section>
+
+    <section id="demo" class="mt-6 bg-white p-6 rounded-xl shadow-sm">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-semibold">Interactive Demo (approximate)</h2>
+        <div class="text-sm text-slate-600">This demo tokenizes roughly in-browser for quick inspection — not a full C++ lexer.</div>
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Left: Source code -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-medium">Sample C++ Code</h3>
+            <div class="flex gap-2">
+              <button id="copyCodeBtn" class="px-3 py-1 bg-slate-800 text-white rounded-md text-sm">Copy Code</button>
+              <button id="runMockBtn" class="px-3 py-1 border rounded-md text-sm">Generate Token Stream</button>
+            </div>
+          </div>
+          <textarea id="sourceCode" rows="18" class="w-full font-mono p-3 rounded-lg border resize-none">#include &lt;stdio.h&gt;
+#define MAX 100
+
+int add(int a, int b) {
+    return a + b;
+}
+
+int main() {
+    int x = 42;
+    float y = 3.14159f;
+    // Emoji comment 🚀
+    for (int i = 0; i &lt; 10; i++) {
+        x += i;
+    }
+    return 0;
+}
+</textarea>
+        </div>
+
+        <!-- Right: Token stream output -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-medium">Token Stream Output</h3>
+            <div class="flex gap-2">
+              <button id="copyTokensBtn" class="px-3 py-1 bg-slate-800 text-white rounded-md text-sm">Copy Tokens</button>
+              <button id="clearTokensBtn" class="px-3 py-1 border rounded-md text-sm">Clear</button>
+            </div>
+          </div>
+
+          <pre id="tokenOutput" class="h-96 overflow-auto bg-slate-900 text-slate-100 p-3 rounded-lg font-mono text-sm"></pre>
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <h4 class="font-medium">Notes</h4>
+        <ul class="list-disc ml-5 mt-2 text-slate-700">
+          <li>The demo uses a lightweight JavaScript tokenizer that mimics the high-level behavior: splitting into groups, identifying numerics, strings, comments, and common operators.</li>
+          <li>For authoritative behavior, compile and run the C++ source provided with a real C++ toolchain.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="snippets" class="mt-6 bg-white p-6 rounded-xl shadow-sm">
+      <h2 class="text-xl font-semibold">Useful Snippets</h2>
+      <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="p-4 border rounded-lg bg-slate-50">
+          <h4 class="font-medium">Copyable Build Commands</h4>
+          <pre class="mt-2 p-3 bg-white rounded"><code>g++ -std=c++17 lexer.cpp -O2 -o lexer
+./lexer example.c</code></pre>
+        </div>
+
+        <div class="p-4 border rounded-lg bg-slate-50">
+          <h4 class="font-medium">Example: Token output format</h4>
+          <pre class="mt-2 p-3 bg-white rounded"><code>T_INT ("int") line:10 col:5
+T_IDENTIFIER ("main") line:10 col:9
+T_LPAREN ("(") line:10 col:13
+...</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <footer class="mt-8 text-sm text-slate-600">
+      <div class="flex items-center justify-between">
+        <div>Created by: <strong>Bazil Suhail</strong> — C++ Lexer docs</div>
+        <div>Last updated: <time datetime="2025-09-20">2025-09-20</time></div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    // Copy code button
+    const copyCodeBtn = document.getElementById('copyCodeBtn');
+    const sourceCode = document.getElementById('sourceCode');
+    copyCodeBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(sourceCode.value);
+        copyCodeBtn.textContent = 'Copied!';
+        setTimeout(() => copyCodeBtn.textContent = 'Copy Code', 1500);
+      } catch (e) {
+        alert('Copy failed — please select and copy manually.');
+      }
+    });
+
+    // Token output copy/clear
+    const tokenOutput = document.getElementById('tokenOutput');
+    document.getElementById('copyTokensBtn').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(tokenOutput.textContent);
+        document.getElementById('copyTokensBtn').textContent = 'Copied!';
+        setTimeout(() => document.getElementById('copyTokensBtn').textContent = 'Copy Tokens', 1500);
+      } catch (e) {
+        alert('Copy failed — please select and copy manually.');
+      }
+    });
+    document.getElementById('clearTokensBtn').addEventListener('click', () => { tokenOutput.textContent = ''; });
+
+    // Run mock tokenizer
+    function mockTokenize(code) {
+      // VERY simple tokenizer for demo only. Splits and classifies common tokens.
+      const tokens = [];
+      const lines = code.split(/\r?\n/);
+      const keywordSet = new Set(['int','float','double','char','void','bool','if','else','for','while','return','switch','case','default','break','continue','#include','#define']);
+      const twoCharOps = new Set(['==','!=','<=','>=','&&','||','++','--','<<','>>','+=','-=','*=','/=']);
+      const singleOps = new Set(['(',' )','{','}','[',']',';','.',':',',','+','-','*','/','%','<','>','=','!','&','|','^','~']);
+
+      for (let ln=0; ln<lines.length; ln++) {
+        const raw = lines[ln];
+        let col = 1;
+        // tokenization loop: extract strings/comments first
+        let i = 0;
+        while (i < raw.length) {
+          const ch = raw[i];
+          // whitespace
+          if (/\s/.test(ch)) { i++; col++; continue; }
+          // comments
+          if (ch === '/' && raw[i+1] === '/') {
+            const t = raw.substring(i);
+            tokens.push({type:'T_SINGLE_COMMENT', value:t, line:ln+1, col}); break;
+          }
+          if (ch === '/' && raw[i+1] === '*') {
+            // naive: capture until end of line for demo
+            const t = raw.substring(i);
+            tokens.push({type:'T_MULTI_COMMENT', value:t, line:ln+1, col}); break;
+          }
+          // strings
+          if (ch === '"' || ch === "'") {
+            const delim = ch; let j = i+1; let val = ch; while (j < raw.length && raw[j] !== delim) { if (raw[j] === '\\' && j+1 < raw.length) { val += raw[j]+raw[j+1]; j+=2; } else { val += raw[j++]; } }
+            if (j < raw.length) { val += raw[j]; j++; }
+            tokens.push({type: delim==='"' ? 'T_STRINGLIT' : 'T_CHARLIT', value:val, line:ln+1, col}); col += (j-i); i = j; continue;
+          }
+          // two-char ops
+          const two = raw.substr(i,2);
+          if (twoCharOps.has(two)) { tokens.push({type:'T_OP', value:two, line:ln+1, col}); i+=2; col+=2; continue; }
+          // punctuation/ single char
+          if (/[,;(){}\[\].:+\-*/%<>!=&|^~]/.test(ch)) { tokens.push({type:'T_OP', value:ch, line:ln+1, col}); i++; col++; continue; }
+          // numbers/identifiers
+          if (/[0-9]/.test(ch)) {
+            let j = i; while (j < raw.length && /[0-9eE+\-.]/.test(raw[j])) j++; const v = raw.substring(i,j); tokens.push({type:/\./.test(v) ? 'T_FLOATLIT' : 'T_INTLIT', value:v, line:ln+1, col}); col += (j-i); i = j; continue;
+          }
+          if (/[_A-Za-z\u0080-\uFFFF]/.test(ch)) {
+            let j = i; while (j < raw.length && /[_A-Za-z0-9\u0080-\uFFFF]/.test(raw[j])) j++; const v = raw.substring(i,j); tokens.push({type: keywordSet.has(v)? 'T_KEYWORD' : 'T_IDENTIFIER', value:v, line:ln+1, col}); col += (j-i); i = j; continue;
+          }
+          // fallback
+          tokens.push({type:'T_UNKNOWN', value:ch, line:ln+1, col}); i++; col++;
+        }
+      }
+      return tokens;
+    }
+
+    document.getElementById('runMockBtn').addEventListener('click', () => {
+      const src = sourceCode.value;
+      const tokens = mockTokenize(src);
+      tokenOutput.textContent = tokens.map(t => `${t.type} ("${t.value.replace(/\n/g,'\\n')}")  line:${t.line} col:${t.col}`).join('\n');
+    });
+  </script>
+</body>
+</html>
