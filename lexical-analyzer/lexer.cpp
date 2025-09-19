@@ -523,79 +523,32 @@ bool getNextToken(LexerState& state, Token& token) {
 }
 
 const char* tokenTypeToString(TokenType type) {
-    switch (type) {
-        case T_INT: return "T_INT";
-        case T_FLOAT: return "T_FLOAT";
-        case T_DOUBLE: return "T_DOUBLE";
-        case T_CHAR: return "T_CHAR";
-        case T_VOID: return "T_VOID";
-        case T_BOOL: return "T_BOOL";
-        case T_IDENTIFIER: return "T_IDENTIFIER";
-        case T_INTLIT: return "T_INTLIT";
-        case T_FLOATLIT: return "T_FLOATLIT";
-        case T_STRINGLIT: return "T_STRINGLIT";
-        case T_CHARLIT: return "T_CHARLIT";
-        case T_BOOLLIT: return "T_BOOLLIT";
-        case T_LPAREN: return "T_LPAREN";
-        case T_RPAREN: return "T_RPAREN";
-        case T_LBRACE: return "T_LBRACE";
-        case T_RBRACE: return "T_RBRACE";
-        case T_LBRACKET: return "T_LBRACKET";
-        case T_RBRACKET: return "T_RBRACKET";
-        case T_SEMICOLON: return "T_SEMICOLON";
-        case T_COMMA: return "T_COMMA";
-        case T_DOT: return "T_DOT";
-        case T_COLON: return "T_COLON";
-        case T_ASSIGNOP: return "T_ASSIGNOP";
-        case T_EQUALOP: return "T_EQUALOP";
-        case T_NE: return "T_NE";
-        case T_LT: return "T_LT";
-        case T_GT: return "T_GT";
-        case T_LE: return "T_LE";
-        case T_GE: return "T_GE";
-        case T_PLUS: return "T_PLUS";
-        case T_MINUS: return "T_MINUS";
-        case T_MULTIPLY: return "T_MULTIPLY";
-        case T_DIVIDE: return "T_DIVIDE";
-        case T_MODULO: return "T_MODULO";
-        case T_INCREMENT: return "T_INCREMENT";
-        case T_DECREMENT: return "T_DECREMENT";
-        case T_AND: return "T_AND";
-        case T_OR: return "T_OR";
-        case T_NOT: return "T_NOT";
-        case T_BITWISE_AND: return "T_BITWISE_AND";
-        case T_BITWISE_OR: return "T_BITWISE_OR";
-        case T_BITWISE_XOR: return "T_BITWISE_XOR";
-        case T_BITWISE_NOT: return "T_BITWISE_NOT";
-        case T_LEFT_SHIFT: return "T_LEFT_SHIFT";
-        case T_RIGHT_SHIFT: return "T_RIGHT_SHIFT";
-        case T_INCLUDE: return "T_INCLUDE";
-        case T_DEFINE: return "T_DEFINE";
-        case T_IF: return "T_IF";
-        case T_ELSE: return "T_ELSE";
-        case T_WHILE: return "T_WHILE";
-        case T_FOR: return "T_FOR";
-        case T_RETURN: return "T_RETURN";
-        case T_BREAK: return "T_BREAK";
-        case T_CONTINUE: return "T_CONTINUE";
-        case T_SWITCH: return "T_SWITCH";
-        case T_CASE: return "T_CASE";
-        case T_DEFAULT: return "T_DEFAULT";
-        case T_DO: return "T_DO";
-        case T_CONST: return "T_CONST";
-        case T_STATIC: return "T_STATIC";
-        case T_SIGNED: return "T_SIGNED";
-        case T_UNSIGNED: return "T_UNSIGNED";
-        case T_SHORT: return "T_SHORT";
-        case T_LONG: return "T_LONG";
-        case T_ENUM: return "T_ENUM";
-        case T_TYPEDEF: return "T_TYPEDEF";
-        case T_SINGLE_COMMENT: return "T_SINGLE_COMMENT";
-        case T_MULTI_COMMENT: return "T_MULTI_COMMENT";
-        case T_ERROR: return "T_ERROR";
-        default: return "T_UNKNOWN";
+    static const char* names[] = {
+        "T_INT", "T_FLOAT", "T_DOUBLE", "T_CHAR", "T_VOID", "T_BOOL",
+        "T_IDENTIFIER", "T_INTLIT", "T_FLOATLIT", "T_STRINGLIT", "T_CHARLIT", "T_BOOLLIT",
+        "T_LPAREN", "T_RPAREN", "T_LBRACE", "T_RBRACE", "T_LBRACKET", "T_RBRACKET",
+        "T_SEMICOLON", "T_COMMA", "T_DOT", "T_COLON",
+        "T_ASSIGNOP", "T_EQUALOP", "T_NE", "T_LT", "T_GT", "T_LE", "T_GE",
+        "T_PLUS", "T_MINUS", "T_MULTIPLY", "T_DIVIDE", "T_MODULO",
+        "T_INCREMENT", "T_DECREMENT",
+        "T_AND", "T_OR", "T_NOT",
+        "T_BITWISE_AND", "T_BITWISE_OR", "T_BITWISE_XOR", "T_BITWISE_NOT",
+        "T_LEFT_SHIFT", "T_RIGHT_SHIFT",
+        "T_INCLUDE", "T_DEFINE",
+        "T_IF", "T_ELSE", "T_WHILE", "T_FOR", "T_RETURN", "T_BREAK", "T_CONTINUE",
+        "T_SWITCH", "T_CASE", "T_DEFAULT", "T_DO",
+        "T_CONST", "T_STATIC", "T_SIGNED", "T_UNSIGNED",
+        "T_SHORT", "T_LONG", "T_ENUM", "T_TYPEDEF",
+        "T_SINGLE_COMMENT", "T_MULTI_COMMENT",
+        "T_ERROR"
+    };
+
+    if (type < 0 || type >= (int)(sizeof(names)/sizeof(names[0]))) {
+        return "T_UNKNOWN";
     }
+    return names[type];
 }
+
 
 void testLexer(const string& code, const string& testName) {
     cout << "=== " << testName << " ===\n";
