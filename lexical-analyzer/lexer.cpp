@@ -1,6 +1,10 @@
 #include <iostream>
 #include <string>
+#include <vector>
+#include <map>
 #include <cstring>
+#include <cwctype>
+#include <cstdint>
 using namespace std;
 
 enum TokenType {
@@ -45,73 +49,43 @@ struct Token {
     int column;
 };
 
-// Simple hash table for keywords
-struct KeywordTable {
-    struct KeywordEntry {
-        string word;
-        TokenType type;
+// Keyword map for O(1) lookup
+map<string, TokenType> createKeywordMap() {
+    return {
+        {"int", T_INT}, {"float", T_FLOAT}, {"double", T_DOUBLE},
+        {"char", T_CHAR}, {"void", T_VOID}, {"bool", T_BOOL},
+        {"if", T_IF}, {"else", T_ELSE}, {"while", T_WHILE},
+        {"for", T_FOR}, {"return", T_RETURN}, {"break", T_BREAK},
+        {"continue", T_CONTINUE}, {"switch", T_SWITCH}, {"case", T_CASE},
+        {"default", T_DEFAULT}, {"do", T_DO}, {"const", T_CONST},
+        {"static", T_STATIC}, {"signed", T_SIGNED}, {"unsigned", T_UNSIGNED},
+        {"short", T_SHORT}, {"long", T_LONG}, {"enum", T_ENUM},
+        {"typedef", T_TYPEDEF}, {"true", T_BOOLLIT}, {"false", T_BOOLLIT},
+        {"#include", T_INCLUDE}, {"#define", T_DEFINE}
     };
-    
-    KeywordEntry entries[64];
-    int count;
-    
-    KeywordTable() : count(0) {
-        addKeyword("int", T_INT);
-        addKeyword("float", T_FLOAT);
-        addKeyword("double", T_DOUBLE);
-        addKeyword("char", T_CHAR);
-        addKeyword("void", T_VOID);
-        addKeyword("bool", T_BOOL);
-        addKeyword("if", T_IF);
-        addKeyword("else", T_ELSE);
-        addKeyword("while", T_WHILE);
-        addKeyword("for", T_FOR);
-        addKeyword("return", T_RETURN);
-        addKeyword("break", T_BREAK);
-        addKeyword("continue", T_CONTINUE);
-        addKeyword("switch", T_SWITCH);
-        addKeyword("case", T_CASE);
-        addKeyword("default", T_DEFAULT);
-        addKeyword("do", T_DO);
-        addKeyword("const", T_CONST);
-        addKeyword("static", T_STATIC);
-        addKeyword("signed", T_SIGNED);
-        addKeyword("unsigned", T_UNSIGNED);
-        addKeyword("short", T_SHORT);
-        addKeyword("long", T_LONG);
-        addKeyword("enum", T_ENUM);
-        addKeyword("typedef", T_TYPEDEF);
-        addKeyword("true", T_BOOLLIT);
-        addKeyword("false", T_BOOLLIT);
-        addKeyword("#include", T_INCLUDE);
-        addKeyword("#define", T_DEFINE);
-    }
-    
-    void addKeyword(const string& word, TokenType type) {
-        if (count < 64) {
-            entries[count].word = word;
-            entries[count].type = type;
-            count++;
-        }
-    }
-    
-    TokenType findKeyword(const string& word) {
-        for (int i = 0; i < count; i++) {
-            if (entries[i].word == word) {
-                return entries[i].type;
-            }
-        }
-        return T_IDENTIFIER;
-    }
-};
+}
+
+// Single character token mapping
+map<char, TokenType> createSingleCharMap() {
+    return {
+        {'(', T_LPAREN}, {')', T_RPAREN}, {'{', T_LBRACE}, {'}', T_RBRACE},
+        {'[', T_LBRACKET}, {']', T_RBRACKET}, {';', T_SEMICOLON},
+        {',', T_COMMA}, {'.', T_DOT}, {':', T_COLON}, {'+', T_PLUS},
+        {'-', T_MINUS}, {'*', T_MULTIPLY}, {'/', T_DIVIDE}, {'%', T_MODULO},
+        {'<', T_LT}, {'>', T_GT}, {'!', T_NOT}, {'&', T_BITWISE_AND},
+        {'|', T_BITWISE_OR}, {'^', T_BITWISE_XOR}, {'~', T_BITWISE_NOT},
+        {'=', T_ASSIGNOP}
+    };
+}
 
 struct LexerState {
     const char* input;
     int pos;
     int line;
     int column;
-    KeywordTable keywords;
     int inputLength;
+    map<string, TokenType> keywords;
+    map<char, TokenType> singleChars;
 };
 
 LexerState createLexerState(const char* source) {
@@ -121,34 +95,55 @@ LexerState createLexerState(const char* source) {
     state.line = 1;
     state.column = 1;
     state.inputLength = strlen(source);
+    state.keywords = createKeywordMap();
+    state.singleChars = createSingleCharMap();
     return state;
 }
 
-bool isWhitespace(char ch) {
+// Check if character is ASCII whitespace
+bool isAsciiWhitespace(char ch) {
     return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
 }
 
+// Check if character is a digit (ASCII only for now)
 bool isDigit(char ch) {
     return ch >= '0' && ch <= '9';
 }
 
-bool isAlpha(char ch) {
+// Check if character is ASCII alphabetic or underscore
+bool isAsciiAlpha(char ch) {
     return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_';
 }
 
-bool isAlphaNumeric(char ch) {
-    return isAlpha(ch) || isDigit(ch);
+// Check if character is alphanumeric (ASCII only for digits)
+bool isAsciiAlphaNumeric(char ch) {
+    return isAsciiAlpha(ch) || isDigit(ch);
 }
 
+// Simplified Unicode support - treat non-ASCII as valid in identifiers
+bool isUnicodeChar(const char* str, int pos, int len) {
+    if (pos >= len) return false;
+    return (str[pos] & 0x80) != 0; // Non-ASCII byte
+}
+
+// Updated skipWhitespace: now only skips ASCII whitespace
 void skipWhitespace(LexerState& state) {
-    while (state.pos < state.inputLength && isWhitespace(state.input[state.pos])) {
-        if (state.input[state.pos] == '\n') {
-            state.line++;
-            state.column = 1;
-        } else {
-            state.column++;
+    while (state.pos < state.inputLength) {
+        char ch = state.input[state.pos];
+
+        if (isAsciiWhitespace(ch)) {
+            if (ch == '\n') {
+                state.line++;
+                state.column = 1;
+            } else {
+                state.column++;
+            }
+            state.pos++;
+            continue;
         }
-        state.pos++;
+
+        // No longer skip all non-ASCII characters
+        break;
     }
 }
 
@@ -218,64 +213,33 @@ bool tryMatchComments(LexerState& state, Token& token) {
     return false;
 }
 
-TokenType getSingleCharType(char ch) {
-    switch (ch) {
-        case '(': return T_LPAREN;
-        case ')': return T_RPAREN;
-        case '{': return T_LBRACE;
-        case '}': return T_RBRACE;
-        case '[': return T_LBRACKET;
-        case ']': return T_RBRACKET;
-        case ';': return T_SEMICOLON;
-        case ',': return T_COMMA;
-        case '.': return T_DOT;
-        case ':': return T_COLON;
-        case '+': return T_PLUS;
-        case '-': return T_MINUS;
-        case '*': return T_MULTIPLY;
-        case '/': return T_DIVIDE;
-        case '%': return T_MODULO;
-        case '<': return T_LT;
-        case '>': return T_GT;
-        case '!': return T_NOT;
-        case '&': return T_BITWISE_AND;
-        case '|': return T_BITWISE_OR;
-        case '^': return T_BITWISE_XOR;
-        case '~': return T_BITWISE_NOT;
-        case '=': return T_ASSIGNOP;
-        default: return T_ERROR;
-    }
-}
-
 bool tryMatchPreprocessor(LexerState& state, Token& token) {
-    if (state.input[state.pos] == '#') {
-        string directive;
-        int startPos = state.pos;
-        int startCol = state.column;
-        
-        // Read the directive
-        while (state.pos < state.inputLength && 
-               (isAlpha(state.input[state.pos]) || state.input[state.pos] == '#')) {
-            directive += state.input[state.pos];
-            state.pos++;
-            state.column++;
-        }
-        
-        // Check if it's a known preprocessor directive
-        if (!directive.empty()) {
-            if (directive == "#include") {
-                token.type = T_INCLUDE;
-            } else if (directive == "#define") {
-                token.type = T_DEFINE;
-            } else {
-                token.type = T_ERROR;
-                token.value = "Unknown preprocessor directive: " + directive;
-                token.line = state.line;
-                token.column = startCol;
-                return true;
-            }
-            
+    if (state.input[state.pos] != '#') return false;
+    
+    string directive;
+    int startPos = state.pos;
+    int startCol = state.column;
+    
+    // Read the directive
+    while (state.pos < state.inputLength && 
+           (isAsciiAlpha(state.input[state.pos]) || state.input[state.pos] == '#')) {
+        directive += state.input[state.pos];
+        state.pos++;
+        state.column++;
+    }
+    
+    // Check if it's a known preprocessor directive
+    if (!directive.empty()) {
+        auto it = state.keywords.find(directive);
+        if (it != state.keywords.end() && (it->second == T_INCLUDE || it->second == T_DEFINE)) {
+            token.type = it->second;
             token.value = directive;
+            token.line = state.line;
+            token.column = startCol;
+            return true;
+        } else {
+            token.type = T_ERROR;
+            token.value = "Unknown preprocessor directive: " + directive;
             token.line = state.line;
             token.column = startCol;
             return true;
@@ -291,94 +255,30 @@ bool tryMatchOperator(LexerState& state, Token& token) {
     char nextCh = (state.pos + 1 < state.inputLength) ? state.input[state.pos + 1] : '\0';
     
     // Two-character operators
-    if (nextCh != '\0') {
-        if (ch == '=' && nextCh == '=') {
-            token.type = T_EQUALOP;
-            token.value = "==";
-            token.line = state.line;
-            token.column = state.column;
-            state.pos += 2;
-            state.column += 2;
-            return true;
-        } else if (ch == '!' && nextCh == '=') {
-            token.type = T_NE;
-            token.value = "!=";
-            token.line = state.line;
-            token.column = state.column;
-            state.pos += 2;
-            state.column += 2;
-            return true;
-        } else if (ch == '<' && nextCh == '=') {
-            token.type = T_LE;
-            token.value = "<=";
-            token.line = state.line;
-            token.column = state.column;
-            state.pos += 2;
-            state.column += 2;
-            return true;
-        } else if (ch == '>' && nextCh == '=') {
-            token.type = T_GE;
-            token.value = ">=";
-            token.line = state.line;
-            token.column = state.column;
-            state.pos += 2;
-            state.column += 2;
-            return true;
-        } else if (ch == '&' && nextCh == '&') {
-            token.type = T_AND;
-            token.value = "&&";
-            token.line = state.line;
-            token.column = state.column;
-            state.pos += 2;
-            state.column += 2;
-            return true;
-        } else if (ch == '|' && nextCh == '|') {
-            token.type = T_OR;
-            token.value = "||";
-            token.line = state.line;
-            token.column = state.column;
-            state.pos += 2;
-            state.column += 2;
-            return true;
-        } else if (ch == '+' && nextCh == '+') {
-            token.type = T_INCREMENT;
-            token.value = "++";
-            token.line = state.line;
-            token.column = state.column;
-            state.pos += 2;
-            state.column += 2;
-            return true;
-        } else if (ch == '-' && nextCh == '-') {
-            token.type = T_DECREMENT;
-            token.value = "--";
-            token.line = state.line;
-            token.column = state.column;
-            state.pos += 2;
-            state.column += 2;
-            return true;
-        } else if (ch == '<' && nextCh == '<') {
-            token.type = T_LEFT_SHIFT;
-            token.value = "<<";
-            token.line = state.line;
-            token.column = state.column;
-            state.pos += 2;
-            state.column += 2;
-            return true;
-        } else if (ch == '>' && nextCh == '>') {
-            token.type = T_RIGHT_SHIFT;
-            token.value = ">>";
-            token.line = state.line;
-            token.column = state.column;
-            state.pos += 2;
-            state.column += 2;
-            return true;
-        }
+    string twoChar(1, ch);
+    twoChar += nextCh;
+    
+    map<string, TokenType> twoCharOps = {
+        {"==", T_EQUALOP}, {"!=", T_NE}, {"<=", T_LE}, {">=", T_GE},
+        {"&&", T_AND}, {"||", T_OR}, {"++", T_INCREMENT}, {"--", T_DECREMENT},
+        {"<<", T_LEFT_SHIFT}, {">>", T_RIGHT_SHIFT}
+    };
+    
+    auto it = twoCharOps.find(twoChar);
+    if (it != twoCharOps.end()) {
+        token.type = it->second;
+        token.value = twoChar;
+        token.line = state.line;
+        token.column = state.column;
+        state.pos += 2;
+        state.column += 2;
+        return true;
     }
     
     // Single character operators
-    TokenType type = getSingleCharType(ch);
-    if (type != T_ERROR) {
-        token.type = type;
+    auto singleIt = state.singleChars.find(ch);
+    if (singleIt != state.singleChars.end()) {
+        token.type = singleIt->second;
         token.value = ch;
         token.line = state.line;
         token.column = state.column;
@@ -498,7 +398,7 @@ bool tryMatchIdentifierOrNumber(LexerState& state, Token& token) {
     // If it starts with a digit, it must be a number
     if (isDigit(state.input[state.pos])) {
         // Read all digits and letters
-        while (state.pos < state.inputLength && isAlphaNumeric(state.input[state.pos])) {
+        while (state.pos < state.inputLength && isAsciiAlphaNumeric(state.input[state.pos])) {
             value += state.input[state.pos];
             state.pos++;
             state.column++;
@@ -507,7 +407,7 @@ bool tryMatchIdentifierOrNumber(LexerState& state, Token& token) {
         // Check if it contains letters (invalid identifier)
         bool hasAlpha = false;
         for (char c : value) {
-            if (isAlpha(c)) {
+            if (isAsciiAlpha(c)) {
                 hasAlpha = true;
                 break;
             }
@@ -566,16 +466,23 @@ bool tryMatchIdentifierOrNumber(LexerState& state, Token& token) {
         return true;
     }
     
-    // If it starts with alpha or underscore, it's an identifier
-    if (isAlpha(state.input[state.pos])) {
-        while (state.pos < state.inputLength && isAlphaNumeric(state.input[state.pos])) {
+    // If it starts with alpha, underscore, or Unicode, it's an identifier
+    if (isAsciiAlpha(state.input[state.pos]) || isUnicodeChar(state.input, state.pos, state.inputLength)) {
+        while (state.pos < state.inputLength && 
+               (isAsciiAlphaNumeric(state.input[state.pos]) || 
+                isUnicodeChar(state.input, state.pos, state.inputLength))) {
             value += state.input[state.pos];
             state.pos++;
             state.column++;
         }
         
         // Check if it's a keyword
-        token.type = state.keywords.findKeyword(value);
+        auto it = state.keywords.find(value);
+        if (it != state.keywords.end()) {
+            token.type = it->second;
+        } else {
+            token.type = T_IDENTIFIER;
+        }
         token.value = value;
         token.line = state.line;
         token.column = startCol;
@@ -706,22 +613,31 @@ void testLexer(const string& code, const string& testName) {
 }
 
 int main() {
-        // Test 1: Main with comments
     string loopTest = R"(
     
     #include <stdio.h>
     #define MAX 100
+
+    int add(int a, int b) {
+        return a + b;
+    }
+
     int main() { 
-        // this is a comment
         int x = 42;
         float y = 3.14159f;
-        char c = '\n';
-        char* str = "Hello\tWorld! \"quoted\"";
+
+        // Unicode identifiers
+        int π = 3.14159;
+        int 🌍 = 3.14159;
+        float résumé = 2.5f;
+        char 你好 = 'A';
+        string message = "Hello World! 🌍✨ 💕🙌";
         
-        /* Multi-line comment */
+        // This is a comment with emojis: 🚀🌟
+        /* Multi-line comment with Unicode: Привет мир! 🌎 */
         
-        if (x > 0 && x <= MAX) {
-            printf("Value: %d\n", x);
+        if (π > 0) {
+            printf("Value: %f\n", π);
         } else if (x == 0 || x >= MAX) {
             printf("Boundary value\n");
         }
@@ -729,50 +645,26 @@ int main() {
         for (int i = 0; i < 10; i++) {
             x += i;
             x++;
-            x--;
         }
         
         while (x > 0) {
             x >>= 1;  // Right shift 
         }
-        return 0;
-    }
-    
-    )"; 
-    
-    
-    testLexer(loopTest, "Loop and Braces Test");
-    
-    // Test 2: Switch statement
-    string switchTest = R"(
-    void process(int value) {
+
         switch(value) {
             case 1:
                 printf("One\n");
-                break;
-            case 2:
-                printf("Two\n");
                 break;
             default:
                 printf("Other\n");
                 break;
         }
-    }
-    )";
-    testLexer(switchTest, "Switch Statement Test");
+        int 123val = 55;
 
-    // Test 3: Invalid identifier (starts with number)
-    string invalidIdTest = R"(
-    
-    int add(int a, int b) {
-        return a + b;
+        return 0;
     }
-
-    string var1 = "i am  lexer 💕🙌";
-    int 123var = 5;
-    
-    )";
-    testLexer(invalidIdTest, "Function and Invalid Identifier Test");
+    )";    
+    testLexer(loopTest, "Demo Code");
 
     return 0;
 }
