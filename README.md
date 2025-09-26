@@ -132,56 +132,73 @@ FunctionDecl(main)
 ---
 
 ## Pratt Parser Grammer:
+
 ```
 
-program        -> importDecl* topLevelDecl* EOF ;
+program     → { declaration } ;
 
-importDecl     -> "use" IDENT ";" ;
+declaration → variable_decl | function_decl | main_decl ;
 
-topLevelDecl   -> functionDecl | mainDecl ;
+variable_decl → type IDENTIFIER [ "=" expression ] ";" ;
 
-functionDecl   -> type IDENT "(" params? ")" block ;
-mainDecl       -> "main" block ;
+function_decl → type IDENTIFIER "(" [ parameter_list ] ")" block ;
 
-params         -> param ("," param)* ;
-param          -> type IDENT ;
+parameter_list → parameter { "," parameter } ;
 
-type           -> "int" | "float" | "char" | "string" ;
+parameter     → type IDENTIFIER ;
 
-varDecl        -> type IDENT ("=" expression)? ;
+main_decl     → "main" block ;
 
-statement      -> exprStmt
-                | varDecl
-                | ifStmt
-                | whileStmt
-                | returnStmt
-                | block ;
+block         → "{" { statement } "}" ;
 
-exprStmt       -> expression ;
+statement     → expression_stmt
+              | print_stmt
+              | if_stmt
+              | while_stmt
+              | return_stmt
+              | block
+              | variable_decl ;
 
-ifStmt         -> "if" "(" expression ")" block ("else" block)? ;
-whileStmt      -> "while" "(" expression ")" block ;
-returnStmt     -> "return" expression? ;
-block          -> "{" declaration* "}" ;
+expression_stmt → [ expression ] ";" ;
 
-declaration    -> varDecl | statement ;
+print_stmt    → "print" "(" [ expression_list ] ")" ";" ;
 
-expression     -> assignment ;
+expression_list → expression { "," expression } ;
 
-assignment     -> IDENT "=" assignment
-                | logicOr ;
+if_stmt       → "if" "(" expression ")" statement [ "else" statement ] ;
 
-logicOr        -> logicAnd ("||" logicAnd)* ;
-logicAnd       -> equality ("&&" equality)* ;
-equality       -> comparison (("==" | "!=") comparison)* ;
-comparison     -> term (("<" | ">" | "<=" | ">=") term)* ;
-term           -> factor (("+" | "-") factor)* ;
-factor         -> unary (("*" | "/" | "%") unary)* ;
-unary          -> ("!" | "-") unary | primary ;
-primary        -> INT_LIT | FLOAT_LIT | STRING_LIT | CHAR_LIT | IDENT | fnCall | "(" expression ")" ;
+while_stmt    → "while" "(" expression ")" statement ;
 
-fnCall         -> IDENT "(" args? ")" ;
-args           -> expression ("," expression)* ;
+return_stmt   → "return" [ expression ] ";" ;
+
+expression    → assignment ;
+
+assignment    → IDENTIFIER "=" assignment
+              | logical_or ;
+
+logical_or    → logical_and { "||" logical_and } ;
+
+logical_and   → equality { "&&" equality } ;
+
+equality      → comparison { ( "==" | "!=" ) comparison } ;
+
+comparison    → term { ( "<" | ">" | "<=" | ">=" ) term } ;
+
+term          → factor { ( "+" | "-" ) factor } ;
+
+factor        → unary { ( "*" | "/" | "%" ) unary } ;
+
+unary         → ( "!" | "-" ) unary
+              | primary ;
+
+primary       → IDENTIFIER
+              | literal
+              | "(" expression ")"
+              | IDENTIFIER "(" [ argument_list ] ")" ;  // function call
+
+argument_list → expression { "," expression } ;
+
+literal       → INTLIT | FLOATLIT | STRINGLIT | CHARLIT | BOOLLIT ;
 
 ```
 
