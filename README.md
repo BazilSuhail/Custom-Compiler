@@ -131,5 +131,61 @@ FunctionDecl(main)
 
 ---
 
+## Pratt Parser Grammer:
+```
+
+program        -> importDecl* topLevelDecl* EOF ;
+
+importDecl     -> "use" IDENT ";" ;
+
+topLevelDecl   -> functionDecl | mainDecl ;
+
+functionDecl   -> type IDENT "(" params? ")" block ;
+mainDecl       -> "main" block ;
+
+params         -> param ("," param)* ;
+param          -> type IDENT ;
+
+type           -> "int" | "float" | "char" | "string" ;
+
+varDecl        -> type IDENT ("=" expression)? ;
+
+statement      -> exprStmt
+                | varDecl
+                | ifStmt
+                | whileStmt
+                | returnStmt
+                | block ;
+
+exprStmt       -> expression ;
+
+ifStmt         -> "if" "(" expression ")" block ("else" block)? ;
+whileStmt      -> "while" "(" expression ")" block ;
+returnStmt     -> "return" expression? ;
+block          -> "{" declaration* "}" ;
+
+declaration    -> varDecl | statement ;
+
+expression     -> assignment ;
+
+assignment     -> IDENT "=" assignment
+                | logicOr ;
+
+logicOr        -> logicAnd ("||" logicAnd)* ;
+logicAnd       -> equality ("&&" equality)* ;
+equality       -> comparison (("==" | "!=") comparison)* ;
+comparison     -> term (("<" | ">" | "<=" | ">=") term)* ;
+term           -> factor (("+" | "-") factor)* ;
+factor         -> unary (("*" | "/" | "%") unary)* ;
+unary          -> ("!" | "-") unary | primary ;
+primary        -> INT_LIT | FLOAT_LIT | STRING_LIT | CHAR_LIT | IDENT | fnCall | "(" expression ")" ;
+
+fnCall         -> IDENT "(" args? ")" ;
+args           -> expression ("," expression)* ;
+
+```
+
+---
+
 **Maintained by Group Members (Abdullah-54, Ahmad-78, Arshad-69, Bazil-72)**  
 Compiler Construction Course – 2025
