@@ -355,11 +355,17 @@ enum class ParseError {
 
 class Parser {
 private:
-    vector<Token> tokens;
-    int current = 0;
+    LexerState lexerState;
+    Token currentToken;
+    Token previousToken;
+    bool hasCurrentToken = false;
+    bool hasPreviousToken = false;
 
 public:
-    Parser(vector<Token> tokens) : tokens(tokens) {}
+    Parser(LexerState state) : lexerState(state) {
+        // Get the first token
+        advance();
+    }
 
     vector<unique_ptr<AstNode>> parse();
 
@@ -452,10 +458,31 @@ unique_ptr<AstNode> Parser::declaration() {
             fullType += advance().value;
         }
         
-        // Look ahead to see if this is a function declaration
-        if (current < tokens.size() && tokens[current].type == T_IDENTIFIER && 
-            current + 1 < tokens.size() && tokens[current + 1].type == T_LPAREN) {
-            return fnDeclWithType(fullType);
+        // Check if this is a function declaration by looking for identifier followed by parentheses
+        // We need to peek ahead - if we see identifier, we check for function or variable
+        if (check(T_IDENTIFIER)) {
+            // Save current lexer state to potentially backtrack
+            LexerState savedState = lexerState;
+            Token savedCurrent = currentToken;
+            Token savedPrevious = previousToken;
+            bool savedHasCurrent = hasCurrentToken;
+            bool savedHasPrevious = hasPreviousToken;
+            
+            advance(); // consume identifier
+            bool isFunction = check(T_LPAREN);
+            
+            // Restore lexer state
+            lexerState = savedState;
+            currentToken = savedCurrent;
+            previousToken = savedPrevious;
+            hasCurrentToken = savedHasCurrent;
+            hasPreviousToken = savedHasPrevious;
+            
+            if (isFunction) {
+                return fnDeclWithType(fullType);
+            } else {
+                return varDeclWithType(fullType);
+            }
         } else {
             return varDeclWithType(fullType);
         }
@@ -695,8 +722,29 @@ unique_ptr<AstNode> Parser::statement() {
         return breakStmt();
     } else if (check(T_CONTINUE)) {
         return continueStmt();
-    } else if (check(T_IDENTIFIER) && current + 1 < tokens.size() && tokens[current + 1].type == T_ASSIGNOP) {
-        return assignStmt();
+    } else if (check(T_IDENTIFIER)) {
+        // Check if it's an assignment by looking ahead
+        LexerState savedState = lexerState;
+        Token savedCurrent = currentToken;
+        Token savedPrevious = previousToken;
+        bool savedHasCurrent = hasCurrentToken;
+        bool savedHasPrevious = hasPreviousToken;
+        
+        advance(); // consume identifier
+        bool isAssignment = check(T_ASSIGNOP);
+        
+        // Restore lexer state
+        lexerState = savedState;
+        currentToken = savedCurrent;
+        previousToken = savedPrevious;
+        hasCurrentToken = savedHasCurrent;
+        hasPreviousToken = savedHasPrevious;
+        
+        if (isAssignment) {
+            return assignStmt();
+        } else {
+            return exprStmt();
+        }
     } else {
         return exprStmt();
     }
@@ -1206,20 +1254,55 @@ bool Parser::check(TokenType type) {
 }
 
 Token Parser::advance() {
-    if (!isAtEnd()) current++;
+    if (hasCurrentToken) {
+        previousToken = currentToken;
+        hasPreviousToken = true;
+    }
+    
+    if (getNextToken(lexerState, currentToken)) {
+        // Skip comments but include other tokens
+        while (currentToken.type == T_SINGLE_COMMENT || currentToken.type == T_MULTI_COMMENT) {
+            if (!getNextToken(lexerState, currentToken)) {
+                hasCurrentToken = false;
+                return previous();
+            }
+        }
+        hasCurrentToken = true;
+    } else {
+        hasCurrentToken = false;
+    }
+    
     return previous();
 }
 
 bool Parser::isAtEnd() {
-    return current >= tokens.size() || peek().type == T_ERROR;
+    return !hasCurrentToken || peek().type == T_ERROR;
 }
 
 Token Parser::peek() {
-    return tokens[current];
+    if (hasCurrentToken) {
+        return currentToken;
+    }
+    // Return a dummy EOF-like token
+    Token eofToken;
+    eofToken.type = T_ERROR;
+    eofToken.value = "";
+    eofToken.line = lexerState.line;
+    eofToken.column = lexerState.column;
+    return eofToken;
 }
 
 Token Parser::previous() {
-    return tokens[current - 1];
+    if (hasPreviousToken) {
+        return previousToken;
+    }
+    // Return a dummy token
+    Token dummy;
+    dummy.type = T_ERROR;
+    dummy.value = "";
+    dummy.line = 1;
+    dummy.column = 1;
+    return dummy;
 }
 
 void Parser::error(ParseError err, const string& message) {
@@ -1228,39 +1311,38 @@ void Parser::error(ParseError err, const string& message) {
 }
 
 // ============================================================================
-// TEST DRIVER - USING YOUR LEXER TOKENS
+// TEST DRIVER - USING LEXER STATE DIRECTLY
 // ============================================================================
-
-vector<Token> tokenizeWithLexer(const string& code) {
-    vector<Token> tokens;
-    LexerState state = createLexerState(code.c_str());
-    Token token;
-    while (getNextToken(state, token)) {
-        if (token.type == T_ERROR) {
-            cerr << "Lexer error: " << token.value << " at line " << token.line << ", column " << token.column << endl;
-            continue;
-        }
-        // Skip comments but include other tokens
-        if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
-            tokens.push_back(token);
-        }
-    }
-    return tokens;
-}
 
 void runTest(const string& testName, const string& code) {
     cout << "=== " << testName << " ===" << endl;
     cout << "Source code:" << endl << code << endl;
     
     try {
-        vector<Token> tokens = tokenizeWithLexer(code);
+        // Create lexer state for tokenization display
+        LexerState tokenDisplayState = createLexerState(code.c_str());
+        vector<Token> tokens; // Just for display purposes
+        Token token;
+        while (getNextToken(tokenDisplayState, token)) {
+            if (token.type == T_ERROR) {
+                cerr << "Lexer error: " << token.value << " at line " << token.line << ", column " << token.column << endl;
+                continue;
+            }
+            // Skip comments but include other tokens for display
+            if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
+                tokens.push_back(token);
+            }
+        }
+        
         cout << "Tokens: ";
         for (const auto& tok : tokens) {
             cout << tokenTypeToString(tok.type) << "('" << tok.value << "') ";
         }
         cout << endl << "Total tokens: " << tokens.size() << endl;
         
-        Parser parser(tokens);
+        // Create fresh lexer state for parsing
+        LexerState parsingState = createLexerState(code.c_str());
+        Parser parser(parsingState);
         vector<unique_ptr<AstNode>> ast = parser.parse();
         
         cout << "AST Output:" << endl << "[" << endl;
@@ -1280,129 +1362,129 @@ int main() {
     cout << "🧪 COMPREHENSIVE PARSER TESTS" << endl;
     cout << "Testing all new operators, statements, and type features" << endl << endl;
 
-//     // Test 1: All arithmetic operators including modulo
-//     runTest("Arithmetic Operators with Modulo", R"(
-// int result = (a + b) * c - d / 2 % 3;
-// )");
+    // Test 1: All arithmetic operators including modulo
+    runTest("Arithmetic Operators with Modulo", R"(
+int result = (a + b) * c - d / 2 % 3;
+)");
 
-//     // Test 2: Logical operators
-//     runTest("Logical Operators", R"(
-// bool condition = (x > 5) && (y < 10) || !flag;
-// )");
+    // Test 2: Logical operators
+    runTest("Logical Operators", R"(
+bool condition = (x > 5) && (y < 10) || !flag;
+)");
 
-//     // Test 3: Bitwise operators
-//     runTest("Bitwise Operators", R"(
-// int bits = a & b | c ^ d;
-// int shifted = value << 2 >> 1;
-// int negated = ~mask;
-// )");
+    // Test 3: Bitwise operators
+    runTest("Bitwise Operators", R"(
+int bits = a & b | c ^ d;
+int shifted = value << 2 >> 1;
+int negated = ~mask;
+)");
 
-//     // Test 4: While loop
-//     runTest("While Loop", R"(
-// while (i < 10) {
-//     sum = sum + i;
-//     i++;
-// }
-// )");
+    // Test 4: While loop
+    runTest("While Loop", R"(
+while (i < 10) {
+    sum = sum + i;
+    i++;
+}
+)");
 
-//     // Test 5: Do-while loop
-//     runTest("Do-While Loop", R"(
-// do {
-//     input = getInput();
-//     process(input);
-// } while (input != 0);
-// )");
+    // Test 5: Do-while loop
+    runTest("Do-While Loop", R"(
+do {
+    input = getInput();
+    process(input);
+} while (input != 0);
+)");
 
-//     // Test 6: Switch-case statement
-//     runTest("Switch-Case Statement", R"(
-// switch (option) {
-//     case 1:
-//         doOption1();
-//         break;
-//     case 2:
-//         doOption2();
-//         break;
-//     default:
-//         doDefault();
-//         break;
-// }
-// )");
+    // Test 6: Switch-case statement
+    runTest("Switch-Case Statement", R"(
+switch (option) {
+    case 1:
+        doOption1();
+        break;
+    case 2:
+        doOption2();
+        break;
+    default:
+        doDefault();
+        break;
+}
+)");
 
-//     // Test 7: Continue statement
-//     runTest("Continue Statement", R"(
-// for (int i = 0; i < 10; i++) {
-//     if (i % 2 == 0) {
-//         continue;
-//     }
-//     processOdd(i);
-// }
-// )");
+    // Test 7: Continue statement
+    runTest("Continue Statement", R"(
+for (int i = 0; i < 10; i++) {
+    if (i % 2 == 0) {
+        continue;
+    }
+    processOdd(i);
+}
+)");
 
-//     // Test 8: Type qualifiers (const, static)
-//     runTest("Type Qualifiers", R"(
-// const int MAX_SIZE = 100;
-// static float globalVar = 3.14;
-// const char message = 'A';
-// )");
+    // Test 8: Type qualifiers (const, static)
+    runTest("Type Qualifiers", R"(
+const int MAX_SIZE = 100;
+static float globalVar = 3.14;
+const char message = 'A';
+)");
 
-//     // Test 9: Type modifiers (signed, unsigned, short, long)
-//     runTest("Type Modifiers", R"(
-// unsigned int counter = 0;
-// signed long bigNumber = -1000000;
-// short int smallNum = 32767;
-// long double precision = 3.14159265359;
-// )");
+    // Test 9: Type modifiers (signed, unsigned, short, long)
+    runTest("Type Modifiers", R"(
+unsigned int counter = 0;
+signed long bigNumber = -1000000;
+short int smallNum = 32767;
+long double precision = 3.14159265359;
+)");
 
-//     // Test 10: Complex type combinations
-//     runTest("Complex Type Combinations", R"(
-// static const unsigned long int complexVar = 42;
-// const signed short value = -100;
-// )");
+    // Test 10: Complex type combinations
+    runTest("Complex Type Combinations", R"(
+static const unsigned long int complexVar = 42;
+const signed short value = -100;
+)");
 
-//     // Test 11: Function with complex types
-//     runTest("Function with Complex Types", R"(
-// static const int compute(unsigned int a, const long b, signed short c) {
-//     return a + b - c;
-// }
-// )");
+    // Test 11: Function with complex types
+    runTest("Function with Complex Types", R"(
+static const int compute(unsigned int a, const long b, signed short c) {
+    return a + b - c;
+}
+)");
 
-//     // Test 12: Nested control flow
-// runTest("Nested Control Flow", R"(
-// while (running) {
-//     switch (state) {
-//         case INIT:
-//             if (ready) {
-//                 state = RUNNING;
-//             }
-//             break;
-//         case RUNNING:
-//             for (int i = 0; i < count; i++) {
-//                 if (i % 2 == 0) { continue; }
-//                 process(i);
-//             }
-//             break;
-//         default:
-//             break;
-//     }
-// }
-// )");
+    // Test 12: Nested control flow
+runTest("Nested Control Flow", R"(
+while (running) {
+    switch (state) {
+        case INIT:
+            if (ready) {
+                state = RUNNING;
+            }
+            break;
+        case RUNNING:
+            for (int i = 0; i < count; i++) {
+                if (i % 2 == 0) { continue; }
+                process(i);
+            }
+            break;
+        default:
+            break;
+    }
+}
+)");
 
-//     // Test 13: Complex expressions with all operators
-//     runTest("Complex Expression", R"(
-// bool result = ((a & 2) << 8) | (b >> 4) && !(c % 2) || (d >= e);
-// )");
+    // Test 13: Complex expressions with all operators
+    runTest("Complex Expression", R"(
+bool result = ((a & 2) << 8) | (b >> 4) && !(c % 2) || (d >= e);
+)");
 
-//     // Test 14: All unary operators
-//     runTest("Unary Operators", R"(
-// int a = +value;
-// int b = -number;
-// bool c = !flag;
-// int d = ~bits;
-// int e = ++counter;
-// int f = --index;
-// int g = postInc++;
-// int h = postDec--;
-// )");
+    // Test 14: All unary operators
+    runTest("Unary Operators", R"(
+int a = +value;
+int b = -number;
+bool c = !flag;
+int d = ~bits;
+int e = ++counter;
+int f = --index;
+int g = postInc++;
+int h = postDec--;
+)");
 
     // Test 15: Include directives
     runTest("Include Directives", R"(
