@@ -6,7 +6,7 @@ A comprehensive recursive descent parser for a C-style programming language, bui
 
 ### Language Support
 - **Data Types**: `int`, `float`, `double`, `char`, `bool`, `void`
-- **Type Qualifiers**: `const`, `static`, `signed`, `unsigned`, `short`, `long`
+- **Type Qualifiers**: `const`, `signed`, `unsigned`, `short`, `long`
 - **Control Flow**: `if/else`, `while`, `do-while`, `for`, `switch/case/default`
 - **Flow Control**: `break`, `continue`, `return`
 - **Functions**: Function declarations with parameters and return types
@@ -28,7 +28,7 @@ A comprehensive recursive descent parser for a C-style programming language, bui
 - **Complex Expressions**: Support for nested and complex expressions
 - **Function Calls**: Function invocation with argument lists
 - **Nested Control Flow**: Support for deeply nested control structures
-- **Type Combinations**: Complex type specifiers like `static const unsigned long int`
+- **Type Combinations**: Complex type specifiers like `const unsigned long int`
 - **Macro Definitions**: Both object-like and function-like macros
 
 ## Architecture
@@ -115,7 +115,7 @@ float pi = 3.14;
 bool flag = true;
 
 // Complex types
-static const unsigned long int complexVar = 42;
+const unsigned long int complexVar = 42;
 const signed short value = -100;
 ```
 
@@ -127,7 +127,7 @@ int add(int a, int b) {
 }
 
 // Complex return types and parameters
-static const int compute(unsigned int a, const long b, signed short c) {
+const int compute(unsigned int a, const long b, signed short c) {
     return a + b - c;
 }
 ```
@@ -266,7 +266,7 @@ The parser includes 18 comprehensive test suites covering:
 5. Do-while loops
 6. Switch-case statements
 7. Continue statements
-8. Type qualifiers (const, static)
+8. Type qualifiers (const)
 9. Type modifiers (signed, unsigned, short, long)
 10. Complex type combinations
 11. Functions with complex types

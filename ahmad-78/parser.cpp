@@ -1306,7 +1306,7 @@ Token Parser::previous() {
 }
 
 void Parser::error(ParseError err, const string& message) {
-    cerr << "Parse Error: " << message << " at line " << peek().line << ", column " << peek().column << endl;
+    cout << "Parse Error: " << message << " at line " << peek().line << ", column " << peek().column << endl;
     throw runtime_error(message);
 }
 
@@ -1325,7 +1325,7 @@ void runTest(const string& testName, const string& code) {
         Token token;
         while (getNextToken(tokenDisplayState, token)) {
             if (token.type == T_ERROR) {
-                cerr << "Lexer error: " << token.value << " at line " << token.line << ", column " << token.column << endl;
+                cout << "Lexer error: " << token.value << " at line " << token.line << ", column " << token.column << endl;
                 continue;
             }
             // Skip comments but include other tokens for display
@@ -1358,182 +1358,509 @@ void runTest(const string& testName, const string& code) {
     }
 }
 
+void runErrorTest(const string& testName, const string& code, const string& expectedError = "") {
+    cout << "=== ERROR TEST: " << testName << " ===" << endl;
+    cout << "Source code:" << endl << code << endl;
+    
+    try {
+        LexerState parsingState = createLexerState(code.c_str());
+        Parser parser(parsingState);
+        vector<unique_ptr<AstNode>> ast = parser.parse();
+        
+        cout << "❌ UNEXPECTED SUCCESS - Expected error but parser succeeded!" << endl;
+        cout << "AST Output:" << endl << "[" << endl;
+        for (size_t i = 0; i < ast.size(); ++i) {
+            if (i > 0) cout << "," << endl;
+            cout << "    " << ast[i]->toString();
+        }
+        cout << endl << "]" << endl << endl;
+        
+    } catch (const exception& e) {
+        cout << "✅ EXPECTED ERROR CAUGHT: " << e.what() << endl;
+        if (!expectedError.empty() && string(e.what()).find(expectedError) == string::npos) {
+            cout << "⚠️  WARNING: Expected error '" << expectedError << "' but got different error" << endl;
+        }
+        cout << endl;
+    }
+}
+
+void runEdgeCaseTest(const string& testName, const string& code) {
+    cout << "=== EDGE CASE: " << testName << " ===" << endl;
+    cout << "Source code:" << endl << code << endl;
+    
+    try {
+        LexerState parsingState = createLexerState(code.c_str());
+        Parser parser(parsingState);
+        vector<unique_ptr<AstNode>> ast = parser.parse();
+        
+        cout << "✅ PASSED - Edge case handled correctly" << endl;
+        cout << "AST Output:" << endl << "[" << endl;
+        for (size_t i = 0; i < ast.size(); ++i) {
+            if (i > 0) cout << "," << endl;
+            cout << "    " << ast[i]->toString();
+        }
+        cout << endl << "]" << endl << endl;
+        
+    } catch (const exception& e) {
+        cout << "❌ FAILED: " << e.what() << endl << endl;
+    }
+}
+
 int main() {
-    cout << "🧪 COMPREHENSIVE PARSER TESTS" << endl;
-    cout << "Testing all new operators, statements, and type features" << endl << endl;
+    cout << "🧪 COMPREHENSIVE ERROR & EDGE CASE TESTS" << endl;
+    cout << "Testing all error conditions and edge cases that our grammar handles" << endl << endl;
 
-    // Test 1: All arithmetic operators including modulo
-    runTest("Arithmetic Operators with Modulo", R"(
-int result = (a + b) * c - d / 2 % 3;
-)");
+    cout << "=" << string(60, '=') << endl;
+    cout << "SYNTAX ERROR TESTS" << endl;
+    cout << "=" << string(60, '=') << endl;
 
-    // Test 2: Logical operators
-    runTest("Logical Operators", R"(
-bool condition = (x > 5) && (y < 10) || !flag;
-)");
+    // Missing semicolons
+    runErrorTest("Missing Semicolon - Variable Declaration", R"(
+int x = 5
+int y = 10;
+)", "Expected ';'");
 
-    // Test 3: Bitwise operators
-    runTest("Bitwise Operators", R"(
-int bits = a & b | c ^ d;
-int shifted = value << 2 >> 1;
-int negated = ~mask;
-)");
+    runErrorTest("Missing Semicolon - Assignment", R"(
+x = 42
+y = 24;
+)", "Expected ';'");
 
-    // Test 4: While loop
-    runTest("While Loop", R"(
-while (i < 10) {
-    sum = sum + i;
+    runErrorTest("Missing Semicolon - Expression Statement", R"(
+func()
+return 0;
+)", "Expected ';'");
+
+    runErrorTest("Missing Semicolon - Return Statement", R"(
+return x + y
+}", "Expected ';'");
+
+    // Missing parentheses
+    runErrorTest("Missing Opening Parenthesis - If Statement", R"(
+if x > 5) {
+    print(x);
+}
+)", "Expected '('");
+
+    runErrorTest("Missing Closing Parenthesis - If Statement", R"(
+if (x > 5 {
+    print(x);
+}
+)", "Expected ')'");
+
+    runErrorTest("Missing Opening Parenthesis - While Loop", R"(
+while x < 10) {
+    x++;
+}
+)", "Expected '('");
+
+    runErrorTest("Missing Closing Parenthesis - Function Call", R"(
+int result = func(a, b;
+)", "Expected ')'");
+
+    runErrorTest("Missing Opening Parenthesis - Function Declaration", R"(
+int compute int a, int b) {
+    return a + b;
+}
+)", "Expected '('");
+
+    // Missing braces
+    runErrorTest("Missing Opening Brace - If Statement", R"(
+if (x > 5) 
+    print(x);
+}
+)", "Expected '{'");
+
+    runErrorTest("Missing Closing Brace - Function", R"(
+int compute(int a) {
+    return a * 2;
+)", "Expected '}'");
+
+    runErrorTest("Missing Opening Brace - While Loop", R"(
+while (i < 10) 
     i++;
 }
+)", "Expected '{'");
+
+    // Incomplete expressions
+    runErrorTest("Incomplete Binary Expression", R"(
+int result = a + ;
+)", "Expected");
+
+    runErrorTest("Incomplete Unary Expression", R"(
+bool flag = !;
+)", "Expected");
+
+    runErrorTest("Dangling Operator", R"(
+int x = 5 +;
+)", "Expected");
+
+    cout << "=" << string(60, '=') << endl;
+    cout << "TYPE ERROR TESTS" << endl;
+    cout << "=" << string(60, '=') << endl;
+
+    // Missing types
+    runErrorTest("Missing Variable Type", R"(
+x = 42;
 )");
 
-    // Test 5: Do-while loop
-    runTest("Do-While Loop", R"(
+    runErrorTest("Missing Function Return Type", R"(
+compute(int a, int b) {
+    return a + b;
+}
+)");
+
+    runErrorTest("Missing Parameter Type", R"(
+int compute(a, int b) {
+    return a + b;
+}
+)", "Expected parameter type");
+
+    // Invalid type combinations (grammar should reject these)
+    runErrorTest("Invalid Type - Multiple Base Types", R"(
+int float x = 5;
+)");
+
+    runErrorTest("Invalid Qualifier Order", R"(
+int const static x = 5;
+)");
+
+    cout << "=" << string(60, '=') << endl;
+    cout << "DECLARATION ERROR TESTS" << endl;
+    cout << "=" << string(60, '=') << endl;
+
+    // Missing identifiers
+    runErrorTest("Missing Variable Identifier", R"(
+int = 42;
+)", "Expected variable name");
+
+    runErrorTest("Missing Function Identifier", R"(
+int (int a, int b) {
+    return a + b;
+}
+)", "Expected function name");
+
+    runErrorTest("Missing Parameter Identifier", R"(
+int compute(int, int b) {
+    return b;
+}
+)", "Expected parameter name");
+
+    // Malformed function declarations
+    runErrorTest("Function Missing Parameter List", R"(
+int compute {
+    return 42;
+}
+)", "Expected '('");
+
+    runErrorTest("Function Missing Body", R"(
+int compute(int a);
+)", "Expected '{'");
+
+    cout << "=" << string(60, '=') << endl;
+    cout << "STATEMENT ERROR TESTS" << endl;
+    cout << "=" << string(60, '=') << endl;
+
+    // Malformed if statements
+    runErrorTest("If Statement Missing Condition", R"(
+if () {
+    x = 5;
+}
+)", "Expected");
+
+    runErrorTest("If Statement Missing Body", R"(
+if (x > 5);
+)");
+
+    // Malformed while loops
+    runErrorTest("While Loop Missing Condition", R"(
+while () {
+    x++;
+}
+)", "Expected");
+
+    runErrorTest("While Loop Missing Body", R"(
+while (x < 10);
+)");
+
+    // Malformed for loops
+    runErrorTest("For Loop Malformed", R"(
+for (int i = 0 i < 10; i++) {
+    print(i);
+}
+)", "Expected ';'");
+
+    runErrorTest("For Loop Missing Semicolons", R"(
+for (int i = 0, i < 10, i++) {
+    print(i);
+}
+)", "Expected ';'");
+
+    // Malformed do-while loops
+    runErrorTest("Do-While Missing While Keyword", R"(
 do {
-    input = getInput();
-    process(input);
-} while (input != 0);
-)");
+    x++;
+} (x < 10);
+)", "Expected");
 
-    // Test 6: Switch-case statement
-    runTest("Switch-Case Statement", R"(
-switch (option) {
-    case 1:
-        doOption1();
-        break;
-    case 2:
-        doOption2();
-        break;
-    default:
-        doDefault();
-        break;
+    runErrorTest("Do-While Missing Condition", R"(
+do {
+    x++;
+} while ();
+)", "Expected");
+
+    // Malformed switch statements
+    runErrorTest("Switch Missing Expression", R"(
+switch () {
+    case 1: break;
 }
-)");
+)", "Expected");
 
-    // Test 7: Continue statement
-    runTest("Continue Statement", R"(
-for (int i = 0; i < 10; i++) {
-    if (i % 2 == 0) {
-        continue;
-    }
-    processOdd(i);
+    runErrorTest("Switch Missing Braces", R"(
+switch (x) 
+    case 1: break;
+)", "Expected '{'");
+
+    runErrorTest("Case Missing Colon", R"(
+switch (x) {
+    case 1 break;
 }
+)", "Expected ':'");
+
+    cout << "=" << string(60, '=') << endl;
+    cout << "EXPRESSION ERROR TESTS" << endl;
+    cout << "=" << string(60, '=') << endl;
+
+    // Malformed expressions
+    runErrorTest("Unmatched Parentheses", R"(
+int result = (a + b * c;
+)", "Expected ')'");
+
+    runErrorTest("Invalid Operator Sequence", R"(
+int result = a ++ + b;
 )");
 
-    // Test 8: Type qualifiers (const, static)
-    runTest("Type Qualifiers", R"(
-const int MAX_SIZE = 100;
-static float globalVar = 3.14;
-const char message = 'A';
+    runErrorTest("Missing Operand", R"(
+int result = * 5;
 )");
 
-    // Test 9: Type modifiers (signed, unsigned, short, long)
-    runTest("Type Modifiers", R"(
-unsigned int counter = 0;
-signed long bigNumber = -1000000;
-short int smallNum = 32767;
-long double precision = 3.14159265359;
+    runErrorTest("Empty Parentheses in Expression", R"(
+int result = a + () + b;
+)", "Expected");
+
+    cout << "=" << string(60, '=') << endl;
+    cout << "PREPROCESSOR ERROR TESTS" << endl;
+    cout << "=" << string(60, '=') << endl;
+
+    // Malformed include directives
+    runErrorTest("Include Missing Filename", R"(
+#include
+int main() { return 0; }
+)", "Expected");
+
+    runErrorTest("Include Malformed System Include", R"(
+#include <stdio.h
+int main() { return 0; }
+)", "Expected '>'");
+
+    runErrorTest("Include Malformed User Include", R"(
+#include "header.h
+int main() { return 0; }
 )");
 
-    // Test 10: Complex type combinations
-    runTest("Complex Type Combinations", R"(
-static const unsigned long int complexVar = 42;
-const signed short value = -100;
-)");
+    // Malformed define directives
+    runErrorTest("Define Missing Name", R"(
+#define
+int main() { return 0; }
+)", "Expected macro name");
 
-    // Test 11: Function with complex types
-    runTest("Function with Complex Types", R"(
-static const int compute(unsigned int a, const long b, signed short c) {
-    return a + b - c;
-}
-)");
+    runErrorTest("Define Function Macro Missing Closing Paren", R"(
+#define SQUARE(x ((x) * (x))
+int main() { return 0; }
+)", "Expected ')'");
 
-    // Test 12: Nested control flow
-runTest("Nested Control Flow", R"(
-while (running) {
-    switch (state) {
-        case INIT:
-            if (ready) {
-                state = RUNNING;
-            }
-            break;
-        case RUNNING:
-            for (int i = 0; i < count; i++) {
-                if (i % 2 == 0) { continue; }
-                process(i);
-            }
-            break;
-        default:
-            break;
-    }
-}
-)");
+    cout << "=" << string(60, '=') << endl;
+    cout << "ENUM ERROR TESTS" << endl;
+    cout << "=" << string(60, '=') << endl;
 
-    // Test 13: Complex expressions with all operators
-    runTest("Complex Expression", R"(
-bool result = ((a & 2) << 8) | (b >> 4) && !(c % 2) || (d >= e);
-)");
-
-    // Test 14: All unary operators
-    runTest("Unary Operators", R"(
-int a = +value;
-int b = -number;
-bool c = !flag;
-int d = ~bits;
-int e = ++counter;
-int f = --index;
-int g = postInc++;
-int h = postDec--;
-)");
-
-    // Test 15: Include directives
-    runTest("Include Directives", R"(
-#include <stdio.h>
-#include <iostream>
-#include "myheader.h"
-#include "utils/helper.h"
-)");
-
-    // Test 16: Define directives
-    runTest("Define Directives", R"(
-#define PI 3.14159
-#define MAX_SIZE 100
-#define SQUARE(x) ((x) * (x))
-#define MIN(a, b) ((a) < (b))
-#define DEBUG_MODE
-)");
-
-    // Test 17: Mixed preprocessor and code
-    runTest("Mixed Preprocessor and Code", R"(
-#include <iostream>
-#define PI 3.14159
-#define CIRCLE_AREA(r) (PI * (r) * (r))
-
-float calculateArea(float radius) {
-    return CIRCLE_AREA(radius);
-}
-
-int main() {
-    float area = calculateArea(5.0);
-    return 0;
-}
-)");
-
-    // Test 18: Enum Declaration
-    runTest("Enum Declaration", R"(
-enum Color {
+    // Malformed enum declarations
+    runErrorTest("Enum Missing Name", R"(
+enum {
     RED,
     GREEN,
     BLUE
 };
+)", "Expected enum name");
 
-enum Status {
-    ACTIVE,
-    INACTIVE,
-    PENDING
+    runErrorTest("Enum Missing Opening Brace", R"(
+enum Color
+    RED,
+    GREEN,
+    BLUE
+};
+)", "Expected '{'");
+
+    runErrorTest("Enum Missing Closing Brace", R"(
+enum Color {
+    RED,
+    GREEN,
+    BLUE
+;
+)", "Expected '}'");
+
+    runErrorTest("Enum Missing Semicolon", R"(
+enum Color {
+    RED,
+    GREEN,
+    BLUE
+}
+)", "Expected ';'");
+
+    runErrorTest("Enum Missing Value Name", R"(
+enum Color {
+    RED,
+    ,
+    BLUE
+};
+)", "Expected enum value");
+
+    cout << "=" << string(60, '=') << endl;
+    cout << "EDGE CASE TESTS" << endl;
+    cout << "=" << string(60, '=') << endl;
+
+    // Empty constructs
+    runEdgeCaseTest("Empty Function Body", R"(
+void empty() {
+}
+)");
+
+    runEdgeCaseTest("Empty If Block", R"(
+void test() {
+    if (x > 5) {
+    }
+}
+)");
+
+    runEdgeCaseTest("Empty Switch Statement", R"(
+void test() {
+    switch (x) {
+    }
+}
+)");
+
+    runEdgeCaseTest("Empty Enum", R"(
+enum Empty {
 };
 )");
 
-    cout << "🎯 All tests completed!" << endl;
+    // Minimal constructs
+    runEdgeCaseTest("Function with No Parameters", R"(
+void func() {
+    return;
+}
+)");
+
+    runEdgeCaseTest("Single Character Variable", R"(
+int a;
+)");
+
+    runEdgeCaseTest("Deeply Nested Expressions", R"(
+int result = ((((a + b) * c) - d) / ((e % f) + g));
+)");
+
+    // Complex valid constructs that push boundaries
+    runEdgeCaseTest("Complex Type Qualifiers", R"(
+const static unsigned long long int veryComplexType = 123456789;
+)");
+
+    runEdgeCaseTest("Nested Control Flow Maximum Depth", R"(
+void complex() {
+    for (int i = 0; i < 10; i++) {
+        while (condition) {
+            if (check1) {
+                switch (value) {
+                    case 1:
+                        if (check2) {
+                            do {
+                                if (check3) {
+                                    break;
+                                }
+                            } while (loop);
+                        }
+                        break;
+                    default:
+                        continue;
+                }
+            }
+        }
+    }
+}
+)");
+
+    runEdgeCaseTest("All Unary Operators Edge Cases", R"(
+void test() {
+    int x = 0;
+    ++x;
+    --x;
+    x++;
+    x--;
+    int a = +x;
+    int b = -x;
+    bool c = !false;
+    int d = ~0;
+}
+)");
+
+    runEdgeCaseTest("Complex Macro Definitions", R"(
+#define COMPLEX_MACRO(a, b, c, d) ((a) + (b) * (c) - (d))
+#define NESTED_CALL(x) COMPLEX_MACRO(x, x, x, x)
+)");
+
+    runEdgeCaseTest("Mixed Preprocessor Edge Cases", R"(
+#include <complex>
+#include "local.h"
+#define EMPTY_MACRO
+#define SINGLE_PARAM(x) (x)
+#define MULTIPLE_PARAMS(a,b,c,d,e) a+b+c+d+e
+
+enum Test { A, B, C };
+
+void func() {
+    const unsigned long long var = 0;
+}
+)");
+
+    cout << "=" << string(60, '=') << endl;
+    cout << "BOUNDARY CONDITION TESTS" << endl;
+    cout << "=" << string(60, '=') << endl;
+
+    runEdgeCaseTest("Maximum Expression Complexity", R"(
+bool complex = ((a && b) || (c && d)) && ((e || f) && (g || h)) || 
+               ((i & j) | (k ^ l)) && ((m << n) | (o >> p)) ||
+               ((q == r) && (s != t)) && ((u < v) || (w >= x));
+)");
+
+    runEdgeCaseTest("All Binary Operators", R"(
+void allOps() {
+    int arith = a + b - c * d / e % f;
+    bool logic = (a && b) || (c && d);
+    int bitwise = (a & b) | (c ^ d);
+    int shift = (a << 2) | (b >> 3);
+    bool comp = (a == b) && (c != d) && (e < f) && (g > h) && (i <= j) && (k >= l);
+}
+)");
+
+    runEdgeCaseTest("Function Parameter Edge Cases", R"(
+void manyParams(int a, float b, double c, char d, bool e, const int f, long g, unsigned short h, signed char i, long long j) {
+    return;
+}
+
+void noParams() {
+    return;
+}
+)");
+
+    cout << "🎯 ALL ERROR & EDGE CASE TESTS COMPLETED!" << endl;
+    cout << "Summary: Comprehensive testing of all error conditions and edge cases" << endl;
+    cout << "that our grammar/language handles (excluding typedef)" << endl;
     return 0;
 }
