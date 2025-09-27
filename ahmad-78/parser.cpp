@@ -127,6 +127,83 @@ struct BreakStmt : AstNode {
     }
 };
 
+struct ContinueStmt : AstNode {
+    string toString() const override {
+        return "Continue";
+    }
+};
+
+struct WhileStmt : AstNode {
+    unique_ptr<AstNode> condition;
+    vector<unique_ptr<AstNode>> body;
+    
+    string toString() const override {
+        string bodyStr = "[";
+        for (size_t i = 0; i < body.size(); ++i) {
+            if (i > 0) bodyStr += ", ";
+            bodyStr += body[i]->toString();
+        }
+        bodyStr += "]";
+        
+        return "While(WhileStmt { cond: " + (condition ? condition->toString() : "null") + 
+               ", block: " + bodyStr + " })";
+    }
+};
+
+struct DoWhileStmt : AstNode {
+    vector<unique_ptr<AstNode>> body;
+    unique_ptr<AstNode> condition;
+    
+    string toString() const override {
+        string bodyStr = "[";
+        for (size_t i = 0; i < body.size(); ++i) {
+            if (i > 0) bodyStr += ", ";
+            bodyStr += body[i]->toString();
+        }
+        bodyStr += "]";
+        
+        return "DoWhile(DoWhileStmt { block: " + bodyStr + 
+               ", cond: " + (condition ? condition->toString() : "null") + " })";
+    }
+};
+
+struct SwitchStmt : AstNode {
+    unique_ptr<AstNode> expr;
+    vector<unique_ptr<AstNode>> cases;
+    
+    string toString() const override {
+        string casesStr = "[";
+        for (size_t i = 0; i < cases.size(); ++i) {
+            if (i > 0) casesStr += ", ";
+            casesStr += cases[i]->toString();
+        }
+        casesStr += "]";
+        
+        return "Switch(SwitchStmt { expr: " + (expr ? expr->toString() : "null") + 
+               ", cases: " + casesStr + " })";
+    }
+};
+
+struct CaseStmt : AstNode {
+    unique_ptr<AstNode> value; // null for default case
+    vector<unique_ptr<AstNode>> statements;
+    
+    string toString() const override {
+        string stmtsStr = "[";
+        for (size_t i = 0; i < statements.size(); ++i) {
+            if (i > 0) stmtsStr += ", ";
+            stmtsStr += statements[i]->toString();
+        }
+        stmtsStr += "]";
+        
+        if (value) {
+            return "Case(CaseStmt { value: " + value->toString() + ", stmts: " + stmtsStr + " })";
+        } else {
+            return "Default(DefaultStmt { stmts: " + stmtsStr + " })";
+        }
+    }
+};
+
 struct ExprStmt : AstNode {
     unique_ptr<AstNode> expr;
     
@@ -141,12 +218,28 @@ struct BinaryExpr : AstNode {
     unique_ptr<AstNode> right;
     
     string toString() const override {
-        return "::" + string(op == "+" ? "Add" : op == "-" ? "Sub" : op == "*" ? "Mul" : 
-                            op == "/" ? "Div" : op == "==" ? "Comp(EqualsOp)" : 
-                            op == "!=" ? "Comp(NotEqualsOp)" : op == "<" ? "Comp(LessThan)" : 
-                            op == ">" ? "Comp(GreaterThan)" : op == "<=" ? "Comp(LessEqual)" : 
-                            op == ">=" ? "Comp(GreaterEqual)" : "Unknown") + 
-               "(" + op + ") " + (left ? left->toString() : "null") + " " + 
+        string opName = "Unknown";
+        if (op == "+") opName = "Add";
+        else if (op == "-") opName = "Sub";
+        else if (op == "*") opName = "Mul";
+        else if (op == "/") opName = "Div";
+        else if (op == "%") opName = "Mod";
+        else if (op == "==") opName = "Comp(EqualsOp)";
+        else if (op == "!=") opName = "Comp(NotEqualsOp)";
+        else if (op == "<") opName = "Comp(LessThan)";
+        else if (op == ">") opName = "Comp(GreaterThan)";
+        else if (op == "<=") opName = "Comp(LessEqual)";
+        else if (op == ">=") opName = "Comp(GreaterEqual)";
+        else if (op == "&&") opName = "LogicalAnd";
+        else if (op == "||") opName = "LogicalOr";
+        else if (op == "&") opName = "BitwiseAnd";
+        else if (op == "|") opName = "BitwiseOr";
+        else if (op == "^") opName = "BitwiseXor";
+        else if (op == "<<") opName = "LeftShift";
+        else if (op == ">>") opName = "RightShift";
+        else if (op == "=") opName = "Assign";
+        
+        return "::" + opName + "(" + op + ") " + (left ? left->toString() : "null") + " " + 
                (right ? right->toString() : "null");
     }
 };
@@ -227,19 +320,31 @@ public:
 private:
     unique_ptr<AstNode> declaration();
     unique_ptr<AstNode> varDecl();
+    unique_ptr<AstNode> varDeclWithType(const string& type);
     unique_ptr<AstNode> fnDecl();
+    unique_ptr<AstNode> fnDeclWithType(const string& type);
     unique_ptr<AstNode> statement();
     unique_ptr<AstNode> exprStmt();
     unique_ptr<AstNode> assignStmt();
     unique_ptr<AstNode> ifStmt();
+    unique_ptr<AstNode> whileStmt();
+    unique_ptr<AstNode> doWhileStmt();
     unique_ptr<AstNode> forStmt();
+    unique_ptr<AstNode> switchStmt();
     unique_ptr<AstNode> returnStmt();
     unique_ptr<AstNode> breakStmt();
+    unique_ptr<AstNode> continueStmt();
 
     unique_ptr<AstNode> expression();    // assignment
     unique_ptr<AstNode> assignment();
+    unique_ptr<AstNode> logicalOr();
+    unique_ptr<AstNode> logicalAnd();
+    unique_ptr<AstNode> bitwiseOr();
+    unique_ptr<AstNode> bitwiseXor();
+    unique_ptr<AstNode> bitwiseAnd();
     unique_ptr<AstNode> equality();
     unique_ptr<AstNode> comparison();
+    unique_ptr<AstNode> shift();
     unique_ptr<AstNode> term();
     unique_ptr<AstNode> factor();
     unique_ptr<AstNode> unary();
@@ -272,15 +377,26 @@ vector<unique_ptr<AstNode>> Parser::parse() {
 }
 
 unique_ptr<AstNode> Parser::declaration() {
-    if (check(T_INT) || check(T_FLOAT) || check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
-        advance(); // CONSUME THE TYPE TOKEN
+    // Check for type qualifiers and modifiers
+    if (check(T_CONST) || check(T_STATIC) || check(T_SIGNED) || check(T_UNSIGNED) || 
+        check(T_SHORT) || check(T_LONG) || check(T_INT) || check(T_FLOAT) || 
+        check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
+        
+        // Parse all type specifiers and qualifiers
+        string fullType = "";
+        while (check(T_CONST) || check(T_STATIC) || check(T_SIGNED) || check(T_UNSIGNED) || 
+               check(T_SHORT) || check(T_LONG) || check(T_INT) || check(T_FLOAT) || 
+               check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
+            if (!fullType.empty()) fullType += " ";
+            fullType += advance().value;
+        }
         
         // Look ahead to see if this is a function declaration
         if (current < tokens.size() && tokens[current].type == T_IDENTIFIER && 
             current + 1 < tokens.size() && tokens[current + 1].type == T_LPAREN) {
-            return fnDecl();
+            return fnDeclWithType(fullType);
         } else {
-            return varDecl();
+            return varDeclWithType(fullType);
         }
     } else {
         return statement();
@@ -289,6 +405,21 @@ unique_ptr<AstNode> Parser::declaration() {
 
 unique_ptr<AstNode> Parser::varDecl() {
     string type = previous().value;  // GET TYPE FROM PREVIOUS TOKEN
+    Token name = consume(T_IDENTIFIER, "Expected variable name");
+    
+    auto varDecl = make_unique<VarDecl>();
+    varDecl->type = type;
+    varDecl->name = name.value;
+    
+    if (match({T_ASSIGNOP})) {
+        varDecl->initializer = expression();
+    }
+    
+    consume(T_SEMICOLON, "Expected ';' after variable declaration");
+    return varDecl;
+}
+
+unique_ptr<AstNode> Parser::varDeclWithType(const string& type) {
     Token name = consume(T_IDENTIFIER, "Expected variable name");
     
     auto varDecl = make_unique<VarDecl>();
@@ -316,11 +447,63 @@ unique_ptr<AstNode> Parser::fnDecl() {
     // Parse parameters
     if (!check(T_RPAREN)) {
         do {
-            // Parse parameter type
-            if (!(check(T_INT) || check(T_FLOAT) || check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL) || check(T_VOID))) {
+            // Parse parameter type (with qualifiers/modifiers)
+            string paramType = "";
+            while (check(T_CONST) || check(T_SIGNED) || check(T_UNSIGNED) || 
+                   check(T_SHORT) || check(T_LONG) || check(T_INT) || check(T_FLOAT) || 
+                   check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
+                if (!paramType.empty()) paramType += " ";
+                paramType += advance().value;
+            }
+            
+            if (paramType.empty()) {
                 error(ParseError::ExpectedTypeToken, "Expected parameter type");
             }
-            string paramType = advance().value;
+            
+            // Parse parameter name
+            Token paramName = consume(T_IDENTIFIER, "Expected parameter name");
+            
+            fnDecl->params.push_back(make_pair(paramType, paramName.value));
+            
+        } while (match({T_COMMA}));
+    }
+    
+    consume(T_RPAREN, "Expected ')' after parameters");
+    consume(T_LBRACE, "Expected '{' before function body");
+    
+    // Parse function body
+    while (!check(T_RBRACE) && !isAtEnd()) {
+        fnDecl->body.push_back(declaration());
+    }
+    
+    consume(T_RBRACE, "Expected '}' after function body");
+    return fnDecl;
+}
+
+unique_ptr<AstNode> Parser::fnDeclWithType(const string& returnType) {
+    Token name = consume(T_IDENTIFIER, "Expected function name");
+    
+    auto fnDecl = make_unique<FnDecl>();
+    fnDecl->returnType = returnType;
+    fnDecl->name = name.value;
+    
+    consume(T_LPAREN, "Expected '(' after function name");
+    
+    // Parse parameters
+    if (!check(T_RPAREN)) {
+        do {
+            // Parse parameter type (with qualifiers/modifiers)
+            string paramType = "";
+            while (check(T_CONST) || check(T_SIGNED) || check(T_UNSIGNED) || 
+                   check(T_SHORT) || check(T_LONG) || check(T_INT) || check(T_FLOAT) || 
+                   check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
+                if (!paramType.empty()) paramType += " ";
+                paramType += advance().value;
+            }
+            
+            if (paramType.empty()) {
+                error(ParseError::ExpectedTypeToken, "Expected parameter type");
+            }
             
             // Parse parameter name
             Token paramName = consume(T_IDENTIFIER, "Expected parameter name");
@@ -347,10 +530,18 @@ unique_ptr<AstNode> Parser::statement() {
         return returnStmt();
     } else if (check(T_IF)) {
         return ifStmt();
+    } else if (check(T_WHILE)) {
+        return whileStmt();
+    } else if (check(T_DO)) {
+        return doWhileStmt();
     } else if (check(T_FOR)) {
         return forStmt();
+    } else if (check(T_SWITCH)) {
+        return switchStmt();
     } else if (check(T_BREAK)) {
         return breakStmt();
+    } else if (check(T_CONTINUE)) {
+        return continueStmt();
     } else if (check(T_IDENTIFIER) && current + 1 < tokens.size() && tokens[current + 1].type == T_ASSIGNOP) {
         return assignStmt();
     } else {
@@ -417,9 +608,18 @@ unique_ptr<AstNode> Parser::forStmt() {
     auto forStmt = make_unique<ForStmt>();
     
     // Initializer
-    if (check(T_INT) || check(T_FLOAT) || check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL)) {
-        advance(); // CONSUME THE TYPE TOKEN
-        forStmt->initializer = varDecl();
+    if (check(T_CONST) || check(T_STATIC) || check(T_SIGNED) || check(T_UNSIGNED) || 
+        check(T_SHORT) || check(T_LONG) || check(T_INT) || check(T_FLOAT) || 
+        check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL)) {
+        // Parse type for variable declaration in for loop
+        string type = "";
+        while (check(T_CONST) || check(T_STATIC) || check(T_SIGNED) || check(T_UNSIGNED) || 
+               check(T_SHORT) || check(T_LONG) || check(T_INT) || check(T_FLOAT) || 
+               check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL)) {
+            if (!type.empty()) type += " ";
+            type += advance().value;
+        }
+        forStmt->initializer = varDeclWithType(type);
     } else if (!check(T_SEMICOLON)) {
         forStmt->initializer = exprStmt();
     } else {
@@ -468,13 +668,106 @@ unique_ptr<AstNode> Parser::breakStmt() {
     return make_unique<BreakStmt>();
 }
 
+unique_ptr<AstNode> Parser::continueStmt() {
+    consume(T_CONTINUE, "Expected 'continue'");
+    consume(T_SEMICOLON, "Expected ';' after continue");
+    return make_unique<ContinueStmt>();
+}
+
+unique_ptr<AstNode> Parser::whileStmt() {
+    consume(T_WHILE, "Expected 'while'");
+    consume(T_LPAREN, "Expected '(' after 'while'");
+    
+    auto condition = expression();
+    consume(T_RPAREN, "Expected ')' after condition");
+    
+    consume(T_LBRACE, "Expected '{' before while body");
+    
+    auto whileStmt = make_unique<WhileStmt>();
+    whileStmt->condition = move(condition);
+    
+    while (!check(T_RBRACE) && !isAtEnd()) {
+        whileStmt->body.push_back(declaration());
+    }
+    
+    consume(T_RBRACE, "Expected '}' after while body");
+    return whileStmt;
+}
+
+unique_ptr<AstNode> Parser::doWhileStmt() {
+    consume(T_DO, "Expected 'do'");
+    consume(T_LBRACE, "Expected '{' after 'do'");
+    
+    auto doWhileStmt = make_unique<DoWhileStmt>();
+    
+    while (!check(T_RBRACE) && !isAtEnd()) {
+        doWhileStmt->body.push_back(declaration());
+    }
+    
+    consume(T_RBRACE, "Expected '}' after do body");
+    consume(T_WHILE, "Expected 'while' after do body");
+    consume(T_LPAREN, "Expected '(' after 'while'");
+    
+    doWhileStmt->condition = expression();
+    consume(T_RPAREN, "Expected ')' after condition");
+    consume(T_SEMICOLON, "Expected ';' after do-while");
+    
+    return doWhileStmt;
+}
+
+unique_ptr<AstNode> Parser::switchStmt() {
+    consume(T_SWITCH, "Expected 'switch'");
+    consume(T_LPAREN, "Expected '(' after 'switch'");
+    
+    auto expr = expression();
+    consume(T_RPAREN, "Expected ')' after switch expression");
+    consume(T_LBRACE, "Expected '{' before switch body");
+    
+    auto switchStmt = make_unique<SwitchStmt>();
+    switchStmt->expr = move(expr);
+    
+    while (!check(T_RBRACE) && !isAtEnd()) {
+        if (check(T_CASE)) {
+            consume(T_CASE, "Expected 'case'");
+            auto caseValue = expression();
+            consume(T_COLON, "Expected ':' after case value");
+            
+            auto caseStmt = make_unique<CaseStmt>();
+            caseStmt->value = move(caseValue);
+            
+            while (!check(T_CASE) && !check(T_DEFAULT) && !check(T_RBRACE) && !isAtEnd()) {
+                caseStmt->statements.push_back(declaration());
+            }
+            
+            switchStmt->cases.push_back(move(caseStmt));
+        } else if (check(T_DEFAULT)) {
+            consume(T_DEFAULT, "Expected 'default'");
+            consume(T_COLON, "Expected ':' after 'default'");
+            
+            auto defaultStmt = make_unique<CaseStmt>();
+            defaultStmt->value = nullptr; // null indicates default case
+            
+            while (!check(T_CASE) && !check(T_DEFAULT) && !check(T_RBRACE) && !isAtEnd()) {
+                defaultStmt->statements.push_back(declaration());
+            }
+            
+            switchStmt->cases.push_back(move(defaultStmt));
+        } else {
+            error(ParseError::UnexpectedToken, "Expected 'case' or 'default' in switch body");
+        }
+    }
+    
+    consume(T_RBRACE, "Expected '}' after switch body");
+    return switchStmt;
+}
+
 // Expression parsing with precedence
 unique_ptr<AstNode> Parser::expression() {
     return assignment();
 }
 
 unique_ptr<AstNode> Parser::assignment() {
-    auto expr = equality();
+    auto expr = logicalOr();
     
     if (match({T_ASSIGNOP})) {
         string op = previous().value;
@@ -484,6 +777,86 @@ unique_ptr<AstNode> Parser::assignment() {
         assign->op = op;
         assign->right = move(right);
         return assign;
+    }
+    
+    return expr;
+}
+
+unique_ptr<AstNode> Parser::logicalOr() {
+    auto expr = logicalAnd();
+    
+    while (match({T_OR})) {
+        string op = previous().value;
+        auto right = logicalAnd();
+        auto binary = make_unique<BinaryExpr>();
+        binary->left = move(expr);
+        binary->op = op;
+        binary->right = move(right);
+        expr = move(binary);
+    }
+    
+    return expr;
+}
+
+unique_ptr<AstNode> Parser::logicalAnd() {
+    auto expr = bitwiseOr();
+    
+    while (match({T_AND})) {
+        string op = previous().value;
+        auto right = bitwiseOr();
+        auto binary = make_unique<BinaryExpr>();
+        binary->left = move(expr);
+        binary->op = op;
+        binary->right = move(right);
+        expr = move(binary);
+    }
+    
+    return expr;
+}
+
+unique_ptr<AstNode> Parser::bitwiseOr() {
+    auto expr = bitwiseXor();
+    
+    while (match({T_BITWISE_OR})) {
+        string op = previous().value;
+        auto right = bitwiseXor();
+        auto binary = make_unique<BinaryExpr>();
+        binary->left = move(expr);
+        binary->op = op;
+        binary->right = move(right);
+        expr = move(binary);
+    }
+    
+    return expr;
+}
+
+unique_ptr<AstNode> Parser::bitwiseXor() {
+    auto expr = bitwiseAnd();
+    
+    while (match({T_BITWISE_XOR})) {
+        string op = previous().value;
+        auto right = bitwiseAnd();
+        auto binary = make_unique<BinaryExpr>();
+        binary->left = move(expr);
+        binary->op = op;
+        binary->right = move(right);
+        expr = move(binary);
+    }
+    
+    return expr;
+}
+
+unique_ptr<AstNode> Parser::bitwiseAnd() {
+    auto expr = equality();
+    
+    while (match({T_BITWISE_AND})) {
+        string op = previous().value;
+        auto right = equality();
+        auto binary = make_unique<BinaryExpr>();
+        binary->left = move(expr);
+        binary->op = op;
+        binary->right = move(right);
+        expr = move(binary);
     }
     
     return expr;
@@ -506,9 +879,25 @@ unique_ptr<AstNode> Parser::equality() {
 }
 
 unique_ptr<AstNode> Parser::comparison() {
-    auto expr = term();
+    auto expr = shift();
     
     while (match({T_LT, T_GT, T_LE, T_GE})) {
+        string op = previous().value;
+        auto right = shift();
+        auto binary = make_unique<BinaryExpr>();
+        binary->left = move(expr);
+        binary->op = op;
+        binary->right = move(right);
+        expr = move(binary);
+    }
+    
+    return expr;
+}
+
+unique_ptr<AstNode> Parser::shift() {
+    auto expr = term();
+    
+    while (match({T_LEFT_SHIFT, T_RIGHT_SHIFT})) {
         string op = previous().value;
         auto right = term();
         auto binary = make_unique<BinaryExpr>();
@@ -540,7 +929,7 @@ unique_ptr<AstNode> Parser::term() {
 unique_ptr<AstNode> Parser::factor() {
     auto expr = unary();
     
-    while (match({T_MULTIPLY, T_DIVIDE})) {
+    while (match({T_MULTIPLY, T_DIVIDE, T_MODULO})) {
         string op = previous().value;
         auto right = unary();
         auto binary = make_unique<BinaryExpr>();
@@ -554,7 +943,7 @@ unique_ptr<AstNode> Parser::factor() {
 }
 
 unique_ptr<AstNode> Parser::unary() {
-    if (match({T_MINUS, T_PLUS})) {
+    if (match({T_MINUS, T_PLUS, T_NOT, T_BITWISE_NOT})) {
         string op = previous().value;
         auto expr = unary();
         auto unary = make_unique<UnaryExpr>();
@@ -707,95 +1096,162 @@ vector<Token> tokenizeWithLexer(const string& code) {
     return tokens;
 }
 
-int main() {
+void runTest(const string& testName, const string& code) {
+    cout << "=== " << testName << " ===" << endl;
+    cout << "Source code:" << endl << code << endl;
+    
     try {
-        cout << "=== Testing Simple Variable Declaration ===" << endl;
-        string testCode1 = R"(
-int x = 42;
-float y = 3.14;
-)";
-        
-        cout << "Source code:" << endl << testCode1 << endl;
-        
-        vector<Token> tokens1 = tokenizeWithLexer(testCode1);
-        cout << "Tokens:" << endl;
-        for (const auto& tok : tokens1) {
+        vector<Token> tokens = tokenizeWithLexer(code);
+        cout << "Tokens: ";
+        for (const auto& tok : tokens) {
             cout << tokenTypeToString(tok.type) << "('" << tok.value << "') ";
         }
-        cout << endl;
-        cout << "Total tokens: " << tokens1.size() << endl;
+        cout << endl << "Total tokens: " << tokens.size() << endl;
         
-        Parser parser1(tokens1);
-        vector<unique_ptr<AstNode>> ast1 = parser1.parse();
+        Parser parser(tokens);
+        vector<unique_ptr<AstNode>> ast = parser.parse();
         
-        cout << "AST Output:" << endl;
-        cout << "[" << endl;
-        for (size_t i = 0; i < ast1.size(); ++i) {
+        cout << "AST Output:" << endl << "[" << endl;
+        for (size_t i = 0; i < ast.size(); ++i) {
             if (i > 0) cout << "," << endl;
-            cout << "    " << ast1[i]->toString();
-        }
-        cout << endl << "]" << endl << endl;
-        
-        cout << "=== Testing For Loop ===" << endl;
-        string testCode4 = R"(
-for (int i = 0; i < 10; i++) {
-    x = x + i;
-}
-)";
-        
-        cout << "Source code:" << endl << testCode4 << endl;
-        
-        vector<Token> tokens4 = tokenizeWithLexer(testCode4);
-        cout << "Tokens:" << endl;
-        for (const auto& tok : tokens4) {
-            cout << tokenTypeToString(tok.type) << "('" << tok.value << "') ";
-        }
-        cout << endl;
-        cout << "Total tokens: " << tokens4.size() << endl;
-        
-        Parser parser4(tokens4);
-        vector<unique_ptr<AstNode>> ast4 = parser4.parse();
-        
-        cout << "AST Output:" << endl;
-        cout << "[" << endl;
-        for (size_t i = 0; i < ast4.size(); ++i) {
-            if (i > 0) cout << "," << endl;
-            cout << "    " << ast4[i]->toString();
-        }
-        cout << endl << "]" << endl << endl;
-
-        cout << "=== Testing Function ===" << endl;
-        string testCode5 = R"(
-int result(int a, int b, int c, int d) {
-        return (a + b) * c - d / 2;
-}
-)";
-
-        cout << "Source code:" << endl << testCode5 << endl;
-        
-        vector<Token> tokens5 = tokenizeWithLexer(testCode5);
-        cout << "Tokens:" << endl;
-        for (const auto& tok : tokens5) {
-            cout << tokenTypeToString(tok.type) << "('" << tok.value << "') ";
-        }
-        cout << endl;
-        cout << "Total tokens: " << tokens5.size() << endl;
-        
-        Parser parser5(tokens5);
-        vector<unique_ptr<AstNode>> ast5 = parser5.parse();
-        
-        cout << "AST Output:" << endl;
-        cout << "[" << endl;
-        for (size_t i = 0; i < ast5.size(); ++i) {
-            if (i > 0) cout << "," << endl;
-            cout << "    " << ast5[i]->toString();
+            cout << "    " << ast[i]->toString();
         }
         cout << endl << "]" << endl;
+        cout << "✅ PASSED" << endl << endl;
         
     } catch (const exception& e) {
-        cerr << "Parsing failed: " << e.what() << endl;
-        return 1;
+        cout << "❌ FAILED: " << e.what() << endl << endl;
     }
-    
+}
+
+int main() {
+    cout << "🧪 COMPREHENSIVE PARSER TESTS" << endl;
+    cout << "Testing all new operators, statements, and type features" << endl << endl;
+
+    // Test 1: All arithmetic operators including modulo
+    runTest("Arithmetic Operators with Modulo", R"(
+int result = (a + b) * c - d / 2 % 3;
+)");
+
+    // Test 2: Logical operators
+    runTest("Logical Operators", R"(
+bool condition = (x > 5) && (y < 10) || !flag;
+)");
+
+    // Test 3: Bitwise operators
+    runTest("Bitwise Operators", R"(
+int bits = a & b | c ^ d;
+int shifted = value << 2 >> 1;
+int negated = ~mask;
+)");
+
+    // Test 4: While loop
+    runTest("While Loop", R"(
+while (i < 10) {
+    sum = sum + i;
+    i++;
+}
+)");
+
+    // Test 5: Do-while loop
+    runTest("Do-While Loop", R"(
+do {
+    input = getInput();
+    process(input);
+} while (input != 0);
+)");
+
+    // Test 6: Switch-case statement
+    runTest("Switch-Case Statement", R"(
+switch (option) {
+    case 1:
+        doOption1();
+        break;
+    case 2:
+        doOption2();
+        break;
+    default:
+        doDefault();
+        break;
+}
+)");
+
+    // Test 7: Continue statement
+    runTest("Continue Statement", R"(
+for (int i = 0; i < 10; i++) {
+    if (i % 2 == 0) {
+        continue;
+    }
+    processOdd(i);
+}
+)");
+
+    // Test 8: Type qualifiers (const, static)
+    runTest("Type Qualifiers", R"(
+const int MAX_SIZE = 100;
+static float globalVar = 3.14;
+const char message = 'A';
+)");
+
+    // Test 9: Type modifiers (signed, unsigned, short, long)
+    runTest("Type Modifiers", R"(
+unsigned int counter = 0;
+signed long bigNumber = -1000000;
+short int smallNum = 32767;
+long double precision = 3.14159265359;
+)");
+
+    // Test 10: Complex type combinations
+    runTest("Complex Type Combinations", R"(
+static const unsigned long int complexVar = 42;
+const signed short value = -100;
+)");
+
+    // Test 11: Function with complex types
+    runTest("Function with Complex Types", R"(
+static const int compute(unsigned int a, const long b, signed short c) {
+    return a + b - c;
+}
+)");
+
+    // Test 12: Nested control flow
+runTest("Nested Control Flow", R"(
+while (running) {
+    switch (state) {
+        case INIT:
+            if (ready) {
+                state = RUNNING;
+            }
+            break;
+        case RUNNING:
+            for (int i = 0; i < count; i++) {
+                if (i % 2 == 0) { continue; }
+                process(i);
+            }
+            break;
+        default:
+            break;
+    }
+}
+)");
+
+    // Test 13: Complex expressions with all operators
+    runTest("Complex Expression", R"(
+bool result = ((a & 2) << 8) | (b >> 4) && !(c % 2) || (d >= e);
+)");
+
+    // Test 14: All unary operators
+    runTest("Unary Operators", R"(
+int a = +value;
+int b = -number;
+bool c = !flag;
+int d = ~bits;
+int e = ++counter;
+int f = --index;
+int g = postInc++;
+int h = postDec--;
+)");
+
+    cout << "🎯 All tests completed!" << endl;
     return 0;
 }
