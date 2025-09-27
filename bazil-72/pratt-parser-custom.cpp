@@ -44,6 +44,7 @@ enum class ParseErrorType {
     ExpectedStringLit,
     ExpectedBoolLit,
     ExpectedExpr,
+    InvalidCallTarget,   // NEW: only identifiers can be called
 };
 
 struct ParseError {
@@ -79,6 +80,9 @@ struct ParseError {
                 break;
             case ParseErrorType::ExpectedBoolLit:
                 message = "Expected bool literal";
+                break;
+            case ParseErrorType::InvalidCallTarget:
+                message = "Invalid function call target: only identifiers can be called";
                 break;
             case ParseErrorType::ExpectedExpr:
                 message = "Expected expression";
@@ -240,16 +244,22 @@ struct IncludeStmt : public ASTNode {
 };
 
 struct CallExpr : public ASTNode {
-    string callee;
+    ASTPtr callee;
     vector<ASTPtr> args;
-    CallExpr(const string& c, vector<ASTPtr> a) : callee(c), args(move(a)) {}
+    CallExpr(ASTPtr c, vector<ASTPtr> a) : callee(move(c)), args(move(a)) {}
     void print(int indent = 0) const override {
-        cout << string(indent, ' ') << "CallExpr(\"" << callee << "\")\n";
-        for (const auto& arg : args) {
-            arg->print(indent + 2);
+        cout << string(indent, ' ') << "CallExpr\n";
+        cout << string(indent + 2, ' ') << "Callee:\n";
+        callee->print(indent + 4);
+        if (!args.empty()) {
+            cout << string(indent + 2, ' ') << "Args:\n";
+            for (const auto& arg : args) {
+                arg->print(indent + 4);
+            }
         }
     }
 };
+
 
 // === Statement Types ===
 struct VarDecl : public ASTNode {
@@ -275,6 +285,17 @@ struct VarDecl : public ASTNode {
             case T_BOOL: cout << "bool"; break;
             case T_VOID: cout << "void"; break;
             default: cout << "unknown_type"; break;
+        }
+    }
+};
+
+struct BlockStmt : public ASTNode {
+    vector<ASTPtr> body;
+    BlockStmt(vector<ASTPtr> b) : body(move(b)) {}
+    void print(int indent = 0) const override {
+        cout << string(indent, ' ') << "BlockStmt\n";
+        for (const auto& stmt : body) {
+            stmt->print(indent + 2);
         }
     }
 };
@@ -437,9 +458,11 @@ private:
             case T_LT: case T_GT: case T_LE: case T_GE: return COMPARISON;
             case T_PLUS: case T_MINUS: return TERM;
             case T_MULTIPLY: case T_DIVIDE: case T_MODULO: return FACTOR;
+            case T_LPAREN: return CALL;   // allow ( to act as call operator
             default: return LOWEST;
         }
     }
+
 
     // Check if token is a type
     bool isTypeToken(TokenType type) {
@@ -540,12 +563,20 @@ private:
             case T_AND:
             case T_OR:
                 return parseBinaryExpression(move(left), precedence);
-            case T_LPAREN:
-                return parseCallExpression(move(left));
+
+            case T_LPAREN: {
+                // Only identifiers shpuld be called
+                if (dynamic_cast<Identifier*>(left.get())) {
+                    return parseCallExpression(move(left));
+                }
+                throw ParseError(ParseErrorType::InvalidCallTarget, currentToken);
+            }
+
             default:
                 throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
         }
     }
+
 
     // Literal parsers
     ASTPtr parseIntLiteral() {
@@ -588,12 +619,9 @@ private:
     ASTPtr parseIdentifier() {
         Token t = currentToken;
         advance();
-        // Check if it's a function call
-        if (check(T_LPAREN)) {
-            return parseCallExpression(make_unique<Identifier>(t.value));
-        }
         return make_unique<Identifier>(t.value);
     }
+
 
     ASTPtr parseGroupedExpression() {
         expect(T_LPAREN);
@@ -613,9 +641,19 @@ private:
         Token op = currentToken;
         int nextPrecedence = getPrecedence(op.type);
         advance();
+
         ASTPtr right = parseExpression(nextPrecedence);
+
+        // Restrict assignment: left must be Identifier
+        if (op.type == T_ASSIGNOP) {
+            if (dynamic_cast<Identifier*>(left.get()) == nullptr) {
+                throw ParseError(ParseErrorType::UnexpectedToken, op);
+            }
+        }
+
         return make_unique<BinaryExpr>(op.type, move(left), move(right));
     }
+
 
     // main syntax
 
@@ -627,22 +665,26 @@ private:
         return make_unique<IncludeStmt>(header.value);
     }
 
-    ASTPtr parseCallExpression(ASTPtr callee) {
-        if (auto* id = dynamic_cast<Identifier*>(callee.get())) {
-            string funcName = id->name;
-            expect(T_LPAREN);
-            
-            vector<ASTPtr> args;
-            if (!check(T_RPAREN)) {
-                do {
-                    args.push_back(parseExpression());
-                } while (match(T_COMMA));
-            }
-            expect(T_RPAREN);
-            return make_unique<CallExpr>(funcName, move(args));
+   ASTPtr parseCallExpression(ASTPtr callee) {
+        // Only identifiers are valid callees
+        if (!dynamic_cast<Identifier*>(callee.get())) {
+            throw ParseError(ParseErrorType::InvalidCallTarget, currentToken);
         }
-        throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
+
+        expect(T_LPAREN);
+
+        vector<ASTPtr> args;
+        if (!check(T_RPAREN)) {
+            do {
+                args.push_back(parseExpression());
+            } while (match(T_COMMA));
+        }
+        expect(T_RPAREN);
+
+        return make_unique<CallExpr>(move(callee), move(args));
     }
+
+
 
     // Statement parsers
     ASTPtr parseStatement() {
@@ -738,8 +780,10 @@ private:
     }
 
     ASTPtr parseBlockStatement() {
-        return make_unique<ExpressionStmt>(nullptr); // Placeholder
+        vector<ASTPtr> body = parseBlock();
+        return make_unique<BlockStmt>(move(body));
     }
+
 
     vector<ASTPtr> parseBlock() {
         expect(T_LBRACE);
