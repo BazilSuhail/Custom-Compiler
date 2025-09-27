@@ -2,7 +2,10 @@
 ```mathematica
 program         ::= declaration* EOF ;
 
-declaration     ::= varDecl
+declaration     ::= includeDirective
+                  | defineDirective
+                  | enumDecl
+                  | varDecl
                   | fnDecl
                   | statement ;
 
@@ -21,6 +24,19 @@ typeQualifier   ::= "const" | "static" ;
 typeModifier    ::= "signed" | "unsigned" | "short" | "long" ;
 
 baseType        ::= "int" | "float" | "double" | "char" | "bool" | "void" ;
+
+includeDirective ::= "#include" ( "<" IDENTIFIER ( "." IDENTIFIER )? ">" 
+                                | STRINGLIT ) ;
+
+defineDirective ::= "#define" IDENTIFIER ( "(" parameterList? ")" )? macroBody? ;
+
+parameterList   ::= IDENTIFIER ( "," IDENTIFIER )* ;
+
+macroBody       ::= ( IDENTIFIER | literal | operator )* ;
+
+enumDecl        ::= "enum" IDENTIFIER "{" enumValueList? "}" ";" ;
+
+enumValueList   ::= IDENTIFIER ( "," IDENTIFIER )* ;
 
 statement       ::= returnStmt
                   | ifStmt
@@ -98,6 +114,11 @@ primary         ::= literal
                   | ( "++" | "--" ) unary ;
 
 literal         ::= INTLIT | FLOATLIT | BOOLLIT | STRINGLIT | CHARLIT ;
+
+operator        ::= "+" | "-" | "*" | "/" | "%" | "=" | "==" | "!=" | "<" | ">" 
+                  | "<=" | ">=" | "&&" | "||" | "!" | "&" | "|" | "^" | "~" 
+                  | "<<" | ">>" | "++" | "--" | "(" | ")" | "{" | "}" | ";" 
+                  | "," | "." | "[" | "]" ;
 ```
 
 ## Grammar Features
@@ -122,7 +143,17 @@ literal         ::= INTLIT | FLOATLIT | BOOLLIT | STRINGLIT | CHARLIT ;
 - **Conditionals**: `if-else`, `switch-case-default`
 - **Jump Statements**: `return`, `break`, `continue`
 
-#### **4. Operator Precedence (Highest to Lowest)**
+#### **4. Preprocessor Directives**
+- **Include Directives**: `#include <header.h>`, `#include "header.h"`
+- **Define Macros**: 
+  - **Object-like**: `#define PI 3.14159`
+  - **Function-like**: `#define MAX(a,b) ((a)>(b)?(a):(b))`
+
+#### **5. Enum Declarations**
+- **Enum Support**: `enum Color { RED, GREEN, BLUE };`
+- **Named Enumerations**: Support for enum types with named values
+
+#### **6. Operator Precedence (Highest to Lowest)**
 1. **Postfix**: `()`, `++`, `--`
 2. **Unary**: `+`, `-`, `!`, `~`, `++`, `--` (prefix)
 3. **Multiplicative**: `*`, `/`, `%`
@@ -141,4 +172,9 @@ literal         ::= INTLIT | FLOATLIT | BOOLLIT | STRINGLIT | CHARLIT ;
 - All statements require blocks (`{}`) for consistency
 - Switch cases support fall-through behavior
 - Type specifications are flexible and composable
-- Expression precedence follows C language standards 
+- Expression precedence follows C language standards
+- Preprocessor directives are parsed at the declaration level
+- Include directives support both system (`<>`) and user (`""`) includes
+- Define macros support both object-like and function-like definitions
+- Enum declarations require semicolon termination
+- Enum values are comma-separated identifiers 

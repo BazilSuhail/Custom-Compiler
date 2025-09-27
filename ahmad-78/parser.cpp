@@ -321,6 +321,21 @@ struct DefineDirective : AstNode {
     }
 };
 
+struct EnumDecl : AstNode {
+    string name;
+    vector<string> values;
+    
+    string toString() const override {
+        string valuesStr = "[";
+        for (size_t i = 0; i < values.size(); ++i) {
+            if (i > 0) valuesStr += ", ";
+            valuesStr += "\"" + values[i] + "\"";
+        }
+        valuesStr += "]";
+        return "Enum(EnumDecl { name: \"" + name + "\", values: " + valuesStr + " })";
+    }
+};
+
 // ============================================================================
 // PARSER CLASS
 // ============================================================================
@@ -356,6 +371,7 @@ private:
     unique_ptr<AstNode> fnDeclWithType(const string& type);
     unique_ptr<AstNode> includeDirective();
     unique_ptr<AstNode> defineDirective();
+    unique_ptr<AstNode> enumDecl();
     unique_ptr<AstNode> statement();
     unique_ptr<AstNode> exprStmt();
     unique_ptr<AstNode> assignStmt();
@@ -415,6 +431,11 @@ unique_ptr<AstNode> Parser::declaration() {
         return includeDirective();
     } else if (check(T_DEFINE)) {
         return defineDirective();
+    }
+    
+    // Check for enum declaration
+    if (check(T_ENUM)) {
+        return enumDecl();
     }
     
     // Check for type qualifiers and modifiers
@@ -584,6 +605,32 @@ unique_ptr<AstNode> Parser::defineDirective() {
     
     define->value = value;
     return define;
+}
+
+unique_ptr<AstNode> Parser::enumDecl() {
+    consume(T_ENUM, "Expected 'enum'");
+    
+    auto enumDecl = make_unique<EnumDecl>();
+    
+    // Get the enum name
+    Token name = consume(T_IDENTIFIER, "Expected enum name");
+    enumDecl->name = name.value;
+    
+    // Parse the enum body
+    consume(T_LBRACE, "Expected '{' after enum name");
+    
+    // Parse enum values
+    if (!check(T_RBRACE)) {
+        do {
+            Token value = consume(T_IDENTIFIER, "Expected enum value");
+            enumDecl->values.push_back(value.value);
+        } while (match({T_COMMA}));
+    }
+    
+    consume(T_RBRACE, "Expected '}' after enum values");
+    consume(T_SEMICOLON, "Expected ';' after enum declaration");
+    
+    return enumDecl;
 }
 
 unique_ptr<AstNode> Parser::fnDeclWithType(const string& returnType) {
@@ -1388,6 +1435,21 @@ int main() {
     float area = calculateArea(5.0);
     return 0;
 }
+)");
+
+    // Test 18: Enum Declaration
+    runTest("Enum Declaration", R"(
+enum Color {
+    RED,
+    GREEN,
+    BLUE
+};
+
+enum Status {
+    ACTIVE,
+    INACTIVE,
+    PENDING
+};
 )");
 
     cout << "🎯 All tests completed!" << endl;
