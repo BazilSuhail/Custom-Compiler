@@ -45,6 +45,8 @@ enum class ParseErrorType {
     ExpectedBoolLit,
     ExpectedExpr,
     InvalidCallTarget,   // NEW: only identifiers can be called
+    MissingSemicolon,
+    UnclosedBlock
 };
 
 struct ParseError {
@@ -83,6 +85,12 @@ struct ParseError {
                 break;
             case ParseErrorType::InvalidCallTarget:
                 message = "Invalid function call target: only identifiers can be called";
+                break;
+            case ParseErrorType::MissingSemicolon:
+                message = "Missing semicolon at end of statement";
+                break;
+            case ParseErrorType::UnclosedBlock:
+                message = "Unclosed block, expected '}' before end of file";
                 break;
             case ParseErrorType::ExpectedExpr:
                 message = "Expected expression";
@@ -705,7 +713,10 @@ private:
         } else {
             // Expression statement
             ASTPtr expr = parseExpression();
-            expect(T_SEMICOLON);  // Consume the semicolon
+            //expect(T_SEMICOLON);  // Consume the semicolon
+            if (!match(T_SEMICOLON)) {
+                throw ParseError(ParseErrorType::MissingSemicolon, currentToken);
+            }           
             return make_unique<ExpressionStmt>(move(expr));
         }
     }
@@ -722,7 +733,11 @@ private:
             initializer = parseExpression();
         }
         
-        expect(T_SEMICOLON);  // Consume the semicolon
+        // expect(T_SEMICOLON);  // Consume the semicolon
+        if (!match(T_SEMICOLON)) {
+            throw ParseError(ParseErrorType::MissingSemicolon, currentToken);
+        }
+
         return make_unique<VarDecl>(type, name, move(initializer));
     }
 
@@ -737,8 +752,11 @@ private:
             } while (match(T_COMMA));
         }
         expect(T_RPAREN);
-        expect(T_SEMICOLON);  // Consume the semicolon
         
+        //expect(T_SEMICOLON);  // Consume the semicolon
+        if (!match(T_SEMICOLON)) {
+            throw ParseError(ParseErrorType::MissingSemicolon, currentToken);
+        }
         return make_unique<PrintStmt>(move(args));
     }
 
@@ -775,7 +793,12 @@ private:
         if (!check(T_SEMICOLON) && !check(T_RBRACE)) {  
             value = parseExpression();
         }
-        expect(T_SEMICOLON);  // Consume the semicolon
+
+        // Consume the semicolon
+        // expect(T_SEMICOLON);  
+        if (!match(T_SEMICOLON)) {
+            throw ParseError(ParseErrorType::MissingSemicolon, currentToken);
+        }
         return make_unique<ReturnStmt>(move(value));
     }
 
@@ -788,11 +811,13 @@ private:
     vector<ASTPtr> parseBlock() {
         expect(T_LBRACE);
         vector<ASTPtr> statements;
-        
+              
         while (!check(T_RBRACE) && !check(T_EOF)) {
             statements.push_back(parseStatement());
         }
-        
+        if (check(T_EOF)) {
+            throw ParseError(ParseErrorType::UnclosedBlock, currentToken);
+        }
         expect(T_RBRACE);
         return statements;
     }
