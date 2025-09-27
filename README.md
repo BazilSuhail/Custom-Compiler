@@ -131,5 +131,78 @@ FunctionDecl(main)
 
 ---
 
+## Pratt Parser Grammer:
+
+```
+
+program     → { declaration } ;
+
+declaration → variable_decl | function_decl | main_decl ;
+
+variable_decl → type IDENTIFIER [ "=" expression ] ";" ;
+
+function_decl → type IDENTIFIER "(" [ parameter_list ] ")" block ;
+
+parameter_list → parameter { "," parameter } ;
+
+parameter     → type IDENTIFIER ;
+
+main_decl     → "main" block ;
+
+block         → "{" { statement } "}" ;
+
+statement     → expression_stmt
+              | print_stmt
+              | if_stmt
+              | while_stmt
+              | return_stmt
+              | block
+              | variable_decl ;
+
+expression_stmt → [ expression ] ";" ;
+
+print_stmt    → "print" "(" [ expression_list ] ")" ";" ;
+
+expression_list → expression { "," expression } ;
+
+if_stmt       → "if" "(" expression ")" statement [ "else" statement ] ;
+
+while_stmt    → "while" "(" expression ")" statement ;
+
+return_stmt   → "return" [ expression ] ";" ;
+
+expression    → assignment ;
+
+assignment    → IDENTIFIER "=" assignment
+              | logical_or ;
+
+logical_or    → logical_and { "||" logical_and } ;
+
+logical_and   → equality { "&&" equality } ;
+
+equality      → comparison { ( "==" | "!=" ) comparison } ;
+
+comparison    → term { ( "<" | ">" | "<=" | ">=" ) term } ;
+
+term          → factor { ( "+" | "-" ) factor } ;
+
+factor        → unary { ( "*" | "/" | "%" ) unary } ;
+
+unary         → ( "!" | "-" ) unary
+              | primary ;
+
+primary       → IDENTIFIER
+              | literal
+              | "(" expression ")"
+              | IDENTIFIER "(" [ argument_list ] ")" ;  // function call
+
+argument_list → expression { "," expression } ;
+
+literal       → INTLIT | FLOATLIT | STRINGLIT | CHARLIT | BOOLLIT ;
+
+```
+
+---
+
 **Maintained by Group Members (Abdullah-54, Ahmad-78, Arshad-69, Bazil-72)**  
 Compiler Construction Course – 2025
