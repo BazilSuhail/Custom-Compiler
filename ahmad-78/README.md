@@ -6,7 +6,7 @@ A comprehensive recursive descent parser for a C-style programming language, bui
 
 ### Language Support
 - **Data Types**: `int`, `float`, `double`, `char`, `bool`, `void`
-- **Type Qualifiers**: `const`, `signed`, `unsigned`, `short`, `long`
+- **Type Qualifiers**: `const`
 - **Control Flow**: `if/else`, `while`, `do-while`, `for`, `switch/case/default`
 - **Flow Control**: `break`, `continue`, `return`
 - **Functions**: Function declarations with parameters and return types
@@ -28,7 +28,7 @@ A comprehensive recursive descent parser for a C-style programming language, bui
 - **Complex Expressions**: Support for nested and complex expressions
 - **Function Calls**: Function invocation with argument lists
 - **Nested Control Flow**: Support for deeply nested control structures
-- **Type Combinations**: Complex type specifiers like `const unsigned long int`
+- **Type Combinations**: Simple type specifiers like `const int`
 - **Macro Definitions**: Both object-like and function-like macros
 
 ## Architecture
@@ -114,9 +114,9 @@ int x = 10;
 float pi = 3.14;
 bool flag = true;
 
-// Complex types
-const unsigned long int complexVar = 42;
-const signed short value = -100;
+// With const qualifier
+const int constantVar = 42;
+const double value = 3.14159;
 ```
 
 ### Function Declarations
@@ -126,9 +126,9 @@ int add(int a, int b) {
     return a + b;
 }
 
-// Complex return types and parameters
-const int compute(unsigned int a, const long b, signed short c) {
-    return a + b - c;
+// Function with const parameters
+int compute(const int a, int b, const double c) {
+    return a + b + (int)c;
 }
 ```
 
@@ -257,7 +257,7 @@ Parse Error: Unexpected token at line 10, column 3
 
 ## Testing
 
-The parser includes 18 comprehensive test suites covering:
+The parser includes comprehensive test suites covering:
 
 1. Arithmetic operators with modulo
 2. Logical operators  
@@ -267,16 +267,16 @@ The parser includes 18 comprehensive test suites covering:
 6. Switch-case statements
 7. Continue statements
 8. Type qualifiers (const)
-9. Type modifiers (signed, unsigned, short, long)
-10. Complex type combinations
-11. Functions with complex types
-12. Nested control flow
-13. Complex expressions
-14. All unary operators
-15. Include directives
-16. Define directives
-17. Mixed preprocessor and code
-18. Enum declarations
+9. Simple type combinations
+10. Functions with simple const types
+11. Nested control flow
+12. Complex expressions
+13. All unary operators
+14. Include directives
+15. Define directives
+16. Mixed preprocessor and code
+17. Enum declarations
+18. Error handling and edge cases
 
 All tests demonstrate successful parsing and correct AST generation.
 

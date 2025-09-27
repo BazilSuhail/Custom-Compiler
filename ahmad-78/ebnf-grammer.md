@@ -17,11 +17,9 @@ parameters      ::= parameter ( "," parameter )* ;
 
 parameter       ::= typeSpec IDENTIFIER ;
 
-typeSpec        ::= typeQualifier* typeModifier* baseType ;
+typeSpec        ::= typeQualifier? baseType ;
 
-typeQualifier   ::= "const" | "static" ;
-
-typeModifier    ::= "signed" | "unsigned" | "short" | "long" ;
+typeQualifier   ::= "const" ;
 
 baseType        ::= "int" | "float" | "double" | "char" | "bool" | "void" ;
 

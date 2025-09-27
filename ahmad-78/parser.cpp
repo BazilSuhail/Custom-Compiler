@@ -444,18 +444,25 @@ unique_ptr<AstNode> Parser::declaration() {
         return enumDecl();
     }
     
-    // Check for type qualifiers and modifiers
-    if (check(T_CONST) || check(T_STATIC) || check(T_SIGNED) || check(T_UNSIGNED) || 
-        check(T_SHORT) || check(T_LONG) || check(T_INT) || check(T_FLOAT) || 
+    // Check for type qualifiers and base types
+    if (check(T_CONST) || check(T_INT) || check(T_FLOAT) || 
         check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
         
-        // Parse all type specifiers and qualifiers
+        // Parse type specifier (optional const + base type)
         string fullType = "";
-        while (check(T_CONST) || check(T_STATIC) || check(T_SIGNED) || check(T_UNSIGNED) || 
-               check(T_SHORT) || check(T_LONG) || check(T_INT) || check(T_FLOAT) || 
-               check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
+        
+        // Check for const qualifier (only once)
+        if (check(T_CONST)) {
+            fullType += advance().value;
+        }
+        
+        // Parse base type
+        if (check(T_INT) || check(T_FLOAT) || check(T_DOUBLE) || 
+            check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
             if (!fullType.empty()) fullType += " ";
             fullType += advance().value;
+        } else if (fullType.empty()) {
+            error(ParseError::ExpectedTypeToken, "Expected base type");
         }
         
         // Check if this is a function declaration by looking for identifier followed by parentheses
@@ -535,16 +542,20 @@ unique_ptr<AstNode> Parser::fnDecl() {
     // Parse parameters
     if (!check(T_RPAREN)) {
         do {
-            // Parse parameter type (with qualifiers/modifiers)
+            // Parse parameter type (optional const + base type)
             string paramType = "";
-            while (check(T_CONST) || check(T_SIGNED) || check(T_UNSIGNED) || 
-                   check(T_SHORT) || check(T_LONG) || check(T_INT) || check(T_FLOAT) || 
-                   check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
-                if (!paramType.empty()) paramType += " ";
+            
+            // Check for const qualifier (only once)
+            if (check(T_CONST)) {
                 paramType += advance().value;
             }
             
-            if (paramType.empty()) {
+            // Parse base type
+            if (check(T_INT) || check(T_FLOAT) || check(T_DOUBLE) || 
+                check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
+                if (!paramType.empty()) paramType += " ";
+                paramType += advance().value;
+            } else if (paramType.empty()) {
                 error(ParseError::ExpectedTypeToken, "Expected parameter type");
             }
             
@@ -672,16 +683,20 @@ unique_ptr<AstNode> Parser::fnDeclWithType(const string& returnType) {
     // Parse parameters
     if (!check(T_RPAREN)) {
         do {
-            // Parse parameter type (with qualifiers/modifiers)
+            // Parse parameter type (optional const + base type)
             string paramType = "";
-            while (check(T_CONST) || check(T_SIGNED) || check(T_UNSIGNED) || 
-                   check(T_SHORT) || check(T_LONG) || check(T_INT) || check(T_FLOAT) || 
-                   check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
-                if (!paramType.empty()) paramType += " ";
+            
+            // Check for const qualifier (only once)
+            if (check(T_CONST)) {
                 paramType += advance().value;
             }
             
-            if (paramType.empty()) {
+            // Parse base type
+            if (check(T_INT) || check(T_FLOAT) || check(T_DOUBLE) || 
+                check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
+                if (!paramType.empty()) paramType += " ";
+                paramType += advance().value;
+            } else if (paramType.empty()) {
                 error(ParseError::ExpectedTypeToken, "Expected parameter type");
             }
             
@@ -1520,8 +1535,8 @@ int compute(a, int b) {
 int float x = 5;
 )");
 
-    runErrorTest("Invalid Qualifier Order", R"(
-int const static x = 5;
+    runErrorTest("Invalid Variable Type", R"(
+invalid_type x = 5;
 )");
 
     cout << "=" << string(60, '=') << endl;
@@ -1768,8 +1783,8 @@ int result = ((((a + b) * c) - d) / ((e % f) + g));
 )");
 
     // Complex valid constructs that push boundaries
-    runEdgeCaseTest("Complex Type Qualifiers", R"(
-const static unsigned long long int veryComplexType = 123456789;
+    runEdgeCaseTest("Simple Const Types", R"(
+const int simpleConstType = 123456789;
 )");
 
     runEdgeCaseTest("Nested Control Flow Maximum Depth", R"(
@@ -1825,7 +1840,7 @@ void test() {
 enum Test { A, B, C };
 
 void func() {
-    const unsigned long long var = 0;
+    const int var = 0;
 }
 )");
 
@@ -1850,7 +1865,7 @@ void allOps() {
 )");
 
     runEdgeCaseTest("Function Parameter Edge Cases", R"(
-void manyParams(int a, float b, double c, char d, bool e, const int f, long g, unsigned short h, signed char i, long long j) {
+void manyParams(int a, float b, double c, char d, bool e, const int f) {
     return;
 }
 
