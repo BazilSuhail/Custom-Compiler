@@ -2,6 +2,8 @@
 #include <string>
 #include <map>
 #include <cstring>
+#include <fstream>
+#include <sstream>
 using namespace std;
 
 // === Token Types ===
@@ -405,70 +407,115 @@ const char* tokenTypeToString(TokenType type) {
     }
 }
 
-// === Test Function ===
-void testLexer(const string& code, const string& testName) {
-    cout << "=== " << testName << " ===\n";
+// =========================================================================
+
+void testLexer(const string& code, ostream& out) {
     LexerState state = createLexerState(code.c_str());
     Token token;
     while (getNextToken(state, token)) {
         if (token.type == T_ERROR) {
-            cout << "ERROR(line " << token.line << ", col " << token.column << "): " << token.value << "\n";
+            out << "ERROR(line " << token.line << ", col " << token.column << "): " << token.value << "\n";
         } 
         else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
-            cout << tokenTypeToString(token.type) << "(" << token.value << ")\n";
+            //out << tokenTypeToString(token.type) << "(" << token.value << "), " << "line: " << token.line << ", col: " << token.column <<"\n";
+            out << tokenTypeToString(token.type) << "(" << token.value << ")," << token.line << "," << token.column <<"\n";
         }
-        /*
-        else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
-            cout << "Line " << token.line << ", Col " << token.column << ": "
-                 << tokenTypeToString(token.type) << "(\"" << token.value << "\")\n";
-        }
-        */
     }
-    cout << endl;
+    out << endl;
 }
 
-// === Example Input Code (with print and main) ===
 int main() {
-    string code = R"(
-    include<main>
-    // Functions
-    int add(int a, int b) {
-        return a + b;
+    ifstream inputFile("tester/sample.txt");
+    if (!inputFile.is_open()) {
+        cerr << "Failed to open input.txt" << endl;
+        return 1;
     }
 
-    // Main entry point
-    main {
-        int x = 42;
-        float y = 3.14159;
+    stringstream buffer;
+    buffer << inputFile.rdbuf();
+    string code = buffer.str();
+    inputFile.close();
 
-        // Unicode identifiers
-        int π = 3;
-        int 🌍 = 9;
-        float résumé = 2.5;
-        char 你好 = 'A';
-
-        // Print statements
-        print("Hello World! 🌍✨\n";)
-        print("Value of pi: ", π, "\n");
-
-        if (π > 0) {
-            print("Positive pi\n");
-        } else {
-            return x;
-        }
-
-        while (x > 0) {
-            x = x - 1;
-            print "x = ", x, "\n";
-        }
-
-        // Invalid variable name
-        int 123val = 55;
-
-        return 0;
+    // Open output file in trunc mode (clear previous contents)
+    ofstream outputFile("tester/tokens.txt", ios::out | ios::trunc);
+    if (!outputFile.is_open()) {
+        cerr << "Failed to open tester/tokens.txt" << endl;
+        return 1;
     }
-    )";
 
-    testLexer(code, "Final Lexer with PRINT and MAIN");
+    // Run lexer and write to output file
+    testLexer(code, outputFile);
+
+    outputFile.close();
+    cout << "Lexing completed successfully. Results written to tester/tokens.txt" << endl;
+
     return 0;
 }
+
+// // === Test Function ===
+// void testLexer(const string& code, const string& testName) {
+//     cout << "=== " << testName << " ===\n";
+//     LexerState state = createLexerState(code.c_str());
+//     Token token;
+//     while (getNextToken(state, token)) {
+//         if (token.type == T_ERROR) {
+//             cout << "ERROR(line " << token.line << ", col " << token.column << "): " << token.value << "\n";
+//         } 
+//         else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
+//             cout << tokenTypeToString(token.type) << "(" << token.value << ")\n";
+//         }
+//         /*
+//         else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
+//             cout << "Line " << token.line << ", Col " << token.column << ": "
+//                  << tokenTypeToString(token.type) << "(\"" << token.value << "\")\n";
+//         }
+//         */
+//     }
+//     cout << endl;
+// }
+
+// // === Example Input Code (with print and main) ===
+// int main() {
+//     string code = R"(
+//     include<main>
+//     // Functions
+//     int add(int a, int b) {
+//         return a + b;
+//     }
+
+//     // Main entry point
+//     main {
+//         int x = 42;
+//         float y = 3.14159;
+
+//         // Unicode identifiers
+//         int π = 3;
+//         int 🌍 = 9;
+//         float résumé = 2.5;
+//         char 你好 = 'A';
+
+//         // Print statements
+//         print("Hello World! 🌍✨\n";)
+//         print("Value of pi: ", π, "\n");
+
+//         if (π > 0) {
+//             print("Positive pi\n");
+//         } else {
+//             return x;
+//         }
+
+//         while (x > 0) {
+//             x = x - 1;
+//             print "x = ", x, "\n";
+//         }
+
+//         // Invalid variable name
+//         int 123val = 55;
+
+//         return 0;
+//     }
+//     )";
+
+//     testLexer(code, "Final Lexer with PRINT and MAIN");
+//     return 0;
+// }
