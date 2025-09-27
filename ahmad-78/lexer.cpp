@@ -324,18 +324,3 @@ const char* tokenTypeToString(TokenType type) {
     if (type < 0 || type >= (int)(sizeof(names)/sizeof(names[0]))) return "T_UNKNOWN";
     return names[type];
 }
-
-// Test driver
-void testLexer(const string& code, const string& testName) {
-    cout << "=== " << testName << " ===\n";
-    LexerState state = createLexerState(code.c_str());
-    Token token;
-    while (getNextToken(state, token)) {
-        if (token.type == T_ERROR)
-            cout << "ERROR: " << token.value << " at line " << token.line << ", column " << token.column << "\n";
-        else
-            cout << tokenTypeToString(token.type) << "(\"" << token.value << "\"), ";
-    }
-    cout << "\n\n";
-}
-

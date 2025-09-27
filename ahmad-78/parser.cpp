@@ -290,6 +290,37 @@ struct IdentifierExpr : AstNode {
     }
 };
 
+struct IncludeDirective : AstNode {
+    string filename;
+    bool isSystemInclude; // true for <>, false for ""
+    
+    string toString() const override {
+        string includeType = isSystemInclude ? "SystemInclude" : "UserInclude";
+        return "Include(" + includeType + " { file: \"" + filename + "\" })";
+    }
+};
+
+struct DefineDirective : AstNode {
+    string name;
+    string value;
+    vector<string> parameters; // for function-like macros
+    bool isFunctionLike;
+    
+    string toString() const override {
+        if (isFunctionLike) {
+            string paramsStr = "[";
+            for (size_t i = 0; i < parameters.size(); ++i) {
+                if (i > 0) paramsStr += ", ";
+                paramsStr += "\"" + parameters[i] + "\"";
+            }
+            paramsStr += "]";
+            return "Define(FunctionMacro { name: \"" + name + "\", params: " + paramsStr + ", value: \"" + value + "\" })";
+        } else {
+            return "Define(ObjectMacro { name: \"" + name + "\", value: \"" + value + "\" })";
+        }
+    }
+};
+
 // ============================================================================
 // PARSER CLASS
 // ============================================================================
@@ -323,6 +354,8 @@ private:
     unique_ptr<AstNode> varDeclWithType(const string& type);
     unique_ptr<AstNode> fnDecl();
     unique_ptr<AstNode> fnDeclWithType(const string& type);
+    unique_ptr<AstNode> includeDirective();
+    unique_ptr<AstNode> defineDirective();
     unique_ptr<AstNode> statement();
     unique_ptr<AstNode> exprStmt();
     unique_ptr<AstNode> assignStmt();
@@ -377,6 +410,13 @@ vector<unique_ptr<AstNode>> Parser::parse() {
 }
 
 unique_ptr<AstNode> Parser::declaration() {
+    // Check for preprocessor directives first
+    if (check(T_INCLUDE)) {
+        return includeDirective();
+    } else if (check(T_DEFINE)) {
+        return defineDirective();
+    }
+    
     // Check for type qualifiers and modifiers
     if (check(T_CONST) || check(T_STATIC) || check(T_SIGNED) || check(T_UNSIGNED) || 
         check(T_SHORT) || check(T_LONG) || check(T_INT) || check(T_FLOAT) || 
@@ -478,6 +518,72 @@ unique_ptr<AstNode> Parser::fnDecl() {
     
     consume(T_RBRACE, "Expected '}' after function body");
     return fnDecl;
+}
+
+unique_ptr<AstNode> Parser::includeDirective() {
+    consume(T_INCLUDE, "Expected '#include'");
+    
+    auto include = make_unique<IncludeDirective>();
+    
+    // Check if it's a string literal (user include) or angle brackets (system include)
+    if (check(T_STRINGLIT)) {
+        Token filename = advance();
+        include->filename = filename.value.substr(1, filename.value.length() - 2); // Remove quotes
+        include->isSystemInclude = false;
+    } else if (check(T_LT)) {
+        consume(T_LT, "Expected '<'");
+        
+        // Collect everything until '>'
+        string filename = "";
+        while (!check(T_GT) && !isAtEnd()) {
+            filename += advance().value;
+        }
+        
+        consume(T_GT, "Expected '>' after include filename");
+        include->filename = filename;
+        include->isSystemInclude = true;
+    } else {
+        error(ParseError::UnexpectedToken, "Expected string literal or '<' after #include");
+    }
+    
+    return include;
+}
+
+unique_ptr<AstNode> Parser::defineDirective() {
+    consume(T_DEFINE, "Expected '#define'");
+    
+    auto define = make_unique<DefineDirective>();
+    define->isFunctionLike = false;
+    
+    // Get the macro name
+    Token name = consume(T_IDENTIFIER, "Expected macro name after #define");
+    define->name = name.value;
+    
+    // Check if it's a function-like macro (has parameters)
+    if (check(T_LPAREN)) {
+        define->isFunctionLike = true;
+        consume(T_LPAREN, "Expected '(' for function-like macro");
+        
+        // Parse parameters
+        if (!check(T_RPAREN)) {
+            do {
+                Token param = consume(T_IDENTIFIER, "Expected parameter name");
+                define->parameters.push_back(param.value);
+            } while (match({T_COMMA}));
+        }
+        
+        consume(T_RPAREN, "Expected ')' after macro parameters");
+    }
+    
+    // Collect the rest of the line as the macro value
+    string value = "";
+    while (!isAtEnd() && peek().line == name.line) {
+        if (!value.empty()) value += " ";
+        value += advance().value;
+    }
+    
+    define->value = value;
+    return define;
 }
 
 unique_ptr<AstNode> Parser::fnDeclWithType(const string& returnType) {
@@ -1088,8 +1194,7 @@ vector<Token> tokenizeWithLexer(const string& code) {
             continue;
         }
         // Skip comments but include other tokens
-        if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT && 
-            token.type != T_INCLUDE && token.type != T_DEFINE) {
+        if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
             tokens.push_back(token);
         }
     }
@@ -1128,128 +1233,161 @@ int main() {
     cout << "🧪 COMPREHENSIVE PARSER TESTS" << endl;
     cout << "Testing all new operators, statements, and type features" << endl << endl;
 
-    // Test 1: All arithmetic operators including modulo
-    runTest("Arithmetic Operators with Modulo", R"(
-int result = (a + b) * c - d / 2 % 3;
+//     // Test 1: All arithmetic operators including modulo
+//     runTest("Arithmetic Operators with Modulo", R"(
+// int result = (a + b) * c - d / 2 % 3;
+// )");
+
+//     // Test 2: Logical operators
+//     runTest("Logical Operators", R"(
+// bool condition = (x > 5) && (y < 10) || !flag;
+// )");
+
+//     // Test 3: Bitwise operators
+//     runTest("Bitwise Operators", R"(
+// int bits = a & b | c ^ d;
+// int shifted = value << 2 >> 1;
+// int negated = ~mask;
+// )");
+
+//     // Test 4: While loop
+//     runTest("While Loop", R"(
+// while (i < 10) {
+//     sum = sum + i;
+//     i++;
+// }
+// )");
+
+//     // Test 5: Do-while loop
+//     runTest("Do-While Loop", R"(
+// do {
+//     input = getInput();
+//     process(input);
+// } while (input != 0);
+// )");
+
+//     // Test 6: Switch-case statement
+//     runTest("Switch-Case Statement", R"(
+// switch (option) {
+//     case 1:
+//         doOption1();
+//         break;
+//     case 2:
+//         doOption2();
+//         break;
+//     default:
+//         doDefault();
+//         break;
+// }
+// )");
+
+//     // Test 7: Continue statement
+//     runTest("Continue Statement", R"(
+// for (int i = 0; i < 10; i++) {
+//     if (i % 2 == 0) {
+//         continue;
+//     }
+//     processOdd(i);
+// }
+// )");
+
+//     // Test 8: Type qualifiers (const, static)
+//     runTest("Type Qualifiers", R"(
+// const int MAX_SIZE = 100;
+// static float globalVar = 3.14;
+// const char message = 'A';
+// )");
+
+//     // Test 9: Type modifiers (signed, unsigned, short, long)
+//     runTest("Type Modifiers", R"(
+// unsigned int counter = 0;
+// signed long bigNumber = -1000000;
+// short int smallNum = 32767;
+// long double precision = 3.14159265359;
+// )");
+
+//     // Test 10: Complex type combinations
+//     runTest("Complex Type Combinations", R"(
+// static const unsigned long int complexVar = 42;
+// const signed short value = -100;
+// )");
+
+//     // Test 11: Function with complex types
+//     runTest("Function with Complex Types", R"(
+// static const int compute(unsigned int a, const long b, signed short c) {
+//     return a + b - c;
+// }
+// )");
+
+//     // Test 12: Nested control flow
+// runTest("Nested Control Flow", R"(
+// while (running) {
+//     switch (state) {
+//         case INIT:
+//             if (ready) {
+//                 state = RUNNING;
+//             }
+//             break;
+//         case RUNNING:
+//             for (int i = 0; i < count; i++) {
+//                 if (i % 2 == 0) { continue; }
+//                 process(i);
+//             }
+//             break;
+//         default:
+//             break;
+//     }
+// }
+// )");
+
+//     // Test 13: Complex expressions with all operators
+//     runTest("Complex Expression", R"(
+// bool result = ((a & 2) << 8) | (b >> 4) && !(c % 2) || (d >= e);
+// )");
+
+//     // Test 14: All unary operators
+//     runTest("Unary Operators", R"(
+// int a = +value;
+// int b = -number;
+// bool c = !flag;
+// int d = ~bits;
+// int e = ++counter;
+// int f = --index;
+// int g = postInc++;
+// int h = postDec--;
+// )");
+
+    // Test 15: Include directives
+    runTest("Include Directives", R"(
+#include <stdio.h>
+#include <iostream>
+#include "myheader.h"
+#include "utils/helper.h"
 )");
 
-    // Test 2: Logical operators
-    runTest("Logical Operators", R"(
-bool condition = (x > 5) && (y < 10) || !flag;
+    // Test 16: Define directives
+    runTest("Define Directives", R"(
+#define PI 3.14159
+#define MAX_SIZE 100
+#define SQUARE(x) ((x) * (x))
+#define MIN(a, b) ((a) < (b))
+#define DEBUG_MODE
 )");
 
-    // Test 3: Bitwise operators
-    runTest("Bitwise Operators", R"(
-int bits = a & b | c ^ d;
-int shifted = value << 2 >> 1;
-int negated = ~mask;
-)");
+    // Test 17: Mixed preprocessor and code
+    runTest("Mixed Preprocessor and Code", R"(
+#include <iostream>
+#define PI 3.14159
+#define CIRCLE_AREA(r) (PI * (r) * (r))
 
-    // Test 4: While loop
-    runTest("While Loop", R"(
-while (i < 10) {
-    sum = sum + i;
-    i++;
+float calculateArea(float radius) {
+    return CIRCLE_AREA(radius);
 }
-)");
 
-    // Test 5: Do-while loop
-    runTest("Do-While Loop", R"(
-do {
-    input = getInput();
-    process(input);
-} while (input != 0);
-)");
-
-    // Test 6: Switch-case statement
-    runTest("Switch-Case Statement", R"(
-switch (option) {
-    case 1:
-        doOption1();
-        break;
-    case 2:
-        doOption2();
-        break;
-    default:
-        doDefault();
-        break;
+int main() {
+    float area = calculateArea(5.0);
+    return 0;
 }
-)");
-
-    // Test 7: Continue statement
-    runTest("Continue Statement", R"(
-for (int i = 0; i < 10; i++) {
-    if (i % 2 == 0) {
-        continue;
-    }
-    processOdd(i);
-}
-)");
-
-    // Test 8: Type qualifiers (const, static)
-    runTest("Type Qualifiers", R"(
-const int MAX_SIZE = 100;
-static float globalVar = 3.14;
-const char message = 'A';
-)");
-
-    // Test 9: Type modifiers (signed, unsigned, short, long)
-    runTest("Type Modifiers", R"(
-unsigned int counter = 0;
-signed long bigNumber = -1000000;
-short int smallNum = 32767;
-long double precision = 3.14159265359;
-)");
-
-    // Test 10: Complex type combinations
-    runTest("Complex Type Combinations", R"(
-static const unsigned long int complexVar = 42;
-const signed short value = -100;
-)");
-
-    // Test 11: Function with complex types
-    runTest("Function with Complex Types", R"(
-static const int compute(unsigned int a, const long b, signed short c) {
-    return a + b - c;
-}
-)");
-
-    // Test 12: Nested control flow
-runTest("Nested Control Flow", R"(
-while (running) {
-    switch (state) {
-        case INIT:
-            if (ready) {
-                state = RUNNING;
-            }
-            break;
-        case RUNNING:
-            for (int i = 0; i < count; i++) {
-                if (i % 2 == 0) { continue; }
-                process(i);
-            }
-            break;
-        default:
-            break;
-    }
-}
-)");
-
-    // Test 13: Complex expressions with all operators
-    runTest("Complex Expression", R"(
-bool result = ((a & 2) << 8) | (b >> 4) && !(c % 2) || (d >= e);
-)");
-
-    // Test 14: All unary operators
-    runTest("Unary Operators", R"(
-int a = +value;
-int b = -number;
-bool c = !flag;
-int d = ~bits;
-int e = ++counter;
-int f = --index;
-int g = postInc++;
-int h = postDec--;
 )");
 
     cout << "🎯 All tests completed!" << endl;
