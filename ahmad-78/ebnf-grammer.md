@@ -3,11 +3,18 @@
 program         ::= declaration* EOF ;
 
 declaration     ::= varDecl
+                  | fnDecl
                   | statement ;
 
 varDecl         ::= type IDENTIFIER ( "=" expression )? ";" ;
 
-type            ::= "int" | "float" | "double" | "char" | "bool" ;
+fnDecl          ::= type IDENTIFIER "(" parameters? ")" block ;
+
+parameters      ::= parameter ( "," parameter )* ;
+
+parameter       ::= type IDENTIFIER ;
+
+type            ::= "int" | "float" | "double" | "char" | "bool" | "void" ;
 
 statement       ::= returnStmt
                   | ifStmt

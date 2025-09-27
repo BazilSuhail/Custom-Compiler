@@ -227,6 +227,7 @@ public:
 private:
     unique_ptr<AstNode> declaration();
     unique_ptr<AstNode> varDecl();
+    unique_ptr<AstNode> fnDecl();
     unique_ptr<AstNode> statement();
     unique_ptr<AstNode> exprStmt();
     unique_ptr<AstNode> assignStmt();
@@ -271,9 +272,16 @@ vector<unique_ptr<AstNode>> Parser::parse() {
 }
 
 unique_ptr<AstNode> Parser::declaration() {
-    if (check(T_INT) || check(T_FLOAT) || check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL)) {
+    if (check(T_INT) || check(T_FLOAT) || check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL) || check(T_VOID)) {
         advance(); // CONSUME THE TYPE TOKEN
-        return varDecl();
+        
+        // Look ahead to see if this is a function declaration
+        if (current < tokens.size() && tokens[current].type == T_IDENTIFIER && 
+            current + 1 < tokens.size() && tokens[current + 1].type == T_LPAREN) {
+            return fnDecl();
+        } else {
+            return varDecl();
+        }
     } else {
         return statement();
     }
@@ -293,6 +301,45 @@ unique_ptr<AstNode> Parser::varDecl() {
     
     consume(T_SEMICOLON, "Expected ';' after variable declaration");
     return varDecl;
+}
+
+unique_ptr<AstNode> Parser::fnDecl() {
+    string returnType = previous().value;  // GET TYPE FROM PREVIOUS TOKEN
+    Token name = consume(T_IDENTIFIER, "Expected function name");
+    
+    auto fnDecl = make_unique<FnDecl>();
+    fnDecl->returnType = returnType;
+    fnDecl->name = name.value;
+    
+    consume(T_LPAREN, "Expected '(' after function name");
+    
+    // Parse parameters
+    if (!check(T_RPAREN)) {
+        do {
+            // Parse parameter type
+            if (!(check(T_INT) || check(T_FLOAT) || check(T_DOUBLE) || check(T_CHAR) || check(T_BOOL) || check(T_VOID))) {
+                error(ParseError::ExpectedTypeToken, "Expected parameter type");
+            }
+            string paramType = advance().value;
+            
+            // Parse parameter name
+            Token paramName = consume(T_IDENTIFIER, "Expected parameter name");
+            
+            fnDecl->params.push_back(make_pair(paramType, paramName.value));
+            
+        } while (match({T_COMMA}));
+    }
+    
+    consume(T_RPAREN, "Expected ')' after parameters");
+    consume(T_LBRACE, "Expected '{' before function body");
+    
+    // Parse function body
+    while (!check(T_RBRACE) && !isAtEnd()) {
+        fnDecl->body.push_back(declaration());
+    }
+    
+    consume(T_RBRACE, "Expected '}' after function body");
+    return fnDecl;
 }
 
 unique_ptr<AstNode> Parser::statement() {
@@ -717,9 +764,9 @@ for (int i = 0; i < 10; i++) {
         }
         cout << endl << "]" << endl << endl;
 
-        cout << "=== Testing Complex Expression ===" << endl;
+        cout << "=== Testing Function ===" << endl;
         string testCode5 = R"(
-int result(){
+int result(int a, int b, int c, int d) {
         return (a + b) * c - d / 2;
 }
 )";
