@@ -334,16 +334,56 @@ struct EnumDecl : AstNode {
 // PARSER CLASS
 
 enum class ParseError {
+    // General errors
     UnexpectedEOF,
-    FailedToFindToken,
+    UnexpectedToken,
+    LexerError,
+    
+    // Declaration errors
     ExpectedTypeToken,
     ExpectedIdentifier,
-    UnexpectedToken,
+    ExpectedFunctionName,
+    ExpectedParameterName,
+    ExpectedVariableName,
+    
+    // Statement errors
+    ExpectedSemicolon,
+    ExpectedLeftParen,
+    ExpectedRightParen,
+    ExpectedLeftBrace,
+    ExpectedRightBrace,
+    ExpectedColon,
+    ExpectedComma,
+    
+    // Expression errors
+    ExpectedExpr,
+    ExpectedPrimaryExpr,
+    ExpectedAssignmentOp,
+    
+    // Literal errors
     ExpectedFloatLit,
     ExpectedIntLit,
     ExpectedStringLit,
     ExpectedBoolLit,
-    ExpectedExpr,
+    ExpectedCharLit,
+    
+    // Control flow errors
+    ExpectedCondition,
+    ExpectedWhileKeyword,
+    ExpectedCaseValue,
+    ExpectedReturnValue,
+    
+    // Include/Define errors
+    ExpectedIncludeFile,
+    ExpectedMacroName,
+    ExpectedAngleBracket,
+    
+    // Deprecated / misc
+    FailedToFindToken,
+    
+    // Added
+    InternalError,
+    ExpectedAssignmentOperator,
 };
 
 class Parser {
@@ -353,6 +393,7 @@ private:
     Token previousToken;
     bool hasCurrentToken = false;
     bool hasPreviousToken = false;
+    Token lastNonCommentToken; // track last significant token for better EOF reporting
 
 public:
     Parser(LexerState state) : lexerState(state) {
@@ -410,6 +451,8 @@ private:
     Token previous();
     
     void error(ParseError err, const string& message);
+    [[noreturn]] void errorAt(ParseError err, const Token& tok, const string& message);
+    string errorTypeName(ParseError err) const;
 };
 
 // PARSER IMPLEMENTATION
@@ -423,6 +466,8 @@ vector<unique_ptr<AstNode>> Parser::parse() {
 }
 
 unique_ptr<AstNode> Parser::declaration() {
+    // parse() loop already ensures we are not at end; we avoid redundant EOF error here.
+    
     // Check for preprocessor directives first
     if (check(T_INCLUDE)) {
         return includeDirective();
@@ -453,13 +498,11 @@ unique_ptr<AstNode> Parser::declaration() {
             if (!fullType.empty()) fullType += " ";
             fullType += advance().value;
         } else if (fullType.empty()) {
-            error(ParseError::ExpectedTypeToken, "Expected base type");
+            error(ParseError::ExpectedTypeToken, "Expected base type after 'const' or at declaration start");
         }
         
-        // Check if this is a function declaration by looking for identifier followed by parentheses
-        // We need to peek ahead - if we see identifier, we check for function or variable
+        // Determine function vs variable
         if (check(T_IDENTIFIER)) {
-            // Save current lexer state to potentially backtrack
             LexerState savedState = lexerState;
             Token savedCurrent = currentToken;
             Token savedPrevious = previousToken;
@@ -469,7 +512,7 @@ unique_ptr<AstNode> Parser::declaration() {
             advance(); // consume identifier
             bool isFunction = check(T_LPAREN);
             
-            // Restore lexer state
+            // Restore
             lexerState = savedState;
             currentToken = savedCurrent;
             previousToken = savedPrevious;
@@ -482,7 +525,8 @@ unique_ptr<AstNode> Parser::declaration() {
                 return varDeclWithType(fullType);
             }
         } else {
-            return varDeclWithType(fullType);
+            error(ParseError::ExpectedIdentifier, "Expected identifier after type specifier in declaration");
+            return nullptr;
         }
     } else {
         return statement();
@@ -583,17 +627,24 @@ unique_ptr<AstNode> Parser::includeDirective() {
     } else if (check(T_LT)) {
         consume(T_LT, "Expected '<'");
         
-        // Collect everything until '>'
+        // Collect everything until '>' or error on newline/EOF
         string filename = "";
+        int startLine = peek().line; // line after '<'
         while (!check(T_GT) && !isAtEnd()) {
+            // If line advanced without finding '>', treat as missing angle bracket
+            if (peek().line != startLine && !check(T_GT)) {
+                error(ParseError::ExpectedAngleBracket, "Missing closing '>' in #include directive");
+            }
             filename += advance().value;
         }
-        
+        if (isAtEnd()) {
+            error(ParseError::ExpectedAngleBracket, "Unexpected EOF while scanning #include <...>");
+        }
         consume(T_GT, "Expected '>' after include filename");
         include->filename = filename;
         include->isSystemInclude = true;
     } else {
-        error(ParseError::UnexpectedToken, "Expected string literal or '<' after #include");
+        error(ParseError::ExpectedIncludeFile, "Expected string literal \"file.h\" or <system_file.h> after #include");
     }
     
     return include;
@@ -960,7 +1011,7 @@ unique_ptr<AstNode> Parser::switchStmt() {
             
             switchStmt->cases.push_back(move(defaultStmt));
         } else {
-            error(ParseError::UnexpectedToken, "Expected 'case' or 'default' in switch body");
+            error(ParseError::ExpectedCaseValue, "Expected 'case' or 'default' in switch body, found unexpected token");
         }
     }
     
@@ -1232,7 +1283,7 @@ unique_ptr<AstNode> Parser::primary() {
         return unary;
     }
     
-    error(ParseError::ExpectedExpr, "Expected expression");
+    error(ParseError::ExpectedPrimaryExpr, "Expected primary expression (identifier, literal, or parenthesized expression)");
     return nullptr;
 }
 
@@ -1249,8 +1300,35 @@ bool Parser::match(initializer_list<TokenType> types) {
 
 Token Parser::consume(TokenType type, string message) {
     if (check(type)) return advance();
-    error(ParseError::UnexpectedToken, message);
-    // Return a dummy token to avoid compiler warnings
+
+    ParseError errorType = ParseError::UnexpectedToken;
+    if (type == T_SEMICOLON) errorType = ParseError::ExpectedSemicolon;
+    else if (type == T_LPAREN) errorType = ParseError::ExpectedLeftParen;
+    else if (type == T_RPAREN) errorType = ParseError::ExpectedRightParen;
+    else if (type == T_LBRACE) errorType = ParseError::ExpectedLeftBrace;
+    else if (type == T_RBRACE) errorType = ParseError::ExpectedRightBrace;
+    else if (type == T_COLON) errorType = ParseError::ExpectedColon;
+    else if (type == T_COMMA) errorType = ParseError::ExpectedComma;
+    else if (type == T_IDENTIFIER) errorType = ParseError::ExpectedIdentifier;
+    else if (type == T_GT) errorType = ParseError::ExpectedAngleBracket;
+
+    Token found = hasCurrentToken ? currentToken : previous();
+    Token locationTok = found;
+    if (errorType == ParseError::ExpectedSemicolon && hasPreviousToken) {
+        locationTok = previousToken;
+    }
+
+    string foundStr = string(tokenTypeToString(found.type)) + "('" + found.value + "')";
+    if (!message.empty()) message += "; ";
+    message += "found " + foundStr;
+
+    if (errorType == ParseError::ExpectedSemicolon) {
+        string name = errorTypeName(errorType);
+        cout << "Error[" << name << "]: " << message << " at " << locationTok.line << ", " << locationTok.column << endl;
+        throw runtime_error(name + ": " + message);
+    }
+
+    error(errorType, message);
     return Token();
 }
 
@@ -1266,14 +1344,20 @@ Token Parser::advance() {
     }
     
     if (getNextToken(lexerState, currentToken)) {
-        // Skip comments but include other tokens
+        if (currentToken.type == T_ERROR) {
+            error(ParseError::LexerError, "Lexer error: " + currentToken.value);
+        }
         while (currentToken.type == T_SINGLE_COMMENT || currentToken.type == T_MULTI_COMMENT) {
             if (!getNextToken(lexerState, currentToken)) {
                 hasCurrentToken = false;
                 return previous();
             }
+            if (currentToken.type == T_ERROR) {
+                error(ParseError::LexerError, "Lexer error: " + currentToken.value);
+            }
         }
         hasCurrentToken = true;
+        lastNonCommentToken = currentToken;
     } else {
         hasCurrentToken = false;
     }
@@ -1282,7 +1366,8 @@ Token Parser::advance() {
 }
 
 bool Parser::isAtEnd() {
-    return !hasCurrentToken || peek().type == T_ERROR;
+    // End when we failed to fetch further tokens.
+    return !hasCurrentToken;
 }
 
 Token Parser::peek() {
@@ -1312,39 +1397,94 @@ Token Parser::previous() {
 }
 
 void Parser::error(ParseError err, const string& message) {
-    cout << "Parse Error: " << message << " at line " << peek().line << ", column " << peek().column << endl;
-    throw runtime_error(message);
+    Token tok;
+    if (hasCurrentToken) tok = currentToken;
+    else if (hasPreviousToken) tok = previousToken;
+    else tok = lastNonCommentToken; // fallback
+    errorAt(err, tok, message);
+}
+
+void Parser::errorAt(ParseError err, const Token& tok, const string& message) {
+    string name = errorTypeName(err);
+    cout << "Error[" << name << "]: " << message << " at " << tok.line << ", " << tok.column << endl;
+    throw runtime_error(name + ": " + message);
+}
+
+string Parser::errorTypeName(ParseError err) const {
+    switch (err) {
+        case ParseError::UnexpectedEOF: return "UnexpectedEOF";
+        case ParseError::UnexpectedToken: return "UnexpectedToken";
+        case ParseError::LexerError: return "LexerError";
+        case ParseError::ExpectedTypeToken: return "ExpectedType";
+        case ParseError::ExpectedIdentifier: return "ExpectedIdentifier";
+        case ParseError::ExpectedSemicolon: return "ExpectedSemicolon";
+        case ParseError::ExpectedLeftParen: return "ExpectedLeftParen";
+        case ParseError::ExpectedRightParen: return "ExpectedRightParen";
+        case ParseError::ExpectedLeftBrace: return "ExpectedLeftBrace";
+        case ParseError::ExpectedRightBrace: return "ExpectedRightBrace";
+        case ParseError::ExpectedColon: return "ExpectedColon";
+        case ParseError::ExpectedComma: return "ExpectedComma";
+        case ParseError::ExpectedExpr: return "ExpectedExpression";
+        case ParseError::ExpectedPrimaryExpr: return "ExpectedPrimaryExpr";
+        case ParseError::ExpectedAssignmentOp: return "ExpectedAssignmentOp";
+        case ParseError::ExpectedFloatLit: return "ExpectedFloatLiteral";
+        case ParseError::ExpectedIntLit: return "ExpectedIntLiteral";
+        case ParseError::ExpectedStringLit: return "ExpectedStringLiteral";
+        case ParseError::ExpectedBoolLit: return "ExpectedBoolLiteral";
+        case ParseError::ExpectedCharLit: return "ExpectedCharLiteral";
+        case ParseError::ExpectedCondition: return "ExpectedCondition";
+        case ParseError::ExpectedWhileKeyword: return "ExpectedWhile";
+        case ParseError::ExpectedCaseValue: return "ExpectedCase";
+        case ParseError::ExpectedReturnValue: return "ExpectedReturnValue";
+        case ParseError::ExpectedIncludeFile: return "ExpectedIncludeFile";
+        case ParseError::ExpectedMacroName: return "ExpectedMacroName";
+        case ParseError::ExpectedAngleBracket: return "ExpectedAngleBracket";
+        case ParseError::FailedToFindToken: return "FailedToFindToken";
+        case ParseError::InternalError: return "InternalError";
+        case ParseError::ExpectedAssignmentOperator: return "ExpectedAssignmentOperator";
+        default: return "ParseError";
+    }
 }
 
 // TEST DRIVER 
 
-void runTest(const string& testName, const string& code) {
+void runTest(const string& testName, const string& code, bool printSource, bool printTokens) {
     cout << "=== " << testName << " ===" << endl;
-    cout << "Source code:" << endl << code << endl;
-    
+
+    if (printSource) {
+        cout << "Source code:" << endl << code << endl;
+    }
+
     try {
         // Create lexer state for tokenization display
         LexerState tokenDisplayState = createLexerState(code.c_str());
         vector<Token> tokens; // Just for display purposes
         Token token;
+        bool lexerError = false;
         while (getNextToken(tokenDisplayState, token)) {
             if (token.type == T_ERROR) {
-                cout << "Lexer error: " << token.value << " at line " << token.line << ", column " << token.column << endl;
-                continue;
+                cout << "Error[LexerError]: Lexer error: " << token.value << " at " << token.line << ", " << token.column << endl;
+                lexerError = true;
+                break; // Stop processing on first lexer error
             }
-            // Skip comments but include other tokens for display
             if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
                 tokens.push_back(token);
             }
         }
         
-        cout << endl << "Tokens: ";
-        for (const auto& tok : tokens) {
-            cout << tokenTypeToString(tok.type) << "('" << tok.value << "') ";
+        if (lexerError) {
+            cout << "Parsing terminated due to lexer error." << endl << endl;
+            return;
         }
-        cout << endl << endl;
+        
+        if (printTokens) {
+            cout << endl << "Tokens: ";
+            for (const auto& tok : tokens) {
+                cout << tokenTypeToString(tok.type) << "('" << tok.value << "') ";
+            }
+            cout << endl << endl;
+        }
 
-        // Create fresh lexer state for parsing
         LexerState parsingState = createLexerState(code.c_str());
         Parser parser(parsingState);
         vector<unique_ptr<AstNode>> ast = parser.parse();
@@ -1356,6 +1496,8 @@ void runTest(const string& testName, const string& code) {
         }
         cout << endl << "]" << endl;        
     } catch (const exception& e) {
+        // Suppress duplicate because errorAt already printed standardized line.
+        // Optionally could enable a debug flag to reprint.
     }
 }
 
@@ -1369,11 +1511,11 @@ string readFile(const string& filename) {
 }
 
 int main() {
-    try {
-        string code = readFile("test_code.txt");
+    // Test with clean code first
+    string cleanCode = readFile("test_code.txt");
+    bool printSource = false;
+    bool printTokens = false;
+    runTest("Testing", cleanCode, printSource, printTokens);
 
-        runTest("Testing from File test_code.txt", code);
-    } catch (const exception& e) {
-        cerr << "Error: " << e.what() << endl;
-    }
+    return 0;
 }
