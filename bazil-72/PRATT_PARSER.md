@@ -3,6 +3,8 @@
 This README is of **pratt-parser**'s implementation describing' the features, grammar, and operator precedence
 of the toy language implemented in your compiler front-end.
 
+---
+
 ## Features Implemented
 
 -   **Include directive**
@@ -18,6 +20,10 @@ of the toy language implemented in your compiler front-end.
     -   Print statements with multiple arguments.
     -   If/Else statements (brace-delimited blocks only).
     -   While loops (brace-delimited blocks only).
+    -   Do-While loops (brace-delimited blocks only).
+    -   For loops (brace-delimited blocks only).
+    -   Switch statements with case blocks and optional default.
+    -   Break statements (simple placeholder).
     -   Blocks `{ ... }` containing multiple statements.
 -   **Expressions**
     -   Literals: int, float, char, string, bool.
@@ -35,78 +41,131 @@ of the toy language implemented in your compiler front-end.
     -   Assignment requires an identifier on the left-hand side. Chained
         assignment is not supported.
     -   `print` is a reserved statement, not a general function.
+    -   Do-While loops execute body at least once, condition checked after execution.
+    -   For loops support initialization, condition, and update expressions.
+    -   Switch statements evaluate expression once and match against case values.
+    -   Case statements execute block directly after value without colon separator.
+    -   Default block executes if no case matches (optional).
+    -   Break statements provide early exit from loops/switches.
 
 ------------------------------------------------------------------------
 
 ## Grammar (BNF)
 
-    <program> ::= <top-level>* EOF
+```
 
-    <top-level> ::= <include-stmt>
-                  | <function-decl>
-                  | <main-decl>
-                  | <statement>
+// Program Structure
+program ::= include_stmt* (function_decl | main_decl)*
 
-    <include-stmt> ::= "include" "<" "main" ">"
+// Include Statements
+include_stmt ::= "include" ("<main>" | string_literal | identifier) ";"
 
-    <function-decl> ::= <type> IDENTIFIER "(" <param-list>? ")" <block>
+// Function Declarations
+function_decl ::= type_specifier identifier "(" parameter_list? ")" block_stmt
+parameter_list ::= (type_specifier identifier) ("," type_specifier identifier)*
 
-    <param-list> ::= <param> ("," <param>)*
-    <param> ::= <type> IDENTIFIER
+// Main Declaration
+main_decl ::= "main" block_stmt
 
-    <main-decl> ::= "main" <block>
+// Type Specifiers
+type_specifier ::= "int" | "float" | "double" | "char" | "bool" | "void"
 
-    <statement> ::= <var-decl>
-                  | <print-stmt>
-                  | <if-stmt>
-                  | <while-stmt>
-                  | <return-stmt>
-                  | <block-stmt>
-                  | <expression-stmt>
+// Statements
+statement ::= 
+    | var_decl
+    | expr_stmt
+    | block_stmt
+    | if_stmt
+    | while_stmt
+    | do_while_stmt
+    | for_stmt
+    | switch_stmt
+    | return_stmt
+    | print_stmt
+    | break_stmt
 
-    <var-decl> ::= <type> IDENTIFIER ("=" <expression>)? ";" 
+// Variable Declaration
+var_decl ::= type_specifier identifier ("=" expression)? ";"
 
-    <print-stmt> ::= "print" "(" <arg-list>? ")" ";"
+// Expression Statement
+expr_stmt ::= expression ";"
 
-    <if-stmt> ::= "if" "(" <expression> ")" <block-stmt> ("else" <block-stmt>)?
+// Block Statement
+block_stmt ::= "{" statement* "}"
 
-    <while-stmt> ::= "while" "(" <expression> ")" <block-stmt>
+// If Statement
+if_stmt ::= "if" "(" expression ")" block_stmt ("else" block_stmt)?
 
-    <return-stmt> ::= "return" <expression>? ";" 
+// While Loop
+while_stmt ::= "while" "(" expression ")" block_stmt
 
-    <block-stmt> ::= <block>
-    <block> ::= "{" <statement>* "}" 
+// Do-While Loop
+do_while_stmt ::= "do" block_stmt "while" "(" expression ")" ";"
 
-    <expression-stmt> ::= <expression> ";" 
+// For Loop
+for_stmt ::= "for" "(" (var_decl | expression? ";") expression? ";" expression? ")" block_stmt
 
-    <arg-list> ::= <expression> ("," <expression>)*
+// Switch Statement
+switch_stmt ::= "switch" "(" expression ")" "{" case_block* default_block? "}"
+case_block ::= "case" expression block_stmt
+default_block ::= "default" block_stmt
 
-    <expression> ::= <assignment>
+// Return Statement
+return_stmt ::= "return" expression? ";"
 
-    <assignment> ::= IDENTIFIER "=" <expression>
-                   | <logical-or>
+// Print Statement
+print_stmt ::= "print" "(" expression_list? ")" ";"
 
-    <logical-or> ::= <logical-and> ( "||" <logical-and> )*
+// Break Statement
+break_stmt ::= "break" ";"
 
-    <logical-and> ::= <equality> ( "&&" <equality> )*
+// Expressions
+expression ::= assignment_expr
 
-    <equality> ::= <comparison> ( ("==" | "!=") <comparison> )*
+assignment_expr ::= logical_or_expr ("=" assignment_expr)?
 
-    <comparison> ::= <term> ( ("<" | ">" | "<=" | ">=") <term> )*
+logical_or_expr ::= logical_and_expr ("||" logical_and_expr)*
 
-    <term> ::= <factor> ( ("+" | "-") <factor> )*
+logical_and_expr ::= equality_expr ("&&" equality_expr)*
 
-    <factor> ::= <unary> ( ("*" | "/" | "%") <unary> )*
+equality_expr ::= comparison_expr (("==" | "!=") comparison_expr)*
 
-    <unary> ::= ("-" | "!") <unary>
-              | <postfix>
+comparison_expr ::= term_expr (("<" | ">" | "<=" | ">=") term_expr)*
 
-    <postfix> ::= IDENTIFIER "(" <arg-list>? ")"
-                | <primary>
+term_expr ::= factor_expr (("+" | "-") factor_expr)*
 
-    <primary> ::= INTLIT | FLOATLIT | STRINGLIT | CHARLIT | BOOLLIT | IDENTIFIER | "(" <expression> ")"
+factor_expr ::= unary_expr (("*" | "/" | "%") unary_expr)*
 
-    <type> ::= "int" | "float" | "double" | "char" | "bool" | "void"
+unary_expr ::= ("-" | "!") unary_expr | call_expr
+
+call_expr ::= primary_expr ("(" expression_list? ")")?
+
+primary_expr ::= 
+    | literal
+    | identifier
+    | "(" expression ")"
+    | identifier "[" expression "]"  // Array access (if supported)
+
+expression_list ::= expression ("," expression)*
+
+// Literals
+literal ::= 
+    | integer_literal
+    | float_literal
+    | string_literal
+    | char_literal
+    | bool_literal
+
+integer_literal ::= [0-9]+
+float_literal ::= [0-9]+\.[0-9]+
+string_literal ::= "\"" .*? "\""
+char_literal ::= "'" . "'"
+bool_literal ::= "true" | "false"
+
+// Identifier
+identifier ::= [a-zA-Z_][a-zA-Z0-9_]*
+
+```
 
 ---
 

@@ -25,10 +25,11 @@ enum TokenType {
     T_AND, T_OR, T_NOT,
 
     // Keywords
-    T_IF, T_ELSE, T_WHILE, T_RETURN, T_PRINT,  // <-- Added T_PRINT
+    T_IF, T_ELSE, T_WHILE, T_RETURN, T_PRINT,
+    T_MAIN,
 
-    // Special functions
-    T_MAIN,  // Optional: make main a keyword
+    // New keywords
+    T_STRING, T_DO, T_SWITCH, T_BREAK, T_FOR, T_DEFAULT, T_CASE, T_COLON,
 
     // Comments
     T_SINGLE_COMMENT, T_MULTI_COMMENT,
@@ -50,15 +51,19 @@ static const map<string, TokenType> keywords = {
     {"char", T_CHAR}, {"void", T_VOID}, {"bool", T_BOOL},
     {"true", T_BOOLLIT}, {"false", T_BOOLLIT},
     {"if", T_IF}, {"else", T_ELSE}, {"while", T_WHILE}, {"return", T_RETURN},
-    {"print", T_PRINT},   // <-- 'print' is now a keyword
-    {"main", T_MAIN}      // <-- Treat 'main' as special keyword
+    {"print", T_PRINT}, {"main", T_MAIN},
+
+    // Newly added keywords
+    {"string", T_STRING}, {"do", T_DO}, {"switch", T_SWITCH}, 
+    {"break", T_BREAK}, {"for", T_FOR}, {"default", T_DEFAULT}, {"case", T_CASE}
 };
+
 
 // === Single-character tokens ===
 static const map<char, TokenType> singleChars = {
     {'(', T_LPAREN}, {')', T_RPAREN}, {'{', T_LBRACE}, {'}', T_RBRACE},
     {'[', T_LBRACKET}, {']', T_RBRACKET}, {';', T_SEMICOLON},
-    {',', T_COMMA}, {'.', T_DOT}, {'+', T_PLUS}, {'-', T_MINUS},
+    {',', T_COMMA}, {'.', T_DOT}, {'+', T_PLUS}, {'-', T_MINUS},{':', T_COLON},   // <-- added here
     {'*', T_MULTIPLY}, {'/', T_DIVIDE}, {'%', T_MODULO}, {'=', T_ASSIGNOP},
     {'!', T_NOT}, {'<', T_LT}, {'>', T_GT}
 };
@@ -367,6 +372,14 @@ const char* tokenTypeToString(TokenType type) {
         case T_STRINGLIT: return "T_STRINGLIT";
         case T_CHARLIT: return "T_CHARLIT";
         case T_BOOLLIT: return "T_BOOLLIT";
+        case T_STRING: return "T_STRING";
+        case T_DO: return "T_DO";
+        case T_SWITCH: return "T_SWITCH";
+        case T_BREAK: return "T_BREAK";
+        case T_FOR: return "T_FOR";
+        case T_DEFAULT: return "T_DEFAULT";
+        case T_CASE: return "T_CASE";
+        case T_COLON: return "T_COLON";
         case T_LPAREN: return "T_LPAREN";
         case T_RPAREN: return "T_RPAREN";
         case T_LBRACE: return "T_LBRACE";
@@ -436,14 +449,12 @@ int main() {
     string code = buffer.str();
     inputFile.close();
 
-    // Open output file in trunc mode (clear previous contents)
     ofstream outputFile("tester/tokens.txt", ios::out | ios::trunc);
     if (!outputFile.is_open()) {
         cerr << "Failed to open tester/tokens.txt" << endl;
         return 1;
     }
 
-    // Run lexer and write to output file
     testLexer(code, outputFile);
 
     outputFile.close();
