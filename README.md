@@ -125,11 +125,6 @@ const double value = 3.14159;
 int add(int a, int b) {
     return a + b;
 }
-
-// Function with const parameters
-int compute(const int a, int b, const double c) {
-    return a + b + (int)c;
-}
 ```
 
 ### Control Flow
@@ -224,28 +219,6 @@ int factorial(int n) {
 }
 ```
 
-**AST Output:**
-```
-Fn(FnDecl { 
-    returnType: "int", 
-    name: "factorial", 
-    params: [("int", "n")], 
-    block: [
-        If(IfStmt { 
-            cond: ::Comp(LessEqual)(<=) "n" 1, 
-            if_block: [Ret(ExprStmt { expr: 1 })], 
-            else_block: [] 
-        }),
-        Ret(ExprStmt { 
-            expr: ::Mul(*) "n" Call(FnCall { 
-                ident: "factorial", 
-                args: [::Sub(-) "n" 1] 
-            })
-        })
-    ]
-})
-```
-
 ## Error Handling
 
 The parser provides detailed error messages with location information:
@@ -278,8 +251,6 @@ The parser includes comprehensive test suites covering:
 17. Enum declarations
 18. Error handling and edge cases
 
-All tests demonstrate successful parsing and correct AST generation.
-
 ## Dependencies
 
 - **Lexer**: Requires `lexer.cpp` for tokenization
@@ -294,17 +265,6 @@ All tests demonstrate successful parsing and correct AST generation.
 4. **Robust**: Comprehensive error handling and recovery
 5. **Fast**: Efficient recursive descent parsing
 6. **Standard Compliant**: Follows established C language grammar patterns
-
-## Future Enhancements
-
-Potential areas for expansion:
-- Pointer and array declarations
-- Struct and union support  
-- Typedef declarations
-- More complex expressions (ternary operator, etc.)
-- Improved error recovery
-- Symbol table integration
-- Semantic analysis
 
 ---
 
