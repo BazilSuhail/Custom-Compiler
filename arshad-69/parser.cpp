@@ -88,3 +88,34 @@ protected:
         for (int i = 0; i < indent; i++) cout << "  ";
     }
 };
+
+// === Specific AST Node Classes ===
+class Program : public ASTNode {
+public:
+    vector<unique_ptr<ASTNode>> declarations;
+    
+    Program() : ASTNode(NodeType::Program) {}
+    
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        cout << "Program [\n";
+        for (const auto& decl : declarations) {
+            decl->print(indent + 1);
+        }
+        printIndent(indent);
+        cout << "]\n";
+    }
+};
+
+class Parameter : public ASTNode {
+public:
+    string type;
+    string name;
+    
+    Parameter(const string& t, const string& n) : ASTNode(NodeType::Parameter), type(t), name(n) {}
+    
+    void print(int indent = 0) const override {
+        printIndent(indent);
+        cout << "Param { type: " << type << ", name: \"" << name << "\" }\n";
+    }
+};
