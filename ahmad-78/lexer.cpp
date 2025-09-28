@@ -48,7 +48,7 @@ struct Token {
     int column;
 };
 
-// ✅ Static keyword map (built once, faster than re-creating every call)
+// keyword map (built once, faster than re-creating every call)
 static const map<string, TokenType> keywords = {
     {"int", T_INT}, {"float", T_FLOAT}, {"double", T_DOUBLE},
     {"char", T_CHAR}, {"void", T_VOID}, {"bool", T_BOOL},
@@ -62,7 +62,7 @@ static const map<string, TokenType> keywords = {
     {"#include", T_INCLUDE}, {"#define", T_DEFINE}
 };
 
-// ✅ Static single-char tokens
+// single-char tokens
 static const map<char, TokenType> singleChars = {
     {'(', T_LPAREN}, {')', T_RPAREN}, {'{', T_LBRACE}, {'}', T_RBRACE},
     {'[', T_LBRACKET}, {']', T_RBRACKET}, {';', T_SEMICOLON}, {',', T_COMMA},
@@ -72,7 +72,7 @@ static const map<char, TokenType> singleChars = {
     {'^', T_BITWISE_XOR}, {'~', T_BITWISE_NOT}, {'=', T_ASSIGNOP}
 };
 
-// ✅ Static two-character operators
+// two-character operators
 static const map<string, TokenType> twoCharOps = {
     {"==", T_EQUALOP}, {"!=", T_NE}, {"<=", T_LE}, {">=", T_GE},
     {"&&", T_AND}, {"||", T_OR}, {"++", T_INCREMENT}, {"--", T_DECREMENT},
