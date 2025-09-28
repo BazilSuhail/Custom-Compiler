@@ -72,3 +72,19 @@ enum class NodeType {
     CharLiteral,
     BoolLiteral
 };
+
+// === AST Node Base Class ===
+class ASTNode {
+public:
+    NodeType nodeType;
+    int line, column;
+    
+    ASTNode(NodeType type, int l = 0, int c = 0) : nodeType(type), line(l), column(c) {}
+    virtual ~ASTNode() = default;
+    virtual void print(int indent = 0) const = 0;
+    
+protected:
+    void printIndent(int indent) const {
+        for (int i = 0; i < indent; i++) cout << "  ";
+    }
+};
