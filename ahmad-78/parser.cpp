@@ -1,5 +1,7 @@
 #include <iostream>
 #include <string>
+#include <fstream>
+#include <sstream>
 #include <vector>
 #include <memory>
 #include <initializer_list>
@@ -7,16 +9,9 @@
 #include <map>
 using namespace std;
 
-#include "lexer.cpp" // Assuming lexer.cpp defines Token and TokenType
+#include "lexer.cpp"
 
-// ============================================================================
-// TOKEN STRUCTURE (MATCHING YOUR LEXER)
-// ============================================================================
-
-// ============================================================================
 // AST NODES
-// ============================================================================
-
 struct AstNode {
     virtual ~AstNode() = default;
     virtual string toString() const = 0;
@@ -247,7 +242,7 @@ struct BinaryExpr : AstNode {
 struct UnaryExpr : AstNode {
     string op;
     unique_ptr<AstNode> expr;
-    bool isPostfix = false;  // NEW: to handle ++i vs i++
+    bool isPostfix = false;  // to handle ++i vs i++
     
     string toString() const override {
         if (isPostfix) {
@@ -336,9 +331,7 @@ struct EnumDecl : AstNode {
     }
 };
 
-// ============================================================================
 // PARSER CLASS
-// ============================================================================
 
 enum class ParseError {
     UnexpectedEOF,
@@ -390,7 +383,7 @@ private:
     unique_ptr<AstNode> breakStmt();
     unique_ptr<AstNode> continueStmt();
 
-    unique_ptr<AstNode> expression();    // assignment
+    unique_ptr<AstNode> expression();    
     unique_ptr<AstNode> assignment();
     unique_ptr<AstNode> logicalOr();
     unique_ptr<AstNode> logicalAnd();
@@ -419,9 +412,7 @@ private:
     void error(ParseError err, const string& message);
 };
 
-// ============================================================================
 // PARSER IMPLEMENTATION
-// ============================================================================
 
 vector<unique_ptr<AstNode>> Parser::parse() {
     vector<unique_ptr<AstNode>> statements;
@@ -451,7 +442,7 @@ unique_ptr<AstNode> Parser::declaration() {
         // Parse type specifier (optional const + base type)
         string fullType = "";
         
-        // Check for const qualifier (only once)
+        // Check for const qualifier 
         if (check(T_CONST)) {
             fullType += advance().value;
         }
@@ -545,7 +536,7 @@ unique_ptr<AstNode> Parser::fnDecl() {
             // Parse parameter type (optional const + base type)
             string paramType = "";
             
-            // Check for const qualifier (only once)
+            // Check for const qualifier 
             if (check(T_CONST)) {
                 paramType += advance().value;
             }
@@ -686,7 +677,7 @@ unique_ptr<AstNode> Parser::fnDeclWithType(const string& returnType) {
             // Parse parameter type (optional const + base type)
             string paramType = "";
             
-            // Check for const qualifier (only once)
+            // Check for const qualifier 
             if (check(T_CONST)) {
                 paramType += advance().value;
             }
@@ -1325,9 +1316,7 @@ void Parser::error(ParseError err, const string& message) {
     throw runtime_error(message);
 }
 
-// ============================================================================
-// TEST DRIVER - USING LEXER STATE DIRECTLY
-// ============================================================================
+// TEST DRIVER 
 
 void runTest(const string& testName, const string& code) {
     cout << "=== " << testName << " ===" << endl;
@@ -1349,12 +1338,12 @@ void runTest(const string& testName, const string& code) {
             }
         }
         
-        cout << "Tokens: ";
+        cout << endl << "Tokens: ";
         for (const auto& tok : tokens) {
             cout << tokenTypeToString(tok.type) << "('" << tok.value << "') ";
         }
-        cout << endl << "Total tokens: " << tokens.size() << endl;
-        
+        cout << endl << endl;
+
         // Create fresh lexer state for parsing
         LexerState parsingState = createLexerState(code.c_str());
         Parser parser(parsingState);
@@ -1365,517 +1354,26 @@ void runTest(const string& testName, const string& code) {
             if (i > 0) cout << "," << endl;
             cout << "    " << ast[i]->toString();
         }
-        cout << endl << "]" << endl;
-        cout << "✅ PASSED" << endl << endl;
-        
+        cout << endl << "]" << endl;        
     } catch (const exception& e) {
-        cout << "❌ FAILED: " << e.what() << endl << endl;
     }
 }
 
-void runErrorTest(const string& testName, const string& code, const string& expectedError = "") {
-    cout << "=== ERROR TEST: " << testName << " ===" << endl;
-    cout << "Source code:" << endl << code << endl;
-    
-    try {
-        LexerState parsingState = createLexerState(code.c_str());
-        Parser parser(parsingState);
-        vector<unique_ptr<AstNode>> ast = parser.parse();
-        
-        cout << "❌ UNEXPECTED SUCCESS - Expected error but parser succeeded!" << endl;
-        cout << "AST Output:" << endl << "[" << endl;
-        for (size_t i = 0; i < ast.size(); ++i) {
-            if (i > 0) cout << "," << endl;
-            cout << "    " << ast[i]->toString();
-        }
-        cout << endl << "]" << endl << endl;
-        
-    } catch (const exception& e) {
-        cout << "✅ EXPECTED ERROR CAUGHT: " << e.what() << endl;
-        if (!expectedError.empty() && string(e.what()).find(expectedError) == string::npos) {
-            cout << "⚠️  WARNING: Expected error '" << expectedError << "' but got different error" << endl;
-        }
-        cout << endl;
-    }
-}
+string readFile(const string& filename) {
+    ifstream file(filename);
+    if (!file.is_open()) throw runtime_error("Could not open file");
 
-void runEdgeCaseTest(const string& testName, const string& code) {
-    cout << "=== EDGE CASE: " << testName << " ===" << endl;
-    cout << "Source code:" << endl << code << endl;
-    
-    try {
-        LexerState parsingState = createLexerState(code.c_str());
-        Parser parser(parsingState);
-        vector<unique_ptr<AstNode>> ast = parser.parse();
-        
-        cout << "✅ PASSED - Edge case handled correctly" << endl;
-        cout << "AST Output:" << endl << "[" << endl;
-        for (size_t i = 0; i < ast.size(); ++i) {
-            if (i > 0) cout << "," << endl;
-            cout << "    " << ast[i]->toString();
-        }
-        cout << endl << "]" << endl << endl;
-        
-    } catch (const exception& e) {
-        cout << "❌ FAILED: " << e.what() << endl << endl;
-    }
+    stringstream buffer;
+    buffer << file.rdbuf();   // read whole file into buffer
+    return buffer.str();      // return as string
 }
 
 int main() {
-    cout << "🧪 COMPREHENSIVE ERROR & EDGE CASE TESTS" << endl;
-    cout << "Testing all error conditions and edge cases that our grammar handles" << endl << endl;
+    try {
+        string code = readFile("test_code.txt");
 
-    cout << "=" << string(60, '=') << endl;
-    cout << "SYNTAX ERROR TESTS" << endl;
-    cout << "=" << string(60, '=') << endl;
-
-    // Missing semicolons
-    runErrorTest("Missing Semicolon - Variable Declaration", R"(
-int x = 5
-int y = 10;
-)", "Expected ';'");
-
-    runErrorTest("Missing Semicolon - Assignment", R"(
-x = 42
-y = 24;
-)", "Expected ';'");
-
-    runErrorTest("Missing Semicolon - Expression Statement", R"(
-func()
-return 0;
-)", "Expected ';'");
-
-    runErrorTest("Missing Semicolon - Return Statement", R"(
-return x + y
-}", "Expected ';'");
-
-    // Missing parentheses
-    runErrorTest("Missing Opening Parenthesis - If Statement", R"(
-if x > 5) {
-    print(x);
-}
-)", "Expected '('");
-
-    runErrorTest("Missing Closing Parenthesis - If Statement", R"(
-if (x > 5 {
-    print(x);
-}
-)", "Expected ')'");
-
-    runErrorTest("Missing Opening Parenthesis - While Loop", R"(
-while x < 10) {
-    x++;
-}
-)", "Expected '('");
-
-    runErrorTest("Missing Closing Parenthesis - Function Call", R"(
-int result = func(a, b;
-)", "Expected ')'");
-
-    runErrorTest("Missing Opening Parenthesis - Function Declaration", R"(
-int compute int a, int b) {
-    return a + b;
-}
-)", "Expected '('");
-
-    // Missing braces
-    runErrorTest("Missing Opening Brace - If Statement", R"(
-if (x > 5) 
-    print(x);
-}
-)", "Expected '{'");
-
-    runErrorTest("Missing Closing Brace - Function", R"(
-int compute(int a) {
-    return a * 2;
-)", "Expected '}'");
-
-    runErrorTest("Missing Opening Brace - While Loop", R"(
-while (i < 10) 
-    i++;
-}
-)", "Expected '{'");
-
-    // Incomplete expressions
-    runErrorTest("Incomplete Binary Expression", R"(
-int result = a + ;
-)", "Expected");
-
-    runErrorTest("Incomplete Unary Expression", R"(
-bool flag = !;
-)", "Expected");
-
-    runErrorTest("Dangling Operator", R"(
-int x = 5 +;
-)", "Expected");
-
-    cout << "=" << string(60, '=') << endl;
-    cout << "TYPE ERROR TESTS" << endl;
-    cout << "=" << string(60, '=') << endl;
-
-    // Missing types
-    runErrorTest("Missing Variable Type", R"(
-x = 42;
-)");
-
-    runErrorTest("Missing Function Return Type", R"(
-compute(int a, int b) {
-    return a + b;
-}
-)");
-
-    runErrorTest("Missing Parameter Type", R"(
-int compute(a, int b) {
-    return a + b;
-}
-)", "Expected parameter type");
-
-    // Invalid type combinations (grammar should reject these)
-    runErrorTest("Invalid Type - Multiple Base Types", R"(
-int float x = 5;
-)");
-
-    runErrorTest("Invalid Variable Type", R"(
-invalid_type x = 5;
-)");
-
-    cout << "=" << string(60, '=') << endl;
-    cout << "DECLARATION ERROR TESTS" << endl;
-    cout << "=" << string(60, '=') << endl;
-
-    // Missing identifiers
-    runErrorTest("Missing Variable Identifier", R"(
-int = 42;
-)", "Expected variable name");
-
-    runErrorTest("Missing Function Identifier", R"(
-int (int a, int b) {
-    return a + b;
-}
-)", "Expected function name");
-
-    runErrorTest("Missing Parameter Identifier", R"(
-int compute(int, int b) {
-    return b;
-}
-)", "Expected parameter name");
-
-    // Malformed function declarations
-    runErrorTest("Function Missing Parameter List", R"(
-int compute {
-    return 42;
-}
-)", "Expected '('");
-
-    runErrorTest("Function Missing Body", R"(
-int compute(int a);
-)", "Expected '{'");
-
-    cout << "=" << string(60, '=') << endl;
-    cout << "STATEMENT ERROR TESTS" << endl;
-    cout << "=" << string(60, '=') << endl;
-
-    // Malformed if statements
-    runErrorTest("If Statement Missing Condition", R"(
-if () {
-    x = 5;
-}
-)", "Expected");
-
-    runErrorTest("If Statement Missing Body", R"(
-if (x > 5);
-)");
-
-    // Malformed while loops
-    runErrorTest("While Loop Missing Condition", R"(
-while () {
-    x++;
-}
-)", "Expected");
-
-    runErrorTest("While Loop Missing Body", R"(
-while (x < 10);
-)");
-
-    // Malformed for loops
-    runErrorTest("For Loop Malformed", R"(
-for (int i = 0 i < 10; i++) {
-    print(i);
-}
-)", "Expected ';'");
-
-    runErrorTest("For Loop Missing Semicolons", R"(
-for (int i = 0, i < 10, i++) {
-    print(i);
-}
-)", "Expected ';'");
-
-    // Malformed do-while loops
-    runErrorTest("Do-While Missing While Keyword", R"(
-do {
-    x++;
-} (x < 10);
-)", "Expected");
-
-    runErrorTest("Do-While Missing Condition", R"(
-do {
-    x++;
-} while ();
-)", "Expected");
-
-    // Malformed switch statements
-    runErrorTest("Switch Missing Expression", R"(
-switch () {
-    case 1: break;
-}
-)", "Expected");
-
-    runErrorTest("Switch Missing Braces", R"(
-switch (x) 
-    case 1: break;
-)", "Expected '{'");
-
-    runErrorTest("Case Missing Colon", R"(
-switch (x) {
-    case 1 break;
-}
-)", "Expected ':'");
-
-    cout << "=" << string(60, '=') << endl;
-    cout << "EXPRESSION ERROR TESTS" << endl;
-    cout << "=" << string(60, '=') << endl;
-
-    // Malformed expressions
-    runErrorTest("Unmatched Parentheses", R"(
-int result = (a + b * c;
-)", "Expected ')'");
-
-    runErrorTest("Invalid Operator Sequence", R"(
-int result = a ++ + b;
-)");
-
-    runErrorTest("Missing Operand", R"(
-int result = * 5;
-)");
-
-    runErrorTest("Empty Parentheses in Expression", R"(
-int result = a + () + b;
-)", "Expected");
-
-    cout << "=" << string(60, '=') << endl;
-    cout << "PREPROCESSOR ERROR TESTS" << endl;
-    cout << "=" << string(60, '=') << endl;
-
-    // Malformed include directives
-    runErrorTest("Include Missing Filename", R"(
-#include
-int main() { return 0; }
-)", "Expected");
-
-    runErrorTest("Include Malformed System Include", R"(
-#include <stdio.h
-int main() { return 0; }
-)", "Expected '>'");
-
-    runErrorTest("Include Malformed User Include", R"(
-#include "header.h
-int main() { return 0; }
-)");
-
-    // Malformed define directives
-    runErrorTest("Define Missing Name", R"(
-#define
-int main() { return 0; }
-)", "Expected macro name");
-
-    runErrorTest("Define Function Macro Missing Closing Paren", R"(
-#define SQUARE(x ((x) * (x))
-int main() { return 0; }
-)", "Expected ')'");
-
-    cout << "=" << string(60, '=') << endl;
-    cout << "ENUM ERROR TESTS" << endl;
-    cout << "=" << string(60, '=') << endl;
-
-    // Malformed enum declarations
-    runErrorTest("Enum Missing Name", R"(
-enum {
-    RED,
-    GREEN,
-    BLUE
-};
-)", "Expected enum name");
-
-    runErrorTest("Enum Missing Opening Brace", R"(
-enum Color
-    RED,
-    GREEN,
-    BLUE
-};
-)", "Expected '{'");
-
-    runErrorTest("Enum Missing Closing Brace", R"(
-enum Color {
-    RED,
-    GREEN,
-    BLUE
-;
-)", "Expected '}'");
-
-    runErrorTest("Enum Missing Semicolon", R"(
-enum Color {
-    RED,
-    GREEN,
-    BLUE
-}
-)", "Expected ';'");
-
-    runErrorTest("Enum Missing Value Name", R"(
-enum Color {
-    RED,
-    ,
-    BLUE
-};
-)", "Expected enum value");
-
-    cout << "=" << string(60, '=') << endl;
-    cout << "EDGE CASE TESTS" << endl;
-    cout << "=" << string(60, '=') << endl;
-
-    // Empty constructs
-    runEdgeCaseTest("Empty Function Body", R"(
-void empty() {
-}
-)");
-
-    runEdgeCaseTest("Empty If Block", R"(
-void test() {
-    if (x > 5) {
+        runTest("Testing from File test_code.txt", code);
+    } catch (const exception& e) {
+        cerr << "Error: " << e.what() << endl;
     }
-}
-)");
-
-    runEdgeCaseTest("Empty Switch Statement", R"(
-void test() {
-    switch (x) {
-    }
-}
-)");
-
-    runEdgeCaseTest("Empty Enum", R"(
-enum Empty {
-};
-)");
-
-    // Minimal constructs
-    runEdgeCaseTest("Function with No Parameters", R"(
-void func() {
-    return;
-}
-)");
-
-    runEdgeCaseTest("Single Character Variable", R"(
-int a;
-)");
-
-    runEdgeCaseTest("Deeply Nested Expressions", R"(
-int result = ((((a + b) * c) - d) / ((e % f) + g));
-)");
-
-    // Complex valid constructs that push boundaries
-    runEdgeCaseTest("Simple Const Types", R"(
-const int simpleConstType = 123456789;
-)");
-
-    runEdgeCaseTest("Nested Control Flow Maximum Depth", R"(
-void complex() {
-    for (int i = 0; i < 10; i++) {
-        while (condition) {
-            if (check1) {
-                switch (value) {
-                    case 1:
-                        if (check2) {
-                            do {
-                                if (check3) {
-                                    break;
-                                }
-                            } while (loop);
-                        }
-                        break;
-                    default:
-                        continue;
-                }
-            }
-        }
-    }
-}
-)");
-
-    runEdgeCaseTest("All Unary Operators Edge Cases", R"(
-void test() {
-    int x = 0;
-    ++x;
-    --x;
-    x++;
-    x--;
-    int a = +x;
-    int b = -x;
-    bool c = !false;
-    int d = ~0;
-}
-)");
-
-    runEdgeCaseTest("Complex Macro Definitions", R"(
-#define COMPLEX_MACRO(a, b, c, d) ((a) + (b) * (c) - (d))
-#define NESTED_CALL(x) COMPLEX_MACRO(x, x, x, x)
-)");
-
-    runEdgeCaseTest("Mixed Preprocessor Edge Cases", R"(
-#include <complex>
-#include "local.h"
-#define EMPTY_MACRO
-#define SINGLE_PARAM(x) (x)
-#define MULTIPLE_PARAMS(a,b,c,d,e) a+b+c+d+e
-
-enum Test { A, B, C };
-
-void func() {
-    const int var = 0;
-}
-)");
-
-    cout << "=" << string(60, '=') << endl;
-    cout << "BOUNDARY CONDITION TESTS" << endl;
-    cout << "=" << string(60, '=') << endl;
-
-    runEdgeCaseTest("Maximum Expression Complexity", R"(
-bool complex = ((a && b) || (c && d)) && ((e || f) && (g || h)) || 
-               ((i & j) | (k ^ l)) && ((m << n) | (o >> p)) ||
-               ((q == r) && (s != t)) && ((u < v) || (w >= x));
-)");
-
-    runEdgeCaseTest("All Binary Operators", R"(
-void allOps() {
-    int arith = a + b - c * d / e % f;
-    bool logic = (a && b) || (c && d);
-    int bitwise = (a & b) | (c ^ d);
-    int shift = (a << 2) | (b >> 3);
-    bool comp = (a == b) && (c != d) && (e < f) && (g > h) && (i <= j) && (k >= l);
-}
-)");
-
-    runEdgeCaseTest("Function Parameter Edge Cases", R"(
-void manyParams(int a, float b, double c, char d, bool e, const int f) {
-    return;
-}
-
-void noParams() {
-    return;
-}
-)");
-
-    cout << "🎯 ALL ERROR & EDGE CASE TESTS COMPLETED!" << endl;
-    cout << "Summary: Comprehensive testing of all error conditions and edge cases" << endl;
-    cout << "that our grammar/language handles (excluding typedef)" << endl;
-    return 0;
 }
