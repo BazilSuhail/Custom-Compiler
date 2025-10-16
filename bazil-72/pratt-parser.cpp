@@ -25,7 +25,7 @@ enum TokenType {
     T_SINGLE_COMMENT, T_MULTI_COMMENT,
     // new
     T_DO, T_FOR, T_SWITCH, T_CASE, T_DEFAULT, T_BREAK, T_COLON,
-    T_ERROR, T_EOF
+    T_ERROR, T_EOF, T_CONST, T_ENUM
 };
 
 struct Token {
@@ -204,6 +204,22 @@ struct Identifier : public ASTNode {
     }
 };
 
+struct IncDecExpr : public ASTNode {
+    TokenType op;
+    ASTPtr operand;
+    bool isPostfix;
+
+    IncDecExpr(TokenType o, ASTPtr opd, bool post)
+        : op(o), operand(move(opd)), isPostfix(post) {}
+
+    void print(int indent = 0) const override {
+        cout << string(indent, ' ') << "IncDecExpr(" 
+             << (op == T_INCREMENT ? "++" : "--")
+             << (isPostfix ? ", postfix" : ", prefix") << ")\n";
+        operand->print(indent + 2);
+    }
+};
+
 // === Expression Types ===
 struct BinaryExpr : public ASTNode {
     TokenType op;
@@ -275,6 +291,51 @@ struct CallExpr : public ASTNode {
         }
     }
 };
+
+struct ConstDecl : public ASTNode {
+    TokenType type;
+    string name;
+    ASTPtr value;
+    ConstDecl(TokenType t, string n, ASTPtr v)
+        : type(t), name(move(n)), value(move(v)) {}
+    void print(int indent = 0) const override {
+        cout << string(indent, ' ') << "ConstDecl(";
+        switch (type) {
+            case T_INT: cout << "int"; break;
+            case T_FLOAT: cout << "float"; break;
+            case T_DOUBLE: cout << "double"; break;
+            case T_CHAR: cout << "char"; break;
+            case T_BOOL: cout << "bool"; break;
+            default: cout << "unknown"; break;
+        }
+        cout << ", \"" << name << "\")\n";
+        if (value) value->print(indent + 2);
+    }
+};
+
+struct EnumMember {
+    string name;
+    ASTPtr value; // optional
+};
+
+struct EnumDecl : public ASTNode {
+    string name;
+    vector<EnumMember> members;
+    EnumDecl(string n, vector<EnumMember> m) : name(move(n)), members(move(m)) {}
+    void print(int indent = 0) const override {
+        cout << string(indent, ' ') << "EnumDecl(\"" << name << "\")\n";
+        for (const auto& m : members) {
+            cout << string(indent + 2, ' ') << "Member: " << m.name;
+            if (m.value) {
+                cout << " = ";
+                m.value->print(0);
+            } else {
+                cout << "\n";
+            }
+        }
+    }
+};
+
 
 // === Statement Types ===
 struct VarDecl : public ASTNode {
@@ -554,7 +615,12 @@ private:
             case T_LT: case T_GT: case T_LE: case T_GE: return COMPARISON;
             case T_PLUS: case T_MINUS: return TERM;
             case T_MULTIPLY: case T_DIVIDE: case T_MODULO: return FACTOR;
-            case T_LPAREN: return CALL;
+            // case T_LPAREN: return CALL;
+            // Function calls and postfix ++/--
+            case T_LPAREN:
+            case T_INCREMENT:
+            case T_DECREMENT:
+                return CALL;
             default: return LOWEST;
         }
     }
@@ -593,6 +659,13 @@ private:
             case T_BOOLLIT:   return parseBoolLiteral();
             case T_IDENTIFIER: return parseIdentifier();
             case T_LPAREN:    return parseGroupedExpression();
+            case T_INCREMENT:
+            case T_DECREMENT: {
+                Token op = currentToken;
+                advance();
+                ASTPtr operand = parseExpression(UNARY);
+                return make_unique<IncDecExpr>(op.type, move(operand), false); // prefix
+            }
             case T_MINUS:
             case T_NOT:
                 return parseUnaryExpression();
@@ -603,6 +676,16 @@ private:
 
     ASTPtr parseInfix(ASTPtr left, int precedence) {
         switch (currentToken.type) {
+            case T_INCREMENT:
+            case T_DECREMENT: {
+                Token op = currentToken;
+                advance();
+                // only identifiers can be incremented/decremented
+                if (!isIdentifierNode(left)) {
+                    throw ParseError(ParseErrorType::UnexpectedToken, op);
+                }
+                return make_unique<IncDecExpr>(op.type, move(left), true); // postfix
+            }
             case T_ASSIGNOP: case T_PLUS: case T_MINUS: case T_MULTIPLY:
             case T_DIVIDE: case T_MODULO: case T_EQUALOP: case T_NE:
             case T_LT: case T_GT: case T_LE: case T_GE: case T_AND: case T_OR:
@@ -720,6 +803,8 @@ private:
 
     // ---- Statements and declarations ----
     ASTPtr parseStatement() {
+        if (match(T_CONST)) return parseConstDeclaration();
+        if (match(T_ENUM)) return parseEnumDeclaration();
         if (isTypeToken(currentToken.type)) return parseVariableDeclaration();
         if (check(T_PRINT)) return parsePrintStatement();
         if (check(T_IF)) return parseIfStatement();
@@ -739,6 +824,49 @@ private:
         consumeSemicolon();
         return make_unique<ExpressionStmt>(move(expr));
     }
+
+    ASTPtr parseConstDeclaration() {
+    // after 'const' keyword, expect type
+    if (!isTypeToken(currentToken.type))
+        throw ParseError(ParseErrorType::ExpectedTypeToken, currentToken);
+    TokenType type = currentToken.type;
+    advance();
+
+    Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+    string name = nameToken.value;
+
+    expect(T_ASSIGNOP);
+    ASTPtr value = parseExpression();
+
+    consumeSemicolon();
+    return make_unique<ConstDecl>(type, name, move(value));
+}
+
+ASTPtr parseEnumDeclaration() {
+    Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+    string name = nameToken.value;
+
+    expect(T_LBRACE);
+    vector<EnumMember> members;
+
+    while (!check(T_RBRACE) && !check(T_EOF)) {
+        Token memberToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+        string memberName = memberToken.value;
+
+        ASTPtr value = nullptr;
+        if (match(T_ASSIGNOP)) value = parseExpression();
+
+        members.push_back({memberName, move(value)});
+
+        if (match(T_COMMA)) continue;
+        else break;
+    }
+
+    expect(T_RBRACE);
+    consumeSemicolon();
+    return make_unique<EnumDecl>(name, move(members));
+}
+
 
     ASTPtr parseVariableDeclaration() {
         TokenType type = currentToken.type;
@@ -1031,6 +1159,7 @@ TokenType tokenTypeFromString(const string& s) {
         {"T_DO", T_DO}, {"T_FOR", T_FOR}, {"T_SWITCH", T_SWITCH},
         {"T_CASE", T_CASE}, {"T_DEFAULT", T_DEFAULT},
         {"T_BREAK", T_BREAK}, {"T_COLON", T_COLON},
+        {"T_CONST", T_CONST},{"T_ENUM", T_ENUM},
         {"T_ERROR", T_ERROR}, {"T_EOF", T_EOF}
     };
     auto it = mapping.find(s);
