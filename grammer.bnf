@@ -1,0 +1,115 @@
+program ::= include_main declaration*
+
+include_main ::= "include" "<" "main" ">"
+
+declaration ::= function_decl | main_decl | statement
+
+function_decl ::= type identifier "(" [ param_list ] ")" block
+
+main_decl ::= "main" block
+
+param_list ::= param { "," param }*
+
+param ::= type identifier
+
+type ::= "int" | "float" | "double" | "char" | "bool" | "void"
+
+statement ::= const_decl
+            | enum_decl
+            | var_decl
+            | print_stmt
+            | if_stmt
+            | while_stmt
+            | do_while_stmt
+            | for_stmt
+            | switch_stmt
+            | return_stmt
+            | block
+            | expr_stmt
+            | "break" ";"
+
+const_decl ::= "const" type identifier "=" expression ";"
+
+enum_decl ::= "enum" identifier "{" enum_member_list [ "," ] "}" ";"
+
+enum_member_list ::= enum_member { "," enum_member }*
+
+enum_member ::= identifier [ "=" expression ]
+
+var_decl ::= type identifier [ "=" expression ] ";"
+
+print_stmt ::= "print" "(" [ expression_list ] ")" ";"
+
+if_stmt ::= "if" "(" expression ")" block [ "else" block ]
+
+while_stmt ::= "while" "(" expression ")" block
+
+do_while_stmt ::= "do" block "while" "(" expression ")" ";"
+
+for_stmt ::= "for" "(" [ for_init ] ";" [ expression ] ";" [ expression ] ")" block
+
+for_init ::= var_decl | expression
+
+switch_stmt ::= "switch" "(" expression ")" "{" { case_block } [ default_block ] "}"
+
+case_block ::= "case" expression block
+
+default_block ::= "default" block
+
+return_stmt ::= "return" [ expression ] ";"
+
+block ::= "{" statement* "}"
+
+expr_stmt ::= expression ";"
+
+expression_list ::= expression { "," expression }*
+
+expression ::= assign_expr
+
+assign_expr ::= logical_or_expr [ "=" assign_expr ]
+
+logical_or_expr ::= logical_and_expr { "||" logical_and_expr }*
+
+logical_and_expr ::= equality_expr { "&&" equality_expr }*
+
+equality_expr ::= relational_expr { ( "==" | "!=" ) relational_expr }*
+
+relational_expr ::= additive_expr { ( "<" | ">" | "<=" | ">=" ) additive_expr }*
+
+additive_expr ::= multiplicative_expr { ( "+" | "-" ) multiplicative_expr }*
+
+multiplicative_expr ::= unary_expr { ( "*" | "/" | "%" ) unary_expr }*
+
+unary_expr ::= postfix_expr
+             | ( "-" | "!" ) unary_expr
+             | ( "++" | "--" ) identifier
+
+postfix_expr ::= primary_expr
+               | postfix_expr "(" [ expression_list ] ")"
+               | identifier ( "++" | "--" )
+
+primary_expr ::= integer_literal
+               | float_literal
+               | string_literal
+               | char_literal
+               | bool_literal
+               | identifier
+               | "(" expression ")"
+
+integer_literal ::= digit+
+
+float_literal ::= digit+ "." digit* [ ( "e" | "E" ) [ "+" | "-" ] digit+ ]
+
+string_literal ::= "\"" { any_char }* "\""
+
+char_literal ::= "'" any_char "'"
+
+bool_literal ::= "true" | "false"
+
+identifier ::= letter ( letter | digit )*
+
+digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+
+letter ::= "a" | "b" | ... | "z" | "A" | "B" | ... | "Z" | "_"
+
+any_char ::= letter | digit | symbol | whitespace
