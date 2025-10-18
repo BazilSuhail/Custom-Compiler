@@ -18,9 +18,7 @@ To build and run this project, you’ll need MSYS2, a Windows environment for co
 
 1. **Install MSYS2**:
    - Download the installer from [https://www.msys2.org/](https://www.msys2.org/) (e.g., `msys2-x86_64-latest.exe`).
-   - Run the installer and choose a folder (e.g., `C:\msys64`) with:
-     - Short, ASCII-only path
-     - NTFS volume, no spaces, accents, symlinks, or network drives
+   - Run the installer and choose a folder (e.g., `C:\msys64`).
    - Complete the installation and launch the MSYS2 UCRT64 terminal.
 
 2. **Update MSYS2 and install tools**:
@@ -69,11 +67,14 @@ To build and run this project, you’ll need MSYS2, a Windows environment for co
    g++ lexer.cpp parser.tab.cpp -o parser.exe
    ```
 
-5. **Run the parser**:
-   Execute the parser on `test.code`:
-   ```bash
-   ./parser.exe
-   ```
+6. **Run the parser**:
+   - Remember to create a `test.code` file with your code (see examples below).
+   
+
+   - Execute the parser on `test.code`:
+        ```
+        ./parser.exe
+        ```
    - If the syntax is valid, it outputs: `Parsing completed successfully.`
    - If invalid, it shows errors, e.g.:
      ```
@@ -399,7 +400,7 @@ void yyerror(const char *s) {
 Save these in `test.code` to test successful parsing:
 1. **Variable declaration and print**:
    ```
-   int main() {
+   main() {
        int x = 10;
        print(x);
    }
@@ -407,7 +408,7 @@ Save these in `test.code` to test successful parsing:
 
 2. **If-else statement**:
    ```
-   int main() {
+   main() {
        int x = 5;
        if (x > 0) {
            print("Positive");
@@ -419,7 +420,7 @@ Save these in `test.code` to test successful parsing:
 
 3. **While loop**:
    ```
-   int main() {
+   main() {
        int i = 0;
        while (i < 3) {
            print(i);
@@ -428,25 +429,75 @@ Save these in `test.code` to test successful parsing:
    }
    ```
 
-4. **Function definition**:
+4. **Full sample code definition**:
    ```
-   int square(int x) {
-       return x * x;
-   }
+    int a;
+    float b = 3.14;
+    char c = 'x';
+    bool flag = true;
+    const int LIMIT = 10;
+
+    enum Colors { RED, GREEN, BLUE = 5 };
+
+    int add(int x, int y) {
+        return x + y;
+    }
+
+    main {
+        int i = 0;
+        int total = 0;
+
+        print("Start");
+
+        if (flag) {
+            print("True");
+        } else {
+            print("False");
+        }
+
+        while (i < LIMIT) {
+            i = i + 1;
+        }
+
+        do {
+            total = total + i;
+            i = i - 1;
+        } while (i > 0);
+
+        for (int j = 0; j < 3; j = j + 1) {
+            print(j);
+        }
+
+        switch (a) {
+            case 0 {
+                print("Zero");
+            }
+            case 1 {
+                print("One");
+            }
+            default {
+                print("Other");
+            }
+        }
+
+        print(total);
+        return;
+    }
+
    ```
 
 ### Invalid Code Snippets
 These will cause parsing errors:
 1. **Missing semicolon**:
    ```
-   int main() {
+   main() {
        int x = 5
    }
    ```
 
 2. **Unclosed brace**:
    ```
-   int main() {
+   main() {
        if (true) {
            print("Test")
    }
@@ -454,7 +505,7 @@ These will cause parsing errors:
 
 3. **Invalid operator**:
    ```
-   int main() {
+   main() {
        x = 5 &&& 3;
    }
    ```
