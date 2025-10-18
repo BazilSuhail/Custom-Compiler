@@ -1,91 +1,3 @@
-# Simple Language Parser
-
-## Overview
-This project is a syntax parser for a custom C-like programming language. It uses [Bison](https://www.gnu.org/software/bison/) to generate a parser from a grammar file (`parser.y`) and a custom C++ lexer (`lexer.cpp`) to tokenize input. The parser reads code from a `test.code` file, checks for syntactic correctness, and reports success or errors. It’s designed to run on Windows using the MSYS2 environment.
-
-The language supports:
-- **Data types**: `int`, `float`, `double`, `char`, `bool`, `void`
-- **Control structures**: `if-else`, `while`, `do-while`, `for`, `switch-case`
-- **Declarations**: variables, constants, enums
-- **Functions**: including a `main` block and return statements
-- **Expressions**: arithmetic (`+`, `-`, `*`, `/`, `%`), logical (`&&`, `||`, `!`), relational (`==`, `!=`, `<`, `>`, `<=`, `>=`)
-- **Other**: `print` statements, `break`, single/multi-line comments
-
-This is a syntactic parser only—it validates structure but doesn’t perform semantic checks (e.g., type correctness) or execute code.
-
-## Installation
-To build and run this project, you’ll need MSYS2, a Windows environment for compiling native software with Unix-like tools.
-
-1. **Install MSYS2**:
-   - Download the installer from [https://www.msys2.org/](https://www.msys2.org/) (e.g., `msys2-x86_64-latest.exe`).
-   - Run the installer and choose a folder (e.g., `C:\msys64`) with:
-     - Short, ASCII-only path
-     - NTFS volume, no spaces, accents, symlinks, or network drives
-   - Complete the installation and launch the MSYS2 UCRT64 terminal.
-
-2. **Update MSYS2 and install tools**:
-   In the UCRT64 terminal, run:
-   ```bash
-   pacman -Syu
-   pacman -S make mingw-w64-ucrt-x86_64-gcc bison flex
-   ```
-   - `pacman -Syu`: Updates the MSYS2 system.
-   - `make`: Optional for build automation.
-   - `mingw-w64-ucrt-x86_64-gcc`: Provides `gcc` and `g++` for compiling.
-   - `bison`: Generates the parser from `parser.y`.
-   - `flex`: Included for potential lexer generation (though this project uses a custom lexer).
-
-3. **Verify installation**:
-   Check that tools are installed:
-   ```bash
-   gcc --version
-   bison --version
-   flex --version
-   ```
-
-## How to Run the Project
-1. **Set up project files**:
-   - Clone or download the project containing `parser.y` and `lexer.cpp`.
-   - Create a `test.code` file with your code (see examples below).
-
-2. **Navigate to project directory**:
-   In the MSYS2 UCRT64 terminal:
-   ```bash
-   cd /path/to/your/bison_project
-   ```
-
-3. **Generate the parser**:
-   Run Bison to create `parser.tab.cpp` and `parser.tab.hpp`:
-   ```bash
-   bison -d -o parser.tab.cpp parser.y
-   ```
-   - `-d`: Generates a header file (`parser.tab.hpp`).
-   - `-o parser.tab.cpp`: Specifies the output file.
-   - Note: You may see a warning about shift/reduce conflicts. To debug, rerun with `-Wcounterexamples`.
-
-4. **Compile the project**:
-   Compile the lexer and parser into an executable:
-   ```bash
-   g++ lexer.cpp parser.tab.cpp -o parser.exe
-   ```
-
-5. **Run the parser**:
-   Execute the parser on `test.code`:
-   ```bash
-   ./parser.exe
-   ```
-   - If the syntax is valid, it outputs: `Parsing completed successfully.`
-   - If invalid, it shows errors, e.g.:
-     ```
-     Starting parse...
-     Syntax Error: syntax error
-     Parsing failed.
-     ```
-
-## Grammar
-The grammar is defined in `parser.y`, which specifies the language’s syntax rules. Below is the complete grammar for reference:
-
-```yacc
 %{
 #include <cstdio>
 #include <cstdlib>
@@ -249,6 +161,7 @@ do_while_stmt
     : T_DO block T_WHILE T_LPAREN expression T_RPAREN T_SEMICOLON
     ;
 
+/* === For Loop === */
 for_stmt
     : T_FOR T_LPAREN opt_for_init T_SEMICOLON opt_expression T_SEMICOLON opt_expression T_RPAREN block
     ;
@@ -259,9 +172,11 @@ opt_for_init
     ;
 
 for_init
-    : type T_IDENTIFIER opt_init
-    | expression
+    : type T_IDENTIFIER opt_init      /* allows: int i = 0 */
+    | expression                      /* allows: i = 0 */
     ;
+
+
 
 switch_stmt
     : T_SWITCH T_LPAREN expression T_RPAREN T_LBRACE case_blocks opt_default_block T_RBRACE
@@ -392,81 +307,3 @@ primary_expr
 void yyerror(const char *s) {
     cerr << "Syntax Error: " << s << endl;
 }
-```
-
-## Examples
-### Valid Code Snippets
-Save these in `test.code` to test successful parsing:
-1. **Variable declaration and print**:
-   ```
-   int main() {
-       int x = 10;
-       print(x);
-   }
-   ```
-
-2. **If-else statement**:
-   ```
-   int main() {
-       int x = 5;
-       if (x > 0) {
-           print("Positive");
-       } else {
-           print("Non-positive");
-       }
-   }
-   ```
-
-3. **While loop**:
-   ```
-   int main() {
-       int i = 0;
-       while (i < 3) {
-           print(i);
-           i++;
-       }
-   }
-   ```
-
-4. **Function definition**:
-   ```
-   int square(int x) {
-       return x * x;
-   }
-   ```
-
-### Invalid Code Snippets
-These will cause parsing errors:
-1. **Missing semicolon**:
-   ```
-   int main() {
-       int x = 5
-   }
-   ```
-
-2. **Unclosed brace**:
-   ```
-   int main() {
-       if (true) {
-           print("Test")
-   }
-   ```
-
-3. **Invalid operator**:
-   ```
-   int main() {
-       x = 5 &&& 3;
-   }
-   ```
-
-Try creating your own `test.code` files. What patterns do valid versus invalid inputs share?
-
-## What It Does
-The parser reads code from `test.code`, tokenizes it using the custom lexer (handling identifiers, literals, operators, comments), and checks if it matches the grammar in `parser.y`. If the syntax is valid, it outputs a success message; otherwise, it reports errors like `Syntax Error: syntax error`. It’s a front-end for a compiler, focusing on lexical and syntactic analysis without executing code or checking semantics (e.g., variable types or undefined variables).
-
-### Future Extensions
-- Add semantic analysis (e.g., type checking).
-- Generate intermediate code or an abstract syntax tree.
-- Extend the language with arrays, structs, or classes.
-
-What features would you prioritize to enhance this parser?
