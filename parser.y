@@ -303,7 +303,7 @@ primary_expr
 
 %%
 
-/* === Error and Entry Point === */
+/* === Error and Entry Point yyerror === */
 void yyerror(const char *s) {
     cerr << "Syntax Error: " << s << endl;
 }

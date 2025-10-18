@@ -1,4 +1,4 @@
-# Simple Language Parser
+# C-Style Language Parser
 
 ## Overview
 This project is a syntax parser for a custom C-like programming language. It uses [Bison](https://www.gnu.org/software/bison/) to generate a parser from a grammar file (`parser.y`) and a custom C++ lexer (`lexer.cpp`) to tokenize input. The parser reads code from a `test.code` file, checks for syntactic correctness, and reports success or errors. It’s designed to run on Windows using the MSYS2 environment.
