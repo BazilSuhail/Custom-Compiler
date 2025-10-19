@@ -18,3 +18,7 @@ parser.exe: lexer.o parser.o
 clean:
 	rm -f *.o 
 	@echo "Temporary files removed."
+
+run:
+	@echo "Running parser..."
+	./parser.exe

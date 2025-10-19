@@ -38,32 +38,28 @@ extern void initLexer(const string& code);
 
 /* === Top-Level Grammar === */
 program
-    : include_main declaration_list
+    : global_decls main_decl
     ;
 
-include_main
-    : T_IDENTIFIER T_LT T_MAIN T_GT
-    | /* empty */
+global_decls
+    : /* empty */
+    | global_decls global_decl
     ;
 
-declaration_list
-    : declaration_list declaration
-    | /* empty */
-    ;
-
-declaration
+global_decl
     : function_decl
-    | main_decl
-    | statement
+    | var_decl
+    | const_decl
+    | enum_decl
+    ;
+
+main_decl
+    : T_MAIN block
     ;
 
 /* === Function and Main === */
 function_decl
     : type T_IDENTIFIER T_LPAREN opt_param_list T_RPAREN block
-    ;
-
-main_decl
-    : T_MAIN block
     ;
 
 opt_param_list
@@ -86,8 +82,10 @@ type
     | T_DOUBLE
     | T_CHAR
     | T_BOOL
+    | T_STRING
     | T_VOID
     ;
+
 
 /* === Statements === */
 statement
@@ -280,16 +278,21 @@ unary_expr
     : postfix_expr
     | T_MINUS unary_expr
     | T_NOT unary_expr
-    | T_INCREMENT T_IDENTIFIER
-    | T_DECREMENT T_IDENTIFIER
+    | T_INCREMENT int_identifier
+    | T_DECREMENT int_identifier
     ;
 
 postfix_expr
     : primary_expr
     | postfix_expr T_LPAREN opt_expression_list T_RPAREN
-    | T_IDENTIFIER T_INCREMENT
-    | T_IDENTIFIER T_DECREMENT
+    | int_identifier T_INCREMENT
+    | int_identifier T_DECREMENT
     ;
+
+int_identifier
+    : T_IDENTIFIER /* type checking will verify it's int */
+    ;
+
 
 primary_expr
     : T_INTLIT

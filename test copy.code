@@ -12,9 +12,7 @@ int add(int x, int y) {
 
 main {
     int i = 0;
-    int total = i++ + --x;
-    x++;
-
+    int total = 0;
 
     print("Start");
 

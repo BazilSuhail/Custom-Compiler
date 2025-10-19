@@ -13,6 +13,8 @@ The language supports:
 
 This is a syntactic parser only—it validates structure but doesn’t perform semantic checks (e.g., type correctness) or execute code.
 
+---
+
 ## Installation
 To build and run this project, you’ll need MSYS2, a Windows environment for compiling native software with Unix-like tools.
 
@@ -25,63 +27,100 @@ To build and run this project, you’ll need MSYS2, a Windows environment for co
    In the UCRT64 terminal, run:
    ```bash
    pacman -Syu
-   pacman -S make mingw-w64-ucrt-x86_64-gcc bison flex
+   pacman -S make mingw-w64-ucrt-x86_64-gcc bison
    ```
    - `pacman -Syu`: Updates the MSYS2 system.
    - `make`: Optional for build automation.
    - `mingw-w64-ucrt-x86_64-gcc`: Provides `gcc` and `g++` for compiling.
    - `bison`: Generates the parser from `parser.y`.
-   - `flex`: Included for potential lexer generation (though this project uses a custom lexer).
 
 3. **Verify installation**:
    Check that tools are installed:
    ```bash
    gcc --version
    bison --version
-   flex --version
    ```
+
+---
 
 ## How to Run the Project
-1. **Set up project files**:
-   - Clone or download the project containing `parser.y` and `lexer.cpp`.
-   - Create a `test.code` file with your code (see examples below).
 
-2. **Navigate to project directory**:
-   In the MSYS2 UCRT64 terminal:
-   ```bash
-   cd /path/to/your/bison_project
-   ```
+Follow these steps to set up and run the compiler project.
 
-3. **Generate the parser**:
-   Run Bison to create `parser.tab.cpp` and `parser.tab.hpp`:
-   ```bash
-   bison -d -o parser.tab.cpp parser.y
-   ```
-   - `-d`: Generates a header file (`parser.tab.hpp`).
-   - `-o parser.tab.cpp`: Specifies the output file.
-   - Note: You may see a warning about shift/reduce conflicts. To debug, rerun with `-Wcounterexamples`.
-
-4. **Compile the project**:
-   Compile the lexer and parser into an executable:
-   ```bash
-   g++ lexer.cpp parser.tab.cpp -o parser.exe
-   ```
-
-6. **Run the parser**:
-   - Remember to create a `test.code` file with your code (see examples below).
-   
-
-   - Execute the parser on `test.code`:
-        ```
-        ./parser.exe
-        ```
-   - If the syntax is valid, it outputs: `Parsing completed successfully.`
-   - If invalid, it shows errors, e.g.:
+1. **Set Up Project Files**
+    - Clone or download the project containing `parser.y` and `lexer.cpp`.
+    - Create a `test.code` file with your code (see examples below).  
+     Example:
      ```
-     Starting parse...
-     Syntax Error: syntax error
-     Parsing failed.
+     main() {
+       int x = 5;
+       if (x > 0) {
+           print("Positive");
+       } else {
+           print("Non-positive");
+       }
+   }
      ```
+
+2. **Open MSYS2 UCRT64 Terminal**
+   - Ensure MSYS2 is installed and use the UCRT64 environment for compatibility.
+
+3. **Navigate to Your Project Directory**
+   ```bash
+   cd /c/Users/YourName/Documents/Custom-Compiler
+   ```
+
+### Recommended: Using Makefile (Automatic Build and Run)
+This approach is simpler and faster.
+
+- **Build the Project**  
+  Run the following command to generate the parser, compile the project, create `parser.exe`, and clean temporary files:
+  ```bash
+  make
+  ```
+
+- **Run the Parser**  
+  Execute the parser on your `test.code` file:
+  ```bash
+  make run
+  ```
+
+### Alternative: Manual Build Process (Without Makefile)
+If you prefer running commands manually, follow these steps:
+
+- **Generate the Parser**  
+  Run Bison to create the parser files:
+  ```bash
+  bison -d -o parser.tab.cpp parser.y
+  ```
+  - `-d`: Generates a header file `parser.tab.hpp`.
+  - `-o`: Sets the output file name.
+
+- **Compile the Project**  
+  Compile the source files to create the executable:
+  ```bash
+  g++ lexer.cpp parser.tab.cpp -o parser.exe
+  ```
+
+- **Run the Parser**  
+  Execute the parser:
+  ```bash
+  ./parser.exe
+  ```
+
+## Expected Output
+- **Valid Syntax**:
+  ```plaintext
+  Parsing completed successfully.
+  ```
+- **Invalid Syntax**:
+  ```plaintext
+  Starting parse...
+  Syntax Error: syntax error
+  Parsing failed.
+  ```
+
+---
 
 ## Grammar
 The grammar is defined in `parser.y`, which specifies the language’s syntax rules. Below is the complete grammar for reference:
