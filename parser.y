@@ -6,12 +6,10 @@
 #include <iostream>
 using namespace std;
 
-// Forward declarations
 void yyerror(const char *s);
 int yylex();
-
-// Provided by lexer.cpp
 extern void initLexer(const string& code);
+extern bool includeMainFound;
 %}
 
 %union {
@@ -20,27 +18,31 @@ extern void initLexer(const string& code);
 
 /* === Tokens === */
 %token <str> T_IDENTIFIER T_INTLIT T_FLOATLIT T_STRINGLIT T_CHARLIT T_BOOLLIT
-%token T_INT T_FLOAT T_DOUBLE T_CHAR T_BOOL T_VOID
+%token T_INT T_FLOAT T_DOUBLE T_CHAR T_BOOL T_VOID T_STRING
 %token T_IF T_ELSE T_WHILE T_DO T_FOR T_SWITCH T_CASE T_DEFAULT T_BREAK T_RETURN T_PRINT T_CONST T_ENUM T_MAIN
 %token T_LPAREN T_RPAREN T_LBRACE T_RBRACE T_LBRACKET T_RBRACKET
 %token T_SEMICOLON T_COMMA T_DOT T_COLON
-%token T_STRING
 %token T_SINGLE_COMMENT T_MULTI_COMMENT
 %token T_ASSIGNOP T_EQUALOP T_NE T_LT T_GT T_LE T_GE
 %token T_PLUS T_MINUS T_MULTIPLY T_DIVIDE T_MODULO
-%token T_INCREMENT T_DECREMENT
-%token T_AND T_OR T_NOT
-%token T_ERROR T_EOF
+%token T_INCREMENT T_DECREMENT T_AND T_OR T_NOT
+%token T_INCLUDE T_ERROR T_EOF T_HASH
 
 %start program
 
 %%
 
-/* === Top-Level Grammar === */
+/* === Top-Level Program === */
 program
-    : global_decls main_decl
+    : opt_include global_decls main_decl
     ;
 
+opt_include
+    : /* empty */
+    | T_INCLUDE
+    ;
+
+/* === Global Declarations === */
 global_decls
     : /* empty */
     | global_decls global_decl
@@ -51,20 +53,27 @@ global_decl
     | var_decl
     | const_decl
     | enum_decl
+    | comment
     ;
 
+comment
+    : T_SINGLE_COMMENT
+    | T_MULTI_COMMENT
+    ;
+
+/* === Main Function === */
 main_decl
     : T_MAIN block
     ;
 
-/* === Function and Main === */
+/* === Function Declarations === */
 function_decl
     : type T_IDENTIFIER T_LPAREN opt_param_list T_RPAREN block
     ;
 
 opt_param_list
-    : param_list
-    | /* empty */
+    : /* empty */
+    | param_list
     ;
 
 param_list
@@ -76,6 +85,7 @@ param
     : type T_IDENTIFIER
     ;
 
+/* === Type System === */
 type
     : T_INT
     | T_FLOAT
@@ -86,25 +96,7 @@ type
     | T_VOID
     ;
 
-
-/* === Statements === */
-statement
-    : const_decl
-    | enum_decl
-    | var_decl
-    | print_stmt
-    | if_stmt
-    | while_stmt
-    | do_while_stmt
-    | for_stmt
-    | switch_stmt
-    | return_stmt
-    | block
-    | expr_stmt
-    | T_BREAK T_SEMICOLON
-    ;
-
-/* === Const / Enum / Var Declarations === */
+/* === Constants / Enums / Variables === */
 const_decl
     : T_CONST type T_IDENTIFIER T_ASSIGNOP expression T_SEMICOLON
     ;
@@ -137,7 +129,24 @@ opt_init
     | /* empty */
     ;
 
-/* === Print / Control Flow === */
+/* === Statements === */
+statement
+    : var_decl
+    | const_decl
+    | enum_decl
+    | print_stmt
+    | if_stmt
+    | while_stmt
+    | do_while_stmt
+    | for_stmt
+    | switch_stmt
+    | return_stmt
+    | block
+    | expr_stmt
+    | T_BREAK T_SEMICOLON
+    | comment
+    ;
+
 print_stmt
     : T_PRINT T_LPAREN opt_expression_list T_RPAREN T_SEMICOLON
     ;
@@ -159,22 +168,19 @@ do_while_stmt
     : T_DO block T_WHILE T_LPAREN expression T_RPAREN T_SEMICOLON
     ;
 
-/* === For Loop === */
 for_stmt
     : T_FOR T_LPAREN opt_for_init T_SEMICOLON opt_expression T_SEMICOLON opt_expression T_RPAREN block
     ;
 
 opt_for_init
-    : for_init
-    | /* empty */
+    : /* empty */
+    | for_init
     ;
 
 for_init
-    : type T_IDENTIFIER opt_init      /* allows: int i = 0 */
-    | expression                      /* allows: i = 0 */
+    : type T_IDENTIFIER opt_init
+    | expression
     ;
-
-
 
 switch_stmt
     : T_SWITCH T_LPAREN expression T_RPAREN T_LBRACE case_blocks opt_default_block T_RBRACE
@@ -190,8 +196,8 @@ case_block
     ;
 
 opt_default_block
-    : T_DEFAULT block
-    | /* empty */
+    : /* empty */
+    | T_DEFAULT block
     ;
 
 return_stmt
@@ -199,8 +205,8 @@ return_stmt
     ;
 
 opt_expression
-    : expression
-    | /* empty */
+    : /* empty */
+    | expression
     ;
 
 /* === Blocks and Expressions === */
@@ -218,8 +224,8 @@ expr_stmt
     ;
 
 opt_expression_list
-    : expression_list
-    | /* empty */
+    : /* empty */
+    | expression_list
     ;
 
 expression_list
@@ -227,7 +233,7 @@ expression_list
     | expression_list T_COMMA expression
     ;
 
-/* === Expressions === */
+/* === Expression Grammar === */
 expression
     : assign_expr
     ;
@@ -290,9 +296,8 @@ postfix_expr
     ;
 
 int_identifier
-    : T_IDENTIFIER /* type checking will verify it's int */
+    : T_IDENTIFIER
     ;
-
 
 primary_expr
     : T_INTLIT
@@ -306,7 +311,6 @@ primary_expr
 
 %%
 
-/* === Error and Entry Point yyerror === */
 void yyerror(const char *s) {
     cerr << "Syntax Error: " << s << endl;
 }

@@ -6,7 +6,6 @@
 #include <sstream>
 using namespace std;
 
-// Include Bison-generated header
 #include "parser.tab.hpp"
 
 // === Token structure ===
@@ -26,7 +25,7 @@ static const map<string, int> keywords = {
     {"print", T_PRINT}, {"main", T_MAIN}, {"string", T_STRING}, {"do", T_DO},
     {"switch", T_SWITCH}, {"break", T_BREAK}, {"for", T_FOR},
     {"default", T_DEFAULT}, {"case", T_CASE}, {"const", T_CONST},
-    {"enum", T_ENUM}
+    {"enum", T_ENUM}, {"include", T_INCLUDE}
 };
 
 // === Single-character tokens ===
@@ -35,7 +34,7 @@ static const map<char, int> singleChars = {
     {'[', T_LBRACKET}, {']', T_RBRACKET}, {';', T_SEMICOLON},
     {',', T_COMMA}, {'.', T_DOT}, {'+', T_PLUS}, {'-', T_MINUS},
     {':', T_COLON}, {'*', T_MULTIPLY}, {'/', T_DIVIDE}, {'%', T_MODULO},
-    {'=', T_ASSIGNOP}, {'!', T_NOT}, {'<', T_LT}, {'>', T_GT}
+    {'=', T_ASSIGNOP}, {'!', T_NOT}, {'<', T_LT}, {'>', T_GT}, {'#', T_HASH}
 };
 
 // === Two-character operators ===
@@ -51,10 +50,11 @@ struct LexerState {
     int line;
     int column;
     int inputLength;
+    bool includeMainFound;
 };
 
 LexerState createLexerState(const char* source) {
-    LexerState s{source, 0, 1, 1, (int)strlen(source)};
+    LexerState s{source, 0, 1, 1, (int)strlen(source), false};
     return s;
 }
 
@@ -125,7 +125,54 @@ bool tryComment(LexerState& s, Token& t) {
     return false;
 }
 
-// === Match quoted literals ===
+// === Match include ===
+bool tryInclude(LexerState& s, Token& t) {
+    int startCol = s.column;
+
+    // Check for "#include"
+    if (strncmp(&s.input[s.pos], "#include", 8) == 0) {
+        s.pos += 8;
+        s.column += 8;
+        skipSpace(s);
+
+        // Expect '<'
+        if (s.pos < s.inputLength && s.input[s.pos] == '<') {
+            s.pos++;
+            s.column++;
+
+            std::string name;
+            while (s.pos < s.inputLength && s.input[s.pos] != '>') {
+                name += s.input[s.pos++];
+                s.column++;
+            }
+
+            // Expect '>'
+            if (s.pos < s.inputLength && s.input[s.pos] == '>') {
+                s.pos++;
+                s.column++;
+
+                if (name == "main") {
+                    makeToken(t, T_INCLUDE, "#include <main>", s, startCol);
+                    return true;
+                } else {
+                    makeToken(t, T_ERROR, "Invalid include: expected <main>", s, startCol);
+                    return true;
+                }
+            } else {
+                makeToken(t, T_ERROR, "Malformed #include (missing '>')", s, startCol);
+                return true;
+            }
+        } else {
+            makeToken(t, T_ERROR, "Malformed #include (expected <main>)", s, startCol);
+            return true;
+        }
+    }
+
+    // If no #include keyword matched, return false
+    return false;
+}
+
+// === Quoted literals ===
 bool tryQuoted(LexerState& s, Token& t) {
     if (s.pos >= s.inputLength) return false;
     char q = s.input[s.pos];
@@ -155,11 +202,10 @@ bool tryQuoted(LexerState& s, Token& t) {
     } else {
         makeToken(t, T_ERROR, "Unterminated literal", s, c);
     }
-
     return true;
 }
 
-// === Match operators ===
+// === Operators ===
 bool tryOperator(LexerState& s, Token& t) {
     if (s.pos >= s.inputLength) return false;
     int c = s.column;
@@ -183,11 +229,10 @@ bool tryOperator(LexerState& s, Token& t) {
         s.column++;
         return true;
     }
-
     return false;
 }
 
-// === Match identifier or number ===
+// === Identifiers / Numbers ===
 bool tryIdOrNum(LexerState& s, Token& t) {
     if (s.pos >= s.inputLength) return false;
     int c = s.column;
@@ -211,11 +256,10 @@ bool tryIdOrNum(LexerState& s, Token& t) {
         makeToken(t, (it != keywords.end()) ? it->second : T_IDENTIFIER, v, s, c);
         return true;
     }
-
     return false;
 }
 
-// === Get next token ===
+// === Main token dispatch ===
 bool getNextToken(LexerState& s, Token& t) {
     skipSpace(s);
     if (s.pos >= s.inputLength) {
@@ -224,20 +268,19 @@ bool getNextToken(LexerState& s, Token& t) {
         return false;
     }
 
-    int c = s.column;
+    if (tryInclude(s, t)) return true;
     if (tryComment(s, t)) return true;
     if (tryQuoted(s, t)) return true;
     if (tryOperator(s, t)) return true;
     if (tryIdOrNum(s, t)) return true;
 
     string err = "Unexpected char: " + string(1, s.input[s.pos]);
-    makeToken(t, T_ERROR, err, s, c);
+    makeToken(t, T_ERROR, err, s, s.column);
     s.pos++;
     s.column++;
     return true;
 }
 
-// === Globals for Bison ===
 extern YYSTYPE yylval;
 static LexerState lexState;
 static bool initialized = false;

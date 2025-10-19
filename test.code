@@ -1,9 +1,8 @@
-int a;
-float b = 3.14;
-char c = 'x';
-bool flag = true;
+#include<main>
+
 const int LIMIT = 10;
 
+/* Enum Support */
 enum Colors { RED, GREEN, BLUE = 5 };
 
 int add(int x, int y) {
@@ -11,10 +10,15 @@ int add(int x, int y) {
 }
 
 main {
-    int i = 0;
+    int a;
+    float b = 3.14;
+    char c = 'x';
+    bool flag = true;
+    string c = "Bison Parser";
+    
+    // Pre/ Postfix Unary operators
     int total = i++ + --x;
     x++;
-
 
     print("Start");
 
@@ -48,6 +52,5 @@ main {
             print("Other");
         }
     }
-
-    print(total);
+    return 0;
 }
