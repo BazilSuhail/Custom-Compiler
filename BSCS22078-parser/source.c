@@ -6,9 +6,6 @@
 #include <stdio.h>
 #include "myheader.h"
 
-#define MAX 100
-#define MIN(a, b) ((a) < (b))
-
 // Enum declaration
 enum Color {
     RED,
