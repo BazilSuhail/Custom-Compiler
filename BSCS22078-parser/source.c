@@ -1,25 +1,19 @@
-// Test file for C-like language parser
-
 /* Multi-line comment */
 
-// Preprocessor directives
 #include <stdio.h>
 #include "myheader.h"
 
-// Enum declaration
 enum Color {
     RED,
     GREEN,
     BLUE
 };
 
-// Global variables
 int count = 0;
 float pi = 3.14;
 const int SIZE = 50;
 bool flag = true;
 
-// Function declarations
 int add(int a, int b) {
     return a + b;
 }
@@ -31,7 +25,6 @@ int factorial(int n) {
     return n * factorial(n - 1);
 }
 
-// Main function
 int main() {
     int x = 10;
     int y = 20;

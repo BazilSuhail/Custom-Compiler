@@ -45,7 +45,6 @@ NEWLINE     \n
 
     /* Preprocessor Directives */
 "#include"              { return T_INCLUDE; }
-"#define"               { return T_DEFINE; }
 
     /* Keywords - Data Types */
 "int"                   { return T_INT; }

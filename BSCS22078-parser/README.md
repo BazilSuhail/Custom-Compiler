@@ -20,7 +20,6 @@ To parse your own C-like source files:
 ### Preprocessor Directives
 - `#include <header.h>`
 - `#include "header.h"`
-- `#define` macros with/without parameters
 
 ### Declarations
 - Variable declarations with optional initialization
@@ -109,7 +108,6 @@ The AST represents the parsed code as a tree with the following node types:
 - **NODE_FUNC_DECL** - Function declarations with return type, parameters, and body
 - **NODE_ENUM_DECL** - Enumeration declarations
 - **NODE_INCLUDE_DIRECTIVE** - Include directives (#include)
-- **NODE_DEFINE_DIRECTIVE** - Macro definitions (#define)
 
 ### Statement Nodes
 - **NODE_IF_STMT** - If/if-else statements

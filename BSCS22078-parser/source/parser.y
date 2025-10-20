@@ -44,7 +44,7 @@ ASTNode *root = NULL;  // Global AST root
 %token T_AND T_OR T_NOT
 %token T_BITWISE_AND T_BITWISE_OR T_BITWISE_XOR T_BITWISE_NOT
 %token T_LEFT_SHIFT T_RIGHT_SHIFT
-%token T_INCLUDE T_DEFINE
+%token T_INCLUDE
 %token T_IF T_ELSE T_WHILE T_FOR T_RETURN T_BREAK T_CONTINUE
 %token T_SWITCH T_CASE T_DEFAULT T_DO
 %token T_CONST T_ENUM
@@ -60,9 +60,8 @@ ASTNode *root = NULL;  // Global AST root
 %type <node> logicalAnd bitwiseOr bitwiseXor bitwiseAnd equality
 %type <node> comparison shift term factor unary postfix call
 %type <node> arguments primary literal
-%type <node> includeDirective defineDirective enumDecl
-%type <node> parameterList macroBody macroBodyElement
-%type <node> enumValueList operator
+%type <node> includeDirective enumDecl
+%type <node> enumValueList
 %type <datatype> baseType
 %type <intval> typeQualifier
 
@@ -102,7 +101,6 @@ declaration_list
 /* Declarations */
 declaration
     : includeDirective { $$ = $1; }
-    | defineDirective { $$ = $1; }
     | enumDecl { $$ = $1; }
     | varDecl { $$ = $1; }
     | fnDecl { $$ = $1; }
@@ -164,40 +162,6 @@ includeDirective
           free($3); free($5); free(file); }
     | T_INCLUDE T_STRINGLIT
         { $$ = create_include_directive($2, 0); free($2); }
-    ;
-
-/* Define Directive */
-defineDirective
-    : T_DEFINE T_IDENTIFIER
-        { $$ = create_define_directive($2, NULL, NULL); free($2); }
-    | T_DEFINE T_IDENTIFIER macroBody
-        { $$ = create_define_directive($2, NULL, "macro_body"); free($2); }
-    | T_DEFINE T_IDENTIFIER T_LPAREN parameterList T_RPAREN
-        { $$ = create_define_directive($2, $4, NULL); free($2); }
-    | T_DEFINE T_IDENTIFIER T_LPAREN parameterList T_RPAREN macroBody
-        { $$ = create_define_directive($2, $4, "macro_body"); free($2); }
-    | T_DEFINE T_IDENTIFIER T_LPAREN T_RPAREN
-        { $$ = create_define_directive($2, NULL, NULL); free($2); }
-    | T_DEFINE T_IDENTIFIER T_LPAREN T_RPAREN macroBody
-        { $$ = create_define_directive($2, NULL, "macro_body"); free($2); }
-    ;
-
-parameterList
-    : T_IDENTIFIER { $$ = create_list(NODE_PARAM_LIST); 
-                     list_append($$, create_identifier($1)); free($1); }
-    | parameterList T_COMMA T_IDENTIFIER 
-        { $$ = $1; list_append($$, create_identifier($3)); free($3); }
-    ;
-
-macroBody
-    : macroBodyElement { $$ = $1; }
-    | macroBody macroBodyElement { $$ = $1; }
-    ;
-
-macroBodyElement
-    : T_IDENTIFIER { $$ = create_identifier($1); free($1); }
-    | literal { $$ = $1; }
-    | operator { $$ = $1; }
     ;
 
 /* Enum Declaration */
@@ -472,42 +436,6 @@ literal
     | T_STRINGLIT { $$ = create_literal_string($1); free($1); }
     | T_CHARLIT { $$ = create_literal_char($1); }
     ;
-
-operator
-    : T_PLUS { $$ = create_identifier("+"); }
-    | T_MINUS { $$ = create_identifier("-"); }
-    | T_MULTIPLY { $$ = create_identifier("*"); }
-    | T_DIVIDE { $$ = create_identifier("/"); }
-    | T_MODULO { $$ = create_identifier("%"); }
-    | T_ASSIGNOP { $$ = create_identifier("="); }
-    | T_EQUALOP { $$ = create_identifier("=="); }
-    | T_NE { $$ = create_identifier("!="); }
-    | T_LT { $$ = create_identifier("<"); }
-    | T_GT { $$ = create_identifier(">"); }
-    | T_LE { $$ = create_identifier("<="); }
-    | T_GE { $$ = create_identifier(">="); }
-    | T_AND { $$ = create_identifier("&&"); }
-    | T_OR { $$ = create_identifier("||"); }
-    | T_NOT { $$ = create_identifier("!"); }
-    | T_BITWISE_AND { $$ = create_identifier("&"); }
-    | T_BITWISE_OR { $$ = create_identifier("|"); }
-    | T_BITWISE_XOR { $$ = create_identifier("^"); }
-    | T_BITWISE_NOT { $$ = create_identifier("~"); }
-    | T_LEFT_SHIFT { $$ = create_identifier("<<"); }
-    | T_RIGHT_SHIFT { $$ = create_identifier(">>"); }
-    | T_INCREMENT { $$ = create_identifier("++"); }
-    | T_DECREMENT { $$ = create_identifier("--"); }
-    | T_LPAREN { $$ = create_identifier("("); }
-    | T_RPAREN { $$ = create_identifier(")"); }
-    | T_LBRACE { $$ = create_identifier("{"); }
-    | T_RBRACE { $$ = create_identifier("}"); }
-    | T_SEMICOLON { $$ = create_identifier(";"); }
-    | T_COMMA { $$ = create_identifier(","); }
-    | T_DOT { $$ = create_identifier("."); }
-    | T_LBRACKET { $$ = create_identifier("["); }
-    | T_RBRACKET { $$ = create_identifier("]"); }
-    ;
-
 %%
 
 void yyerror(const char *s) {

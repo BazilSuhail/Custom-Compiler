@@ -100,24 +100,23 @@ extern int yydebug;
     T_LEFT_SHIFT = 301,            /* T_LEFT_SHIFT  */
     T_RIGHT_SHIFT = 302,           /* T_RIGHT_SHIFT  */
     T_INCLUDE = 303,               /* T_INCLUDE  */
-    T_DEFINE = 304,                /* T_DEFINE  */
-    T_IF = 305,                    /* T_IF  */
-    T_ELSE = 306,                  /* T_ELSE  */
-    T_WHILE = 307,                 /* T_WHILE  */
-    T_FOR = 308,                   /* T_FOR  */
-    T_RETURN = 309,                /* T_RETURN  */
-    T_BREAK = 310,                 /* T_BREAK  */
-    T_CONTINUE = 311,              /* T_CONTINUE  */
-    T_SWITCH = 312,                /* T_SWITCH  */
-    T_CASE = 313,                  /* T_CASE  */
-    T_DEFAULT = 314,               /* T_DEFAULT  */
-    T_DO = 315,                    /* T_DO  */
-    T_CONST = 316,                 /* T_CONST  */
-    T_ENUM = 317,                  /* T_ENUM  */
-    T_SINGLE_COMMENT = 318,        /* T_SINGLE_COMMENT  */
-    T_MULTI_COMMENT = 319,         /* T_MULTI_COMMENT  */
-    T_ERROR = 320,                 /* T_ERROR  */
-    UNARY_PREC = 321               /* UNARY_PREC  */
+    T_IF = 304,                    /* T_IF  */
+    T_ELSE = 305,                  /* T_ELSE  */
+    T_WHILE = 306,                 /* T_WHILE  */
+    T_FOR = 307,                   /* T_FOR  */
+    T_RETURN = 308,                /* T_RETURN  */
+    T_BREAK = 309,                 /* T_BREAK  */
+    T_CONTINUE = 310,              /* T_CONTINUE  */
+    T_SWITCH = 311,                /* T_SWITCH  */
+    T_CASE = 312,                  /* T_CASE  */
+    T_DEFAULT = 313,               /* T_DEFAULT  */
+    T_DO = 314,                    /* T_DO  */
+    T_CONST = 315,                 /* T_CONST  */
+    T_ENUM = 316,                  /* T_ENUM  */
+    T_SINGLE_COMMENT = 317,        /* T_SINGLE_COMMENT  */
+    T_MULTI_COMMENT = 318,         /* T_MULTI_COMMENT  */
+    T_ERROR = 319,                 /* T_ERROR  */
+    UNARY_PREC = 320               /* UNARY_PREC  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -137,7 +136,7 @@ union YYSTYPE
     DataType datatype;
     OperatorType optype;
 
-#line 141 "parser.tab.h"
+#line 140 "parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;
