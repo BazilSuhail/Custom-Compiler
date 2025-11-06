@@ -10,32 +10,38 @@
 #include <cctype>
 #include <variant>
 #include <functional>
+#include "lexer.cpp"
+
 
 using namespace std;
 
-// === Token Types (from your lexer) ===
-enum TokenType {
-    T_INT, T_FLOAT, T_DOUBLE, T_CHAR, T_VOID, T_BOOL,
-    T_IDENTIFIER, T_INTLIT, T_FLOATLIT, T_STRINGLIT, T_CHARLIT, T_BOOLLIT,
-    T_LPAREN, T_RPAREN, T_LBRACE, T_RBRACE, T_LBRACKET, T_RBRACKET,
-    T_SEMICOLON, T_COMMA, T_DOT,
-    T_ASSIGNOP, T_EQUALOP, T_NE, T_LT, T_GT, T_LE, T_GE,
-    T_PLUS, T_MINUS, T_MULTIPLY, T_DIVIDE, T_MODULO,
-    T_INCREMENT, T_DECREMENT,
-    T_AND, T_OR, T_NOT,T_STRING,
-    T_IF, T_ELSE, T_WHILE, T_RETURN, T_PRINT, T_MAIN,
-    T_SINGLE_COMMENT, T_MULTI_COMMENT,
-    // new
-    T_DO, T_FOR, T_SWITCH, T_CASE, T_DEFAULT, T_BREAK, T_COLON,
-    T_ERROR, T_EOF
-};
 
-struct Token {
-    TokenType type;
-    string value;
-    int line;
-    int column;
-};
+// === Token Types (from your lexer) === 
+// extern enum TokenType {
+//     T_INT, T_FLOAT, T_DOUBLE, T_CHAR, T_VOID, T_BOOL,
+//     T_IDENTIFIER, T_INTLIT, T_FLOATLIT, T_STRINGLIT, T_CHARLIT, T_BOOLLIT,
+//     T_LPAREN, T_RPAREN, T_LBRACE, T_RBRACE, T_LBRACKET, T_RBRACKET,
+//     T_SEMICOLON, T_COMMA, T_DOT,
+//     T_ASSIGNOP, T_EQUALOP, T_NE, T_LT, T_GT, T_LE, T_GE,
+//     T_PLUS, T_MINUS, T_MULTIPLY, T_DIVIDE, T_MODULO,
+//     T_INCREMENT, T_DECREMENT,
+//     T_AND, T_OR, T_NOT,
+//     T_IF, T_ELSE, T_WHILE, T_RETURN, T_PRINT, T_MAIN,
+//     T_STRING, T_DO, T_FOR, T_SWITCH, T_CASE, T_DEFAULT, T_BREAK, T_COLON,
+//     T_SINGLE_COMMENT, T_MULTI_COMMENT,
+//     T_ERROR, T_EOF
+// };
+
+
+// struct Token {
+//     TokenType type;
+//     string value;
+//     int line;
+//     int column;
+// };
+
+
+vector<Token> runLexer(const string& filename);
 
 // === Parse Errors ===
 enum class ParseErrorType {
@@ -111,6 +117,7 @@ struct ParseError {
             case T_CHAR: return "T_CHAR";
             case T_VOID: return "T_VOID";
             case T_BOOL: return "T_BOOL";
+            case T_STRING: return "T_STRING";
             case T_IDENTIFIER: return "T_IDENTIFIER";
             case T_INTLIT: return "T_INTLIT";
             case T_FLOATLIT: return "T_FLOATLIT";
@@ -1086,6 +1093,7 @@ public:
     if (!(check(T_IDENTIFIER) && currentToken.value == "include")) {
         throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
     }
+
     declarations.push_back(parseIncludeStatement());
 
     // Continue with the rest
@@ -1114,105 +1122,13 @@ public:
 
 };
 
-// ==========================================================
-// Map string names in file -> enum TokenType
-TokenType tokenTypeFromString(const string& s) {
-    static unordered_map<string, TokenType> mapping = {
-        {"T_INT", T_INT}, {"T_FLOAT", T_FLOAT}, {"T_DOUBLE", T_DOUBLE},
-        {"T_CHAR", T_CHAR}, {"T_VOID", T_VOID}, {"T_BOOL", T_BOOL},
-        {"T_IDENTIFIER", T_IDENTIFIER}, {"T_INTLIT", T_INTLIT},
-        {"T_FLOATLIT", T_FLOATLIT}, {"T_STRINGLIT", T_STRINGLIT},
-        {"T_CHARLIT", T_CHARLIT}, {"T_BOOLLIT", T_BOOLLIT},
-        {"T_LPAREN", T_LPAREN}, {"T_RPAREN", T_RPAREN},
-        {"T_LBRACE", T_LBRACE}, {"T_RBRACE", T_RBRACE},
-        {"T_LBRACKET", T_LBRACKET}, {"T_RBRACKET", T_RBRACKET},
-        {"T_SEMICOLON", T_SEMICOLON}, {"T_COMMA", T_COMMA},
-        {"T_DOT", T_DOT}, {"T_ASSIGNOP", T_ASSIGNOP},
-        {"T_EQUALOP", T_EQUALOP}, {"T_NE", T_NE},
-        {"T_LT", T_LT}, {"T_GT", T_GT}, {"T_LE", T_LE}, {"T_GE", T_GE},
-        {"T_PLUS", T_PLUS}, {"T_MINUS", T_MINUS}, {"T_MULTIPLY", T_MULTIPLY},
-        {"T_DIVIDE", T_DIVIDE}, {"T_MODULO", T_MODULO},
-        {"T_INCREMENT", T_INCREMENT}, {"T_DECREMENT", T_DECREMENT},
-        {"T_AND", T_AND}, {"T_OR", T_OR}, {"T_NOT", T_NOT},
-        {"T_IF", T_IF}, {"T_ELSE", T_ELSE}, {"T_WHILE", T_WHILE},
-        {"T_RETURN", T_RETURN}, {"T_PRINT", T_PRINT}, {"T_MAIN", T_MAIN},
-        {"T_SINGLE_COMMENT", T_SINGLE_COMMENT}, {"T_MULTI_COMMENT", T_MULTI_COMMENT},
-        {"T_DO", T_DO}, {"T_FOR", T_FOR}, {"T_SWITCH", T_SWITCH},
-        {"T_CASE", T_CASE}, {"T_DEFAULT", T_DEFAULT},
-        {"T_BREAK", T_BREAK}, {"T_COLON", T_COLON},
-        {"T_ERROR", T_ERROR}, {"T_EOF", T_EOF}
-    };
-    auto it = mapping.find(s);
-    if (it != mapping.end()) return it->second;
-    return T_ERROR;
-}
-
-vector<Token> loadTokens(const string& filename) {
-    vector<Token> tokens;
-    ifstream file(filename);
-    if (!file.is_open()) throw runtime_error("Cannot open file: " + filename);
-
-    string line;
-    while (getline(file, line)) {
-        if (line.empty()) continue;
-        if (line.rfind("ERROR", 0) == 0) {
-            cerr << "Skipping lexer error: " << line << endl;
-            continue;
-        }
-
-        size_t openParen = line.find('(');
-        size_t closeParen = line.find(')');
-        if (openParen == string::npos || closeParen == string::npos) {
-            cerr << "Malformed token line: " << line << endl;
-            continue;
-        }
-
-        string typeStr = line.substr(0, openParen);
-        string value = line.substr(openParen + 1, closeParen - openParen - 1);
-
-        size_t firstComma = line.find(',', closeParen);
-        if (firstComma == string::npos) {
-            cerr << "Missing line number: " << line << endl;
-            continue;
-        }
-
-        size_t secondComma = line.find(',', firstComma + 1);
-        if (secondComma == string::npos) {
-            cerr << "Missing column number: " << line << endl;
-            continue;
-        }
-
-        string lineStr = line.substr(firstComma + 1, secondComma - firstComma - 1);
-        string colStr  = line.substr(secondComma + 1);
-
-        auto trim = [](string &s) {
-            while (!s.empty() && isspace((unsigned char)s.back())) s.pop_back();
-            while (!s.empty() && isspace((unsigned char)s.front())) s.erase(s.begin());
-        };
-        trim(lineStr);
-        trim(colStr);
-
-        int lineNum = -1, colNum = -1;
-        try {
-            lineNum = stoi(lineStr);
-            colNum  = stoi(colStr);
-        } catch (...) {
-            cerr << "Invalid line/col number: " << line << endl;
-            continue;
-        }
-
-        tokens.push_back({tokenTypeFromString(typeStr), value, lineNum, colNum});
-    }
-
-    tokens.push_back({T_EOF, "EOF", -1, -1});
-    return tokens;
-}
-
 int main() {
     try {
-        vector<Token> tokens = loadTokens("tester/tokens.txt");
+        //vector<Token> tokens = loadTokens("tester/tokens.txt");
+        vector<Token> tokens = runLexer("tester/sample.txt");
 
         Parser parser(tokens);
+        
         auto ast = parser.parseProgram();
 
         cout << "=== Parsed AST ===\n";
