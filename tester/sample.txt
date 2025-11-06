@@ -1,0 +1,52 @@
+include<main>
+include"header.h"
+
+// Function declaration
+int add(int a, int b) {
+    return a + b;
+}
+
+string hello(){
+    string result = "Hello World";
+    return result;
+}
+
+main {
+    int x = 42 + 5 - 8 * 10;
+    int int = 5;
+    float ❤️ = 3.14159;
+    print("Hello World! 🌍");
+    print("Value of x: ", y);
+
+    if (y > 0) {
+        print("Positive");
+    } else {
+        print("Non-positive");
+    }
+
+    while (x > 40) {
+        x = x - 1;
+    }
+
+    do {
+        苹果 = a + 1;
+    } while (苹果 < 45);
+
+    for (int i = 0; i < 5; i = i + 1) {
+        print(i);
+    }
+
+    switch (苹果) {
+        case 42 {
+            print("Answer");
+        }
+        default {
+            print("Other");
+        }
+    }
+
+    int result = add(1, 2);
+    print(result);
+
+    return 0;
+}
