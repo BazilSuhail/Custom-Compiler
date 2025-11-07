@@ -13,16 +13,23 @@ string hello(){
 
 main {
     int x = 42 + 5 - 8 * 10;
-    int int = 5;
+    char y;
+    char a;
+
+    int 苹果;
+    
     float ❤️ = 3.14159;
     print("Hello World! 🌍");
     print("Value of x: ", y);
 
     if (y > 0) {
+        int ans;
         print("Positive");
     } else {
         print("Non-positive");
     }
+
+    print(ans);
 
     while (x > 40) {
         x = x - 1;

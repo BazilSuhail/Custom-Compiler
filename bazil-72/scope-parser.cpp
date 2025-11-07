@@ -177,9 +177,15 @@ struct BoolLiteral {
     BoolLiteral(bool v) : value(v) {}
 };
 
+// struct Identifier {
+//     string name;
+//     Identifier(const string& n) : name(n) {}
+// };
 struct Identifier {
     string name;
-    Identifier(const string& n) : name(n) {}
+    int line; // Add line and column for error reporting
+    int column;
+    Identifier(const string& n, int l = -1, int c = -1) : name(n), line(l), column(c) {} // Default values for backward compatibility if needed elsewhere
 };
 
 // === Expression Types ===
@@ -228,12 +234,33 @@ struct CallExpr {
 };
 
 // === Statement Types ===
+// struct VarDecl {
+//     TokenType type;
+//     string name;
+//     unique_ptr<struct ASTNode> initializer;
+//     VarDecl(TokenType t, const string& n, unique_ptr<struct ASTNode> init = nullptr)
+//         : type(t), name(n), initializer(move(init)) {}
+//     void printType(TokenType t) const {
+//         switch (t) {
+//             case T_INT: cout << "int"; break;
+//             case T_FLOAT: cout << "float"; break;
+//             case T_DOUBLE: cout << "double"; break;
+//             case T_CHAR: cout << "char"; break;
+//             case T_BOOL: cout << "bool"; break;
+//             case T_VOID: cout << "void"; break;
+//             case T_STRING: cout << "string"; break;
+//             default: cout << "unknown_type"; break;
+//         }
+//     }
+// };
 struct VarDecl {
     TokenType type;
     string name;
     unique_ptr<struct ASTNode> initializer;
-    VarDecl(TokenType t, const string& n, unique_ptr<struct ASTNode> init = nullptr)
-        : type(t), name(n), initializer(move(init)) {}
+    int line; // Add line and column for error reporting
+    int column;
+    VarDecl(TokenType t, const string& n, unique_ptr<struct ASTNode> init = nullptr, int l = -1, int c = -1)
+        : type(t), name(n), initializer(move(init)), line(l), column(c) {}
     void printType(TokenType t) const {
         switch (t) {
             case T_INT: cout << "int"; break;
@@ -253,15 +280,40 @@ struct BlockStmt {
     BlockStmt(vector<unique_ptr<struct ASTNode>> b) : body(move(b)) {}
 };
 
+// struct FunctionDecl {
+//     TokenType returnType;
+//     string name;
+//     vector<pair<TokenType, string>> params;
+//     vector<unique_ptr<struct ASTNode>> body;
+//     FunctionDecl(TokenType rt, const string& n,
+//                  vector<pair<TokenType, string>> p,
+//                  vector<unique_ptr<struct ASTNode>> b)
+//         : returnType(rt), name(n), params(move(p)), body(move(b)) {}
+//     void printType(TokenType t) const {
+//         switch (t) {
+//             case T_INT: cout << "int"; break;
+//             case T_FLOAT: cout << "float"; break;
+//             case T_DOUBLE: cout << "double"; break;
+//             case T_CHAR: cout << "char"; break;
+//             case T_BOOL: cout << "bool"; break;
+//             case T_VOID: cout << "void"; break;
+//             case T_STRING: cout << "string"; break;
+//             default: cout << "unknown_type"; break;
+//         }
+//     }
+// };
 struct FunctionDecl {
     TokenType returnType;
     string name;
     vector<pair<TokenType, string>> params;
     vector<unique_ptr<struct ASTNode>> body;
+    int line; // Add line and column for error reporting
+    int column;
     FunctionDecl(TokenType rt, const string& n,
                  vector<pair<TokenType, string>> p,
-                 vector<unique_ptr<struct ASTNode>> b)
-        : returnType(rt), name(n), params(move(p)), body(move(b)) {}
+                 vector<unique_ptr<struct ASTNode>> b,
+                 int l = -1, int c = -1) // Add default values
+        : returnType(rt), name(n), params(move(p)), body(move(b)), line(l), column(c) {}
     void printType(TokenType t) const {
         switch (t) {
             case T_INT: cout << "int"; break;
@@ -374,6 +426,15 @@ struct ASTNode {
 };
 
 using ASTPtr = unique_ptr<ASTNode>;
+
+// ---------------v------------------ SCOPE ANALYSIS ------------------------------
+// ---------------v----------------------------------------------------------------
+enum class ScopeErrorType {
+    UndeclaredVariableAccessed,
+    UndefinedFunctionCalled,
+    VariableRedefinition,
+    FunctionPrototypeRedefinition,
+};
 
 // Forward declarations for print functions
 void printASTNode(const ASTNodeVariant& node, int indent = 0);
@@ -778,10 +839,16 @@ private:
         return makeBoolLiteralFromToken(t);
     }
 
+    // ASTPtr parseIdentifier() {
+    //     Token t = currentToken;
+    //     advance();
+    //     return make_unique<ASTNode>(Identifier(t.value));
+    // }
+
     ASTPtr parseIdentifier() {
         Token t = currentToken;
         advance();
-        return make_unique<ASTNode>(Identifier(t.value));
+        return make_unique<ASTNode>(Identifier(t.value, t.line, t.column)); // Pass line/column to Identifier
     }
 
     ASTPtr parseGroupedExpression() {
@@ -850,18 +917,28 @@ private:
         return make_unique<ASTNode>(ExpressionStmt(move(expr)));
     }
 
+    // ASTPtr parseVariableDeclaration() {
+    //     TokenType type = currentToken.type;
+    //     advance();
+
+    //     Token identToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+    //     string name = identToken.value;
+
+    //     ASTPtr initializer = nullptr;
+    //     if (match(T_ASSIGNOP)) initializer = parseExpression();
+
+    //     consumeSemicolon();
+    //     return make_unique<ASTNode>(VarDecl(type, name, move(initializer)));
+    // }
     ASTPtr parseVariableDeclaration() {
         TokenType type = currentToken.type;
         advance();
-
         Token identToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
         string name = identToken.value;
-
         ASTPtr initializer = nullptr;
         if (match(T_ASSIGNOP)) initializer = parseExpression();
-
         consumeSemicolon();
-        return make_unique<ASTNode>(VarDecl(type, name, move(initializer)));
+        return make_unique<ASTNode>(VarDecl(type, name, move(initializer), identToken.line, identToken.column)); // Pass line/column to VarDecl
     }
 
     ASTPtr parsePrintStatement() {
@@ -1011,13 +1088,33 @@ private:
         return make_unique<ASTNode>(MainDecl(move(body)));
     }
 
+    // ASTPtr parseFunctionDeclaration() {
+    //     TokenType returnType = currentToken.type;
+    //     advance();
+
+    //     Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+    //     string name = nameToken.value;
+
+    //     expect(T_LPAREN);
+    //     vector<pair<TokenType, string>> params;
+    //     if (!check(T_RPAREN)) {
+    //         do {
+    //             TokenType paramType = currentToken.type;
+    //             advance();
+    //             Token paramName = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+    //             params.push_back({paramType, paramName.value});
+    //         } while (match(T_COMMA));
+    //     }
+    //     expect(T_RPAREN);
+
+    //     vector<ASTPtr> body = parseBlock();
+    //     return make_unique<ASTNode>(FunctionDecl(returnType, name, move(params), move(body)));
+    // }
     ASTPtr parseFunctionDeclaration() {
         TokenType returnType = currentToken.type;
         advance();
-
         Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
         string name = nameToken.value;
-
         expect(T_LPAREN);
         vector<pair<TokenType, string>> params;
         if (!check(T_RPAREN)) {
@@ -1029,11 +1126,9 @@ private:
             } while (match(T_COMMA));
         }
         expect(T_RPAREN);
-
         vector<ASTPtr> body = parseBlock();
-        return make_unique<ASTNode>(FunctionDecl(returnType, name, move(params), move(body)));
+        return make_unique<ASTNode>(FunctionDecl(returnType, name, move(params), move(body), nameToken.line, nameToken.column)); // Pass line/column to FunctionDecl
     }
-
     
     ASTPtr parseIncludeStatement() {
     Token kw = expect(T_IDENTIFIER, ParseErrorType::UnexpectedToken);
@@ -1081,39 +1176,418 @@ public:
 
     
     vector<ASTPtr> parseProgram() {
-    vector<ASTPtr> declarations;
+        vector<ASTPtr> declarations;
 
-    // Enforce first token must be include<main>
-    if (!(check(T_IDENTIFIER) && currentToken.value == "include")) {
-        throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
-    }
-    declarations.push_back(parseIncludeStatement());
-
-    // Continue with the rest
-    while (currentToken.type != T_EOF) {
-        if (check(T_IDENTIFIER) && currentToken.value == "include") {
-            declarations.push_back(parseIncludeStatement());
-            continue;
+        // Enforce first token must be include<main>
+        if (!(check(T_IDENTIFIER) && currentToken.value == "include")) {
+            throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
         }
-        if (isTypeToken(currentToken.type)) {
-            const Token& next = peek(1);
-            if (next.type == T_IDENTIFIER) {
-                declarations.push_back(parseFunctionDeclaration());
-            } else {
-                declarations.push_back(parseStatement());
+        declarations.push_back(parseIncludeStatement());
+
+        // Continue with the rest
+        while (currentToken.type != T_EOF) {
+            if (check(T_IDENTIFIER) && currentToken.value == "include") {
+                declarations.push_back(parseIncludeStatement());
+                continue;
             }
-            continue;
+            if (isTypeToken(currentToken.type)) {
+                const Token& next = peek(1);
+                if (next.type == T_IDENTIFIER) {
+                    declarations.push_back(parseFunctionDeclaration());
+                } else {
+                    declarations.push_back(parseStatement());
+                }
+                continue;
+            }
+            if (check(T_MAIN)) {
+                declarations.push_back(parseMainDeclaration());
+                continue;
+            }
+            declarations.push_back(parseStatement());
         }
-        if (check(T_MAIN)) {
-            declarations.push_back(parseMainDeclaration());
-            continue;
-        }
-        declarations.push_back(parseStatement());
+        return declarations;
     }
-    return declarations;
-}
 
 };
+
+struct ScopeError {
+    ScopeErrorType type;
+    string name; // The name causing the error (e.g., undefined variable name)
+    int line;    // The line number where the error occurred
+    int column;  // The column number where the error occurred
+    string message; // Human-readable message
+
+    ScopeError(ScopeErrorType t, const string& n, int l, int c) : type(t), name(n), line(l), column(c) {
+        switch (t) {
+            case ScopeErrorType::UndeclaredVariableAccessed:
+                message = "Undeclared variable accessed: '" + name + "'";
+                break;
+            case ScopeErrorType::UndefinedFunctionCalled:
+                message = "Undefined function called: '" + name + "'";
+                break;
+            case ScopeErrorType::VariableRedefinition:
+                message = "Variable redefinition: '" + name + "'";
+                break;
+            case ScopeErrorType::FunctionPrototypeRedefinition:
+                message = "Function redefinition: '" + name + "'";
+                break;
+        }
+    }
+};
+
+class ScopeAnalyzer {
+private:
+    // --- Spaghetti Stack ---
+    // Use a struct to represent items on the stack
+    struct StackItem {
+        string name;
+        bool isVariable; // true for variable, false for function
+        int line;        // line where declared
+        int column;      // column where declared
+        StackItem(const string& n, bool v, int l, int c) : name(n), isVariable(v), line(l), column(c) {}
+    };
+    vector<variant<StackItem, nullptr_t>> stack; // nullptr acts as a scope marker
+
+    // Helper to check current scope for redefinition
+    bool isDeclaredInCurrentScope(const string& name) {
+        for (int i = stack.size() - 1; i >= 0; --i) {
+            if (stack[i].index() == 1) { // Found a nullptr marker
+                break; // Stop searching in the current scope
+            }
+            auto& item = get<StackItem>(stack[i]);
+            if (item.name == name) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Helper to check global scope for function redefinition
+    bool isFunctionDefinedGlobally(const string& name) {
+        for (int i = 0; i < stack.size(); ++i) {
+            if (stack[i].index() == 1) { // Found a nullptr marker
+                continue; // Skip markers, they don't count as definitions
+            }
+            auto& item = get<StackItem>(stack[i]);
+            if (item.name == name && !item.isVariable) { // Found a function with the same name
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // --- Visitor Methods (Recursive AST Traversal) ---
+    void visitProgram(const vector<ASTPtr>& program) {
+        // Global scope is entered implicitly at the start
+        // Process include statements if needed (they don't add names to our scope stack)
+        for (size_t i = 1; i < program.size(); ++i) { // Start from 1, skipping include
+            if (holds_alternative<FunctionDecl>(program[i]->node)) {
+                visitFunctionDecl(get<FunctionDecl>(program[i]->node));
+            } else if (holds_alternative<MainDecl>(program[i]->node)) {
+                visitMainDecl(get<MainDecl>(program[i]->node));
+            } else {
+                // Handle other top-level declarations/statements if any (e.g., global vars)
+                // For now, assume only functions and main are top-level after include
+            }
+        }
+    }
+
+    void visitNode(const ASTNodeVariant& node) {
+        visit([this](const auto& n) {
+            using T = std::decay_t<decltype(n)>;
+            if constexpr (std::is_same_v<T, IntLiteral> || std::is_same_v<T, FloatLiteral> ||
+                          std::is_same_v<T, StringLiteral> || std::is_same_v<T, CharLiteral> ||
+                          std::is_same_v<T, BoolLiteral>) {
+                // Literals do not require scope analysis
+            }
+            else if constexpr (std::is_same_v<T, Identifier>) {
+                visitIdentifier(n);
+            }
+            else if constexpr (std::is_same_v<T, BinaryExpr>) {
+                visitBinaryExpr(n);
+            }
+            else if constexpr (std::is_same_v<T, UnaryExpr>) {
+                visitUnaryExpr(n);
+            }
+            else if constexpr (std::is_same_v<T, CallExpr>) {
+                visitCallExpr(n);
+            }
+            else if constexpr (std::is_same_v<T, VarDecl>) {
+                visitVarDecl(n);
+            }
+            else if constexpr (std::is_same_v<T, BlockStmt>) {
+                visitBlock(n);
+            }
+            else if constexpr (std::is_same_v<T, FunctionDecl>) {
+                visitFunctionDecl(n);
+            }
+            else if constexpr (std::is_same_v<T, MainDecl>) {
+                visitMainDecl(n);
+            }
+            else if constexpr (std::is_same_v<T, IfStmt>) {
+                visitIfStmt(n);
+            }
+            else if constexpr (std::is_same_v<T, WhileStmt>) {
+                visitWhileStmt(n);
+            }
+            else if constexpr (std::is_same_v<T, DoWhileStmt>) {
+                visitDoWhileStmt(n);
+            }
+            else if constexpr (std::is_same_v<T, ForStmt>) {
+                visitForStmt(n);
+            }
+            else if constexpr (std::is_same_v<T, SwitchStmt>) {
+                visitSwitchStmt(n);
+            }
+            else if constexpr (std::is_same_v<T, ReturnStmt>) {
+                visitReturnStmt(n);
+            }
+            else if constexpr (std::is_same_v<T, PrintStmt>) {
+                visitPrintStmt(n);
+            }
+            else if constexpr (std::is_same_v<T, ExpressionStmt>) {
+                visitExpressionStmt(n);
+            }
+            else if constexpr (std::is_same_v<T, IncludeStmt>) {
+                // Include statements don't affect local scopes directly for this analysis
+            }
+            else if constexpr (std::is_same_v<T, CaseBlock>) {
+                // Case blocks are handled within SwitchStmt
+            }
+        }, node);
+    }
+
+    void visitIdentifier(const Identifier& id) {
+        // Search the stack for the name
+        for (int i = stack.size() - 1; i >= 0; --i) {
+            if (stack[i].index() == 1) { // Found a nullptr marker
+                continue; // Skip the marker itself
+            }
+            auto& item = get<StackItem>(stack[i]);
+            if (item.name == id.name) {
+                // Found the identifier
+                return; // Success, found within scope
+            }
+        }
+        // If loop finishes without returning, the identifier was not found
+        throw ScopeError(ScopeErrorType::UndeclaredVariableAccessed, id.name, id.line, id.column);
+    }
+
+    void visitBinaryExpr(const BinaryExpr& expr) {
+        if (expr.left) visitNode(expr.left->node);
+        if (expr.right) visitNode(expr.right->node);
+    }
+
+    void visitUnaryExpr(const UnaryExpr& expr) {
+        if (expr.operand) visitNode(expr.operand->node);
+    }
+
+    void visitCallExpr(const CallExpr& call) {
+        // The callee should be an identifier (as per parser logic)
+        if (holds_alternative<Identifier>(call.callee->node)) {
+            const auto& calleeId = get<Identifier>(call.callee->node);
+            // Check if the function being called is defined globally
+            bool found = false;
+            for (int i = 0; i < stack.size(); ++i) {
+                if (stack[i].index() == 1) { // Found a nullptr marker (end of global scope items)
+                    continue; // Continue searching in global scope
+                }
+                auto& item = get<StackItem>(stack[i]);
+                if (item.name == calleeId.name && !item.isVariable) { // Found a function
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                throw ScopeError(ScopeErrorType::UndefinedFunctionCalled, calleeId.name, calleeId.line, calleeId.column);
+            }
+        } else {
+            // If callee is not an identifier, it's likely an error from the parser
+            // or a more complex expression, which shouldn't happen per the grammar.
+            // For robustness, we could visit the callee expression anyway.
+            if (call.callee) visitNode(call.callee->node);
+        }
+        // Visit arguments
+        for (const auto& arg : call.args) {
+            if (arg) visitNode(arg->node);
+        }
+    }
+
+    void visitVarDecl(const VarDecl& decl) {
+        // Check for redefinition in the *current* scope (between top of stack and last marker)
+        if (isDeclaredInCurrentScope(decl.name)) {
+            throw ScopeError(ScopeErrorType::VariableRedefinition, decl.name, decl.line, decl.column); // Note: line/col might need adjustment if VarDecl doesn't have them
+        }
+        // Add the variable to the stack
+        stack.emplace_back(StackItem(decl.name, true, decl.line, decl.column)); // Note: line/col might need adjustment
+
+        // Visit the initializer expression (if present) *after* declaring the variable
+        // This allows the initializer to potentially reference the variable being declared (e.g., x = x + 1; is valid in some contexts, but not here as x is uninitialized)
+        // For this analysis, we assume the variable is declared before its initializer is checked.
+        if (decl.initializer) {
+            visitNode(decl.initializer->node);
+        }
+    }
+
+    void visitBlock(const BlockStmt& block) {
+        enterScope();
+        for (const auto& stmt : block.body) {
+            if (stmt) visitNode(stmt->node);
+        }
+        exitScope();
+    }
+
+    void visitFunctionDecl(const FunctionDecl& decl) {
+        // Check for function redefinition in the *global* scope
+        if (isFunctionDefinedGlobally(decl.name)) {
+             throw ScopeError(ScopeErrorType::FunctionPrototypeRedefinition, decl.name, decl.line, decl.column); // Note: line/col might need adjustment
+        }
+        // Add the function to the *global* scope stack (top level, before any scope markers)
+        stack.emplace_back(StackItem(decl.name, false, decl.line, decl.column)); // isVariable = false, line/col might need adjustment
+
+        enterScope(); // Enter function's local scope
+
+        // Add parameters to the function's local scope
+        for (const auto& param : decl.params) {
+            const string& paramName = param.second;
+            int paramLine = -1; // We don't have exact line/column for params from parser, use -1 or find a way to pass it
+            int paramCol = -1;
+            if (isDeclaredInCurrentScope(paramName)) {
+                 throw ScopeError(ScopeErrorType::VariableRedefinition, paramName, paramLine, paramCol);
+            }
+            stack.emplace_back(StackItem(paramName, true, paramLine, paramCol)); // isVariable = true
+        }
+
+        // Visit the function body statements
+        for (const auto& stmt : decl.body) {
+            if (stmt) visitNode(stmt->node);
+        }
+
+        exitScope(); // Exit function's local scope
+    }
+
+    void visitMainDecl(const MainDecl& decl) {
+        enterScope(); // Enter main's local scope
+        for (const auto& stmt : decl.body) {
+            if (stmt) visitNode(stmt->node);
+        }
+        exitScope(); // Exit main's local scope
+    }
+
+    void visitIfStmt(const IfStmt& stmt) {
+        if (stmt.condition) visitNode(stmt.condition->node);
+
+        enterScope(); // Enter if-block scope
+        for (const auto& s : stmt.ifBody) {
+            if (s) visitNode(s->node);
+        }
+        exitScope(); // Exit if-block scope
+
+        if (!stmt.elseBody.empty()) {
+            enterScope(); // Enter else-block scope
+            for (const auto& s : stmt.elseBody) {
+                if (s) visitNode(s->node);
+            }
+            exitScope(); // Exit else-block scope
+        }
+    }
+
+    void visitWhileStmt(const WhileStmt& stmt) {
+        if (stmt.condition) visitNode(stmt.condition->node);
+
+        enterScope(); // Enter while-block scope
+        for (const auto& s : stmt.body) {
+            if (s) visitNode(s->node);
+        }
+        exitScope(); // Exit while-block scope
+    }
+
+    void visitDoWhileStmt(const DoWhileStmt& stmt) {
+        enterScope(); // Enter do-while-block scope
+        if (stmt.body) visitNode(stmt.body->node);
+        exitScope(); // Exit do-while-block scope
+
+        if (stmt.condition) visitNode(stmt.condition->node); // Condition is evaluated after the block
+    }
+
+    void visitForStmt(const ForStmt& stmt) {
+        enterScope(); // Enter for-loop scope
+
+        // Visit init (VarDecl or ExpressionStmt)
+        if (stmt.init) visitNode(stmt.init->node);
+
+        // Visit condition
+        if (stmt.condition) visitNode(stmt.condition->node);
+
+        // Visit update
+        if (stmt.update) visitNode(stmt.update->node);
+
+        // Visit body
+        if (stmt.body) visitNode(stmt.body->node);
+
+        exitScope(); // Exit for-loop scope
+    }
+
+    void visitSwitchStmt(const SwitchStmt& stmt) {
+        if (stmt.expression) visitNode(stmt.expression->node);
+
+        for (const auto& caseBlockNode : stmt.cases) {
+            if (holds_alternative<CaseBlock>(caseBlockNode->node)) {
+                const auto& caseBlock = get<CaseBlock>(caseBlockNode->node);
+                if (caseBlock.value) visitNode(caseBlock.value->node); // Visit the case value expression
+
+                enterScope(); // Enter case block scope (as per parser's AST structure)
+                for (const auto& s : caseBlock.body) {
+                    if (s) visitNode(s->node);
+                }
+                exitScope(); // Exit case block scope
+            }
+        }
+
+        // Visit default block if present
+        if (!stmt.defaultBody.empty()) {
+            enterScope(); // Enter default block scope
+            for (const auto& s : stmt.defaultBody) {
+                if (s) visitNode(s->node);
+            }
+            exitScope(); // Exit default block scope
+        }
+    }
+
+    void visitReturnStmt(const ReturnStmt& stmt) {
+        if (stmt.value) visitNode(stmt.value->node);
+    }
+
+    void visitPrintStmt(const PrintStmt& stmt) {
+        for (const auto& arg : stmt.args) {
+            if (arg) visitNode(arg->node);
+        }
+    }
+
+    void visitExpressionStmt(const ExpressionStmt& stmt) {
+        if (stmt.expr) visitNode(stmt.expr->node);
+    }
+
+    // Helper to enter/exit scopes
+    void enterScope() {
+        stack.push_back(nullptr); // Push a marker for the new scope
+    }
+
+    void exitScope() {
+        while (!stack.empty() && stack.back().index() != 1) { // While top is not a nullptr marker
+            stack.pop_back(); // Pop items until we find the marker
+        }
+        if (!stack.empty()) { // Pop the marker itself
+            stack.pop_back();
+        }
+    }
+
+public:
+    void analyze(const vector<ASTPtr>& ast) {
+        visitProgram(ast);
+    }
+};
+
 
 // ==========================================================
 // Map string names in file -> enum TokenType
@@ -1221,10 +1695,21 @@ int main() {
             if (node) printASTNode(node->node);
         }
         cout << "\n=== Parsing Successful ===\n";
-    } catch (const ParseError& e) {
+
+        // --- Add Scope Analysis Here ---
+        ScopeAnalyzer scopeAnalyzer;
+        scopeAnalyzer.analyze(ast); // <-- Pass the AST here
+        cout << "=== Scope Analysis Successful ===";
+
+    } // <-- This is the closing brace of the try block, place the scope analyzer call just before the first catch
+    catch (const ParseError& e) {
         cout << "Parse Error: " << e.message
              << " at line " << e.token.line
              << ", column " << e.token.column << endl;
+    } catch (const ScopeError& e) { // Catch the new scope errors
+        cout << "Scope Error: " << e.message
+             << " at line " << e.line
+             << ", column " << e.column << endl;
     } catch (const exception& e) {
         cerr << "Error: " << e.what() << endl;
     }
