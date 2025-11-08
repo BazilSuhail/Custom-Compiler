@@ -61,7 +61,13 @@ enum class ScopeErrorType {
     UndefinedFunctionCalled,
     VariableRedefinition,
     FunctionPrototypeRedefinition,
-    ConflictingFunctionDefinition, 
+    ConflictingFunctionDefinition,
+    ConflictingDeclaration,
+    ParameterRedefinition,
+    InvalidForwardReference,
+    InvalidStorageClassUsage,
+    EnumRedefinition,
+    EnumVariantRedefinition,
 };
 
 struct ScopeError {
@@ -377,6 +383,6 @@ using ASTPtr = unique_ptr<ASTNode>;
 
 vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename);
 vector<unique_ptr<ASTNode>> parseFromFile(const vector<Token>& tokens);
-vector<ScopeError> performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens)
+//vector<ScopeError> performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens) 
 
 #endif

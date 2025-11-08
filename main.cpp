@@ -12,6 +12,7 @@ int main(int argc, char* argv[]) {
 
     // Parse tokens into AST
     auto ast = parseFromFile(tokens);
+    performScopeAnalysis(ast, tokens);
 
     return 0;
 }
