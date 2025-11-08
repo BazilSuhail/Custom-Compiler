@@ -2,3 +2,8 @@
 *.exe
 .vscode
 .gitignore
+# Ignore everything in tester/
+tester/*
+
+# But keep specific files (like sample.txt)
+!tester/sample.txt

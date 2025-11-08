@@ -1,5 +1,7 @@
 include<main>
-include"header.h"
+include"main.h"
+
+enum Color { YELLOW, YELLOW, YELLOW };
 
 // Function declaration
 int add(int a, int b) {

@@ -13,20 +13,36 @@
 
 using namespace std;
 
-// === Token Types (from your lexer) ===
+
+// === Token Types ===
 enum TokenType {
-    T_INT, T_FLOAT, T_DOUBLE, T_CHAR, T_VOID, T_BOOL,
+    // Types
+    T_INT, T_FLOAT, T_DOUBLE, T_CHAR, T_VOID, T_BOOL, T_ENUM,
+
+    // Literals
     T_IDENTIFIER, T_INTLIT, T_FLOATLIT, T_STRINGLIT, T_CHARLIT, T_BOOLLIT,
+
+    // Brackets & Separators
     T_LPAREN, T_RPAREN, T_LBRACE, T_RBRACE, T_LBRACKET, T_RBRACKET,
     T_SEMICOLON, T_COMMA, T_DOT,
+
+    // Operators
     T_ASSIGNOP, T_EQUALOP, T_NE, T_LT, T_GT, T_LE, T_GE,
     T_PLUS, T_MINUS, T_MULTIPLY, T_DIVIDE, T_MODULO,
     T_INCREMENT, T_DECREMENT,
-    T_AND, T_OR, T_NOT,T_STRING,
-    T_IF, T_ELSE, T_WHILE, T_RETURN, T_PRINT, T_MAIN,
+    T_AND, T_OR, T_NOT,
+
+    // Keywords
+    T_IF, T_ELSE, T_WHILE, T_RETURN, T_PRINT,
+    T_MAIN, T_INCLUDE,
+
+    // New keywords
+    T_STRING, T_DO, T_SWITCH, T_BREAK, T_FOR, T_DEFAULT, T_CASE, T_COLON,
+
+    // Comments
     T_SINGLE_COMMENT, T_MULTI_COMMENT,
-    // new
-    T_DO, T_FOR, T_SWITCH, T_CASE, T_DEFAULT, T_BREAK, T_COLON,
+
+    // Error & EOF
     T_ERROR, T_EOF
 };
 
@@ -143,6 +159,8 @@ struct ParseError {
             case T_DEFAULT: return "T_DEFAULT";
             case T_BREAK: return "T_BREAK";
             case T_COLON: return "T_COLON";
+            case T_INCLUDE: return "T_INCLUDE";
+            case T_ENUM: return "T_ENUM";
 
             case T_MAIN: return "T_MAIN";
             case T_EOF: return "T_EOF";
@@ -219,6 +237,18 @@ struct UnaryExpr {
 struct IncludeStmt {
     string header;
     IncludeStmt(string h) : header(move(h)) {}
+};
+
+// Enum
+struct EnumValueList {
+    vector<string> values;
+    EnumValueList(vector<string> v) : values(move(v)) {}
+};
+
+struct EnumDecl {
+    string name;
+    unique_ptr<struct ASTNode> values; // Will hold EnumValueList
+    EnumDecl(const string& n, unique_ptr<struct ASTNode> v) : name(n), values(move(v)) {}
 };
 
 struct CallExpr {
@@ -350,6 +380,8 @@ using ASTNodeVariant = variant<
     BinaryExpr,
     UnaryExpr,
     IncludeStmt,
+    EnumValueList,
+    EnumDecl,
     CallExpr,
     VarDecl,
     BlockStmt,
@@ -421,6 +453,26 @@ void printUnaryExpr(const UnaryExpr& node, int indent) {
 
 void printIncludeStmt(const IncludeStmt& node, int indent) {
     cout << string(indent, ' ') << "IncludeStmt(\"" << node.header << "\")\n";
+}
+
+// enums
+// Add print function for EnumValueList
+void printEnumValueList(const EnumValueList& node, int indent) {
+    cout << string(indent, ' ') << "EnumValueList(";
+    for (size_t i = 0; i < node.values.size(); ++i) {
+        if (i > 0) cout << ", ";
+        cout << node.values[i];
+    }
+    cout << ")" << endl;
+}
+
+// Add print function for EnumDecl
+void printEnumDecl(const EnumDecl& node, int indent) {
+    cout << string(indent, ' ') << "EnumDecl(\"" << node.name << "\")" << endl;
+    if (node.values) {
+        cout << string(indent + 2, ' ') << "Values:" << endl;
+        printASTNode(node.values->node, indent + 4);
+    }
 }
 
 void printCallExpr(const CallExpr& node, int indent) {
@@ -577,6 +629,8 @@ void printASTNode(const ASTNodeVariant& node, int indent) {
         else if constexpr (std::is_same_v<T, BinaryExpr>) printBinaryExpr(n, indent);
         else if constexpr (std::is_same_v<T, UnaryExpr>) printUnaryExpr(n, indent);
         else if constexpr (std::is_same_v<T, IncludeStmt>) printIncludeStmt(n, indent);
+        else if constexpr (std::is_same_v<T, EnumValueList>) printEnumValueList(n, indent); 
+        else if constexpr (std::is_same_v<T, EnumDecl>) printEnumDecl(n, indent);// <-- enums case
         else if constexpr (std::is_same_v<T, CallExpr>) printCallExpr(n, indent);
         else if constexpr (std::is_same_v<T, VarDecl>) printVarDecl(n, indent);
         else if constexpr (std::is_same_v<T, BlockStmt>) printBlockStmt(n, indent);
@@ -813,6 +867,29 @@ private:
         return make_unique<ASTNode>(BinaryExpr(op.type, move(left), move(right)));
     }
 
+    // ------------------------ Parse enums
+    ASTPtr parseEnumDeclaration() {
+        expect(T_ENUM); // Consume 'enum'
+        Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier); // Get enum name
+        string name = nameToken.value;
+        expect(T_LBRACE); // Consume '{'
+
+        vector<string> values;
+        if (!check(T_RBRACE)) { // Check if enum body is not empty
+            do {
+                Token valueToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier); // Get enum value name
+                values.push_back(valueToken.value);
+            } while (match(T_COMMA)); // Handle comma-separated values
+        }
+        expect(T_RBRACE); // Consume '}'
+        consumeSemicolon(); // Enums end with semicolon
+
+        // Create the EnumValueList AST node
+        auto valueList = make_unique<ASTNode>(EnumValueList(move(values)));
+        // Create the EnumDecl AST node
+        return make_unique<ASTNode>(EnumDecl(name, move(valueList)));
+    }
+
     // ---- Call expression ----
     ASTPtr parseCallExpression(ASTPtr callee) {
         if (!isIdentifierNode(callee)) throw ParseError(ParseErrorType::InvalidCallTarget, currentToken);
@@ -829,7 +906,42 @@ private:
     }
 
     // ---- Statements and declarations ----
+    // ASTPtr parseStatement() {
+    //     if (isTypeToken(currentToken.type)) return parseVariableDeclaration();
+    //     if (check(T_PRINT)) return parsePrintStatement();
+    //     if (check(T_IF)) return parseIfStatement();
+    //     if (check(T_WHILE)) return parseWhileStatement();
+    //     if (match(T_DO)) return parseDoWhileStatement();
+    //     if (match(T_FOR)) return parseForStatement();
+    //     if (match(T_SWITCH)) return parseSwitchStatement();
+    //     if (check(T_RETURN)) return parseReturnStatement();
+    //     if (check(T_LBRACE)) return parseBlockStatement();
+    //     if (check(T_MAIN)) return parseMainDeclaration();
+    //     if (match(T_BREAK)) {
+    //         expect(T_SEMICOLON);
+    //         return make_unique<ASTNode>(Identifier("break")); // simple placeholder for BreakStmt
+    //     }
+
+    //     ASTPtr expr = parseExpression();
+    //     consumeSemicolon();
+    //     return make_unique<ASTNode>(ExpressionStmt(move(expr)));
+    // }
+
+    // Modify parseStatement to recognize enum declarations
     ASTPtr parseStatement() {
+        // Check for enum declaration first
+        if (check(T_ENUM)) {
+            return parseEnumDeclaration();
+        }
+        // Check for type declarations (var, func)
+        // if (isTypeToken(currentToken.type)) {
+        //     const Token& next = peek(1);
+        //     if (next.type == T_IDENTIFIER) {
+        //         return parseFunctionDeclaration(); // Assume function if followed by identifier after type
+        //     } else {
+        //         return parseVariableDeclaration(); // Assume variable otherwise
+        //     }
+        // }
         if (isTypeToken(currentToken.type)) return parseVariableDeclaration();
         if (check(T_PRINT)) return parsePrintStatement();
         if (check(T_IF)) return parseIfStatement();
@@ -842,13 +954,14 @@ private:
         if (check(T_MAIN)) return parseMainDeclaration();
         if (match(T_BREAK)) {
             expect(T_SEMICOLON);
+            // Consider creating a proper BreakStmt AST node instead of Identifier
             return make_unique<ASTNode>(Identifier("break")); // simple placeholder for BreakStmt
         }
-
         ASTPtr expr = parseExpression();
         consumeSemicolon();
         return make_unique<ASTNode>(ExpressionStmt(move(expr)));
     }
+
 
     ASTPtr parseVariableDeclaration() {
         TokenType type = currentToken.type;
@@ -1034,43 +1147,38 @@ private:
         return make_unique<ASTNode>(FunctionDecl(returnType, name, move(params), move(body)));
     }
 
-    
     ASTPtr parseIncludeStatement() {
-    Token kw = expect(T_IDENTIFIER, ParseErrorType::UnexpectedToken);
-    if (kw.value != "include") {
-        throw ParseError(ParseErrorType::UnexpectedToken, kw);
-    }
-
-    // include <main>
-    if (match(T_LT)) {
-        if (!check(T_MAIN)) {
+        expect(T_INCLUDE); // Consume 'include'
+        if (match(T_LT)) { // Handle include <header>
+            if (check(T_MAIN)) {
+                advance(); // Consume T_MAIN
+                expect(T_GT); // Consume '>'
+                return make_unique<ASTNode>(IncludeStmt("main"));
+            } else {
+                // Handle include <other_header>
+                string header;
+                if (check(T_IDENTIFIER)) {
+                    header = currentToken.value;
+                    advance(); // Consume identifier
+                } else {
+                    // Or handle other tokens that might represent a header name within <>
+                    throw ParseError(ParseErrorType::ExpectedIdentifier, currentToken); // Or a more specific error
+                }
+                expect(T_GT); // Consume '>'
+                return make_unique<ASTNode>(IncludeStmt(header));
+            }
+        } else if (check(T_STRINGLIT)) { // Handle include "header"
+            Token headerTok = currentToken;
+            advance(); // Consume string literal
+            string header = headerTok.value;
+            if (header.size() >= 2 && header.front() == '"' && header.back() == '"') {
+                header = header.substr(1, header.size() - 2); // Remove quotes
+            }
+            return make_unique<ASTNode>(IncludeStmt(header));
+        } else {
             throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
         }
-        advance(); // consume T_MAIN
-        expect(T_GT);
-        return make_unique<ASTNode>(IncludeStmt("main"));
     }
-
-    // include "header"
-    if (check(T_STRINGLIT)) {
-        Token headerTok = currentToken;
-        advance();
-        string header = headerTok.value;
-        if (header.size() >= 2 && header.front() == '"' && header.back() == '"') {
-            header = header.substr(1, header.size() - 2);
-        }
-        return make_unique<ASTNode>(IncludeStmt(header));
-    }
-
-    // include identifier fallback
-    if (check(T_IDENTIFIER)) {
-        Token headerTok = currentToken;
-        advance();
-        return make_unique<ASTNode>(IncludeStmt(headerTok.value));
-    }
-
-    throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
-}
 
 
 public:
@@ -1084,14 +1192,18 @@ public:
         vector<ASTPtr> declarations;
 
         // Enforce first token must be include<main>
-        if (!(check(T_IDENTIFIER) && currentToken.value == "include")) {
+        if (!(check(T_INCLUDE))) {
             throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
         }
         declarations.push_back(parseIncludeStatement());
 
         // Continue with the rest
         while (currentToken.type != T_EOF) {
-            if (check(T_IDENTIFIER) && currentToken.value == "include") {
+            // if (check(T_IDENTIFIER) && currentToken.value == "include") {
+            //     declarations.push_back(parseIncludeStatement());
+            //     continue;
+            // }
+            if (check(T_INCLUDE)) { // Also handle subsequent include statements
                 declarations.push_back(parseIncludeStatement());
                 continue;
             }
@@ -1117,8 +1229,15 @@ public:
 
 // ==========================================================
 // Map string names in file -> enum TokenType
+// ==========================================================
+// Map string names in file -> enum TokenType
 TokenType tokenTypeFromString(const string& s) {
     static unordered_map<string, TokenType> mapping = {
+        // Add these two lines:
+        {"T_INCLUDE", T_INCLUDE},
+        {"T_ENUM", T_ENUM},
+
+        // Keep all the existing mappings:
         {"T_INT", T_INT}, {"T_FLOAT", T_FLOAT}, {"T_DOUBLE", T_DOUBLE},
         {"T_CHAR", T_CHAR}, {"T_VOID", T_VOID}, {"T_BOOL", T_BOOL},{"T_STRING", T_STRING},
         {"T_IDENTIFIER", T_IDENTIFIER}, {"T_INTLIT", T_INTLIT},
@@ -1145,7 +1264,7 @@ TokenType tokenTypeFromString(const string& s) {
     };
     auto it = mapping.find(s);
     if (it != mapping.end()) return it->second;
-    return T_ERROR;
+    return T_ERROR; // This will now correctly return T_ERROR for unknown tokens, but T_INCLUDE should be found now.
 }
 
 vector<Token> loadTokens(const string& filename) {

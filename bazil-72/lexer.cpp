@@ -9,7 +9,7 @@ using namespace std;
 // === Token Types ===
 enum TokenType {
     // Types
-    T_INT, T_FLOAT, T_DOUBLE, T_CHAR, T_VOID, T_BOOL,
+    T_INT, T_FLOAT, T_DOUBLE, T_CHAR, T_VOID, T_BOOL, T_ENUM,
 
     // Literals
     T_IDENTIFIER, T_INTLIT, T_FLOATLIT, T_STRINGLIT, T_CHARLIT, T_BOOLLIT,
@@ -26,7 +26,7 @@ enum TokenType {
 
     // Keywords
     T_IF, T_ELSE, T_WHILE, T_RETURN, T_PRINT,
-    T_MAIN,
+    T_MAIN, T_INCLUDE,
 
     // New keywords
     T_STRING, T_DO, T_SWITCH, T_BREAK, T_FOR, T_DEFAULT, T_CASE, T_COLON,
@@ -48,13 +48,14 @@ struct Token {
 // === Static Keyword Map ===
 static const map<string, TokenType> keywords = {
     {"int", T_INT}, {"float", T_FLOAT}, {"double", T_DOUBLE},
-    {"char", T_CHAR}, {"void", T_VOID}, {"bool", T_BOOL},
+    {"char", T_CHAR}, {"void", T_VOID}, {"bool", T_BOOL}, {"enum", T_ENUM},
+
     {"true", T_BOOLLIT}, {"false", T_BOOLLIT},
     {"if", T_IF}, {"else", T_ELSE}, {"while", T_WHILE}, {"return", T_RETURN},
     {"print", T_PRINT}, {"main", T_MAIN},
 
     // Newly added keywords
-    {"string", T_STRING}, {"do", T_DO}, {"switch", T_SWITCH}, 
+    {"string", T_STRING}, {"do", T_DO}, {"switch", T_SWITCH}, {"include", T_INCLUDE},
     {"break", T_BREAK}, {"for", T_FOR}, {"default", T_DEFAULT}, {"case", T_CASE}
 };
 
@@ -360,12 +361,14 @@ bool getNextToken(LexerState& state, Token& token) {
 // === Token Type to String ===
 const char* tokenTypeToString(TokenType type) {
     switch (type) {
+        case T_INCLUDE: return "T_INCLUDE";
         case T_INT: return "T_INT";
         case T_FLOAT: return "T_FLOAT";
         case T_DOUBLE: return "T_DOUBLE";
         case T_CHAR: return "T_CHAR";
         case T_VOID: return "T_VOID";
         case T_BOOL: return "T_BOOL";
+        case T_ENUM: return "T_ENUM";
         case T_IDENTIFIER: return "T_IDENTIFIER";
         case T_INTLIT: return "T_INTLIT";
         case T_FLOATLIT: return "T_FLOATLIT";
