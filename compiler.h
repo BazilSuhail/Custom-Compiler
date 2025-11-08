@@ -55,7 +55,61 @@ struct Token {
     int line;
     int column;
 };
+// === Scope Analysis Errors ===
+enum class ScopeErrorType {
+    UndeclaredVariableAccessed,
+    UndefinedFunctionCalled,
+    VariableRedefinition,
+    FunctionPrototypeRedefinition,
+    ConflictingFunctionDefinition, 
+};
 
+struct ScopeError {
+    ScopeErrorType type;
+    string name;
+    int line;
+    int column;
+    string message;
+
+    ScopeError(ScopeErrorType t, const string& n, int l, int c) 
+        : type(t), name(n), line(l), column(c) {
+        switch (t) {
+            case ScopeErrorType::UndeclaredVariableAccessed:
+                message = "Undeclared variable accessed: '" + n + "'";
+                break;
+            case ScopeErrorType::UndefinedFunctionCalled:
+                message = "Undefined function called: '" + n + "'";
+                break;
+            case ScopeErrorType::VariableRedefinition:
+                message = "Variable redefinition: '" + n + "'";
+                break;
+            case ScopeErrorType::FunctionPrototypeRedefinition:
+                message = "Function prototype redefinition: '" + n + "'";
+                break;
+            case ScopeErrorType::ConflictingFunctionDefinition:
+                message = "Conflicting function definition: '" + n + "'";
+                break;
+            case ScopeErrorType::ConflictingDeclaration:
+                message = "Conflicting declaration: '" + n + "'";
+                break;
+            case ScopeErrorType::ParameterRedefinition:
+                message = "Parameter redefinition: '" + n + "'";
+                break;
+            case ScopeErrorType::InvalidForwardReference:
+                message = "Invalid forward reference: '" + n + "'";
+                break;
+            case ScopeErrorType::InvalidStorageClassUsage:
+                message = "Invalid storage class usage for: '" + n + "'";
+                break;
+            case ScopeErrorType::EnumRedefinition:
+                message = "Enum redefinition: '" + n + "'";
+                break;
+            case ScopeErrorType::EnumVariantRedefinition:
+                message = "Enum variant redefinition: '" + n + "'";
+                break;
+        }
+    }
+};
 
 // === AST Node Types (using std::variant) ===
 struct IntLiteral {
@@ -171,6 +225,27 @@ struct BlockStmt {
     BlockStmt(vector<unique_ptr<struct ASTNode>> b) : body(move(b)) {}
 };
 
+// Add this struct to your header file after FunctionDecl
+struct FunctionProto {
+    TokenType returnType;
+    string name;
+    vector<pair<TokenType, string>> params;
+    FunctionProto(TokenType rt, const string& n, vector<pair<TokenType, string>> p)
+        : returnType(rt), name(n), params(move(p)) {}
+    void printType(TokenType t) const {
+        switch (t) {
+            case T_INT: cout << "int"; break;
+            case T_FLOAT: cout << "float"; break;
+            case T_DOUBLE: cout << "double"; break;
+            case T_CHAR: cout << "char"; break;
+            case T_BOOL: cout << "bool"; break;
+            case T_VOID: cout << "void"; break;
+            case T_STRING: cout << "string"; break;
+            default: cout << "unknown_type"; break;
+        }
+    }
+};
+
 struct FunctionDecl {
     TokenType returnType;
     string name;
@@ -273,6 +348,7 @@ using ASTNodeVariant = variant<
     CallExpr,
     VarDecl,
     BlockStmt,
+    FunctionProto,
     FunctionDecl,
     MainDecl,
     IfStmt,
@@ -295,9 +371,12 @@ struct ASTNode {
 
 using ASTPtr = unique_ptr<ASTNode>;
 
+
+
 // ********************************* FUNCTION DECLARATIONS ******************************************
 
 vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename);
 vector<unique_ptr<ASTNode>> parseFromFile(const vector<Token>& tokens);
+vector<ScopeError> performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens)
 
 #endif

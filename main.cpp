@@ -16,12 +16,3 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
-
-// #include "compiler.h"
-// using namespace std;
-
-// int main() {
-//     vector<Token> tokens = lexAndDumpToFile("tester/sample.txt", "tester/tokens.txt");
-//     auto ast = parseFromFile(tokens);
-//     return 0;
-// }
