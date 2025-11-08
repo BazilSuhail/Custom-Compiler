@@ -123,49 +123,76 @@ private:
     }
 
     // Analyze function declaration
-    void analyzeFunctionDecl(const FunctionDecl& func, int line, int col) {
-        // Check globally for existing function with same name
+    // Analyze function declaration
+void analyzeFunctionDecl(const FunctionDecl& func, int line, int col) {
+    // First check if there's already a symbol in the CURRENT scope
+    SymbolInfo* localSym = currentScope->findSymbol(func.name);
+    
+    if (localSym) {
+        // There's already a symbol with this name in current scope
+        if (localSym->isFunction) {
+            if (areFunctionSignaturesEqual(localSym->params, func.params)) {
+                if (localSym->isPrototype) {
+                    // Prototype exists in current scope - replace with definition
+                    localSym->isPrototype = false;
+                    // Update the symbol info (it's now a definition)
+                } else {
+                    // Already have a definition - this is a redefinition error
+                    addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
+                }
+            } else {
+                // Different signature - conflicting declaration
+                addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
+            }
+        } else {
+            // Symbol exists but is not a function
+            addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
+        }
+    } else {
+        // No symbol in current scope - check parent scopes
         SymbolInfo* existing = lookupSymbol(func.name);
         
-        if (existing && existing->isFunction) {
-            if (areFunctionSignaturesEqual(existing->params, func.params)) {
-                if (existing->isPrototype) {
-                    // Replace prototype with definition in current scope
-                    currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
+        if (existing) {
+            // Symbol exists in parent scope
+            if (existing->isFunction) {
+                if (areFunctionSignaturesEqual(existing->params, func.params)) {
+                    if (!existing->isPrototype) {
+                        // Definition exists in parent scope - still an error in C
+                        addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
+                    }
+                    // If it's a prototype in parent scope, we can define it here
                 } else {
-                    addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
+                    addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
                 }
             } else {
                 addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
             }
-        } else if (existing) {
-            addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
-        } else {
-            // Add function to current scope (which should be global scope at this point)
-            currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
         }
         
-        // Enter function scope for parameters
-        ScopeFrame* originalScope = currentScope; // Save current scope
-        enterScope();
-        
-        set<string> paramNames;
-        for (const auto& param : func.params) {
-            if (paramNames.count(param.second) > 0) {
-                addError(ScopeErrorType::ParameterRedefinition, param.second, line, col);
-            } else {
-                paramNames.insert(param.second);
-                currentScope->addSymbol(SymbolInfo(param.first, param.second, line, col, false));
-            }
-        }
-        
-        for (const auto& stmt : func.body) {
-            analyzeNode(stmt->node);
-        }
-        
-        // Exit function scope and return to original scope
-        currentScope = originalScope;
+        // Add new function definition to current scope
+        currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
     }
+    
+    // Enter function scope for parameters and body
+    enterScope();
+    
+    set<string> paramNames;
+    for (const auto& param : func.params) {
+        if (paramNames.count(param.second) > 0) {
+            addError(ScopeErrorType::ParameterRedefinition, param.second, line, col);
+        } else {
+            paramNames.insert(param.second);
+            currentScope->addSymbol(SymbolInfo(param.first, param.second, line, col, false));
+        }
+    }
+    
+    for (const auto& stmt : func.body) {
+        analyzeNode(stmt->node);
+    }
+    
+    // Exit function scope
+    exitScope();
+}
 
     // Analyze function prototype
     void analyzeFunctionProto(const FunctionProto& proto, int line, int col) {
@@ -222,15 +249,13 @@ private:
 
     // Analyze main declaration
     void analyzeMainDecl(const MainDecl& main) {
-        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
         
         for (const auto& stmt : main.body) {
             analyzeNode(stmt->node);
         }
         
-        // Exit main scope and return to original scope
-        currentScope = originalScope;
+        exitScope();
     }
 
     // Analyze function call
@@ -293,55 +318,43 @@ private:
     void analyzeIfStmt(const IfStmt& stmt) {
         if (stmt.condition) analyzeExpression(stmt.condition->node);
         
-        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
-        
         for (const auto& ifStmt : stmt.ifBody) {
             analyzeNode(ifStmt->node);
         }
+        exitScope();
         
-        currentScope = originalScope; // Return to original scope
-        
-        if (!stmt.elseBody.empty()) {
-            enterScope();
-            for (const auto& elseStmt : stmt.elseBody) {
-                analyzeNode(elseStmt->node);
-            }
-            currentScope = originalScope; // Return to original scope again
+        enterScope();
+        for (const auto& elseStmt : stmt.elseBody) {
+            analyzeNode(elseStmt->node);
         }
+        exitScope();
     }
 
     // Analyze while statement
     void analyzeWhileStmt(const WhileStmt& stmt) {
         if (stmt.condition) analyzeExpression(stmt.condition->node);
         
-        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
-        
         for (const auto& bodyStmt : stmt.body) {
             analyzeNode(bodyStmt->node);
         }
-        
-        currentScope = originalScope; // Return to original scope
+        exitScope();
     }
 
     // Analyze do-while statement
     void analyzeDoWhileStmt(const DoWhileStmt& stmt) {
-        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
-        
         if (stmt.body) {
             analyzeNode(stmt.body->node);
         }
-        
-        currentScope = originalScope; // Return to original scope
+        exitScope();
         
         if (stmt.condition) analyzeExpression(stmt.condition->node);
     }
 
     // Analyze for statement
     void analyzeForStmt(const ForStmt& stmt) {
-        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
         
         if (stmt.init) analyzeNode(stmt.init->node);
@@ -352,7 +365,7 @@ private:
             analyzeNode(stmt.body->node);
         }
         
-        currentScope = originalScope; // Return to original scope
+        exitScope();
     }
 
     // Analyze switch statement
@@ -361,19 +374,17 @@ private:
         
         for (const auto& caseStmt : stmt.cases) {
             if (caseStmt) {
-                ScopeFrame* originalScope = currentScope; // Save current scope
                 enterScope();
                 analyzeNode(caseStmt->node);
-                currentScope = originalScope; // Return to original scope
+                exitScope();
             }
         }
         
-        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
         for (const auto& defaultStmt : stmt.defaultBody) {
             analyzeNode(defaultStmt->node);
         }
-        currentScope = originalScope; // Return to original scope
+        exitScope();
     }
 
     // Analyze return statement
@@ -397,14 +408,11 @@ private:
 
     // Analyze block statement
     void analyzeBlockStmt(const BlockStmt& block) {
-        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
-        
         for (const auto& stmt : block.body) {
             analyzeNode(stmt->node);
         }
-        
-        currentScope = originalScope; // Return to original scope
+        exitScope();
     }
 
     // Main analysis function for AST nodes
@@ -478,8 +486,8 @@ void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens
     if (!errors.empty()) {
         cout << "\n=== Scope Analysis Errors ===\n";
         for (const auto& error : errors) {
-            cout << "[Scope Error] " << error.message
-                 << " (line " << error.line << ", col " << error.column << ")\n";
+            cout << "[Scope Error] " << error.message << ")\n";
+            //cout << "[Scope Error] " << error.message << " (line " << error.line << ", col " << error.column << ")\n";
         }
         cout << "Scope analysis failed with " << errors.size() << " error(s)\n";
         exit(EXIT_FAILURE);

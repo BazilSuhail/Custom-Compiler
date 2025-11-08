@@ -1,17 +1,19 @@
 include<main>
 include"main.h"
 
-enum MEOW { YELLOW,YELLOW, BLUE };
+enum MEOW { YELLOW, BLUE };
 
 
 int add(int m);
-int add(int m);
-
 int add(int m){
+    add1();
     return m+2;
 }
+int add1(int m);
 
-int add(int m){
+
+int add1(int m){
+    int ans  = m;
     return m+2;
 }
 
@@ -21,7 +23,7 @@ main {
     float ❤️ = 3.14159;
     int ans = add(2);
 
-    print("Hello World! 🌍",mm);
+    print("Hello World! 🌍");
     int m = ans;
     
     return 0;

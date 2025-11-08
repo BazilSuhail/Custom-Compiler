@@ -1,19 +1,23 @@
 ```
-Program        ::= IncludeStmt { ( FunctionDecl | Statement ) } MainDecl T_EOF
+Program        ::= IncludeStmt { ( FunctionProto | FunctionDecl | EnumDecl | Statement ) } MainDecl T_EOF
 
-IncludeStmt    ::= "include" ( "<main>" | T_STRINGLIT | T_IDENTIFIER )
+IncludeStmt    ::= T_INCLUDE ( "<" T_MAIN ">" | T_STRINGLIT | T_IDENTIFIER )
+
+FunctionProto  ::= Type T_IDENTIFIER "(" [ ParamList ] ")" ";" 
 
 FunctionDecl   ::= Type T_IDENTIFIER "(" [ ParamList ] ")" BlockStmt
 
 ParamList      ::= Param { "," Param }
 Param          ::= Type T_IDENTIFIER
 
+EnumDecl       ::= T_ENUM T_IDENTIFIER T_LBRACE [ T_IDENTIFIER { "," T_IDENTIFIER } ] T_RBRACE ";"
+
 MainDecl       ::= T_MAIN BlockStmt
 
 BlockStmt      ::= T_LBRACE { Statement } T_RBRACE
 
 Statement      ::= VarDecl
-                 | ExpressionStmt
+                 | ExpressionStmt  
                  | BlockStmt
                  | IfStmt
                  | WhileStmt
@@ -24,23 +28,23 @@ Statement      ::= VarDecl
                  | PrintStmt
                  | T_BREAK ";"
 
-VarDecl        ::= Type T_IDENTIFIER [ "=" Expression ] ";"
+VarDecl        ::= Type T_IDENTIFIER [ T_ASSIGNOP Expression ] ";"
 
 ExpressionStmt ::= Expression ";"
 
-IfStmt         ::= T_IF "(" Expression ")" BlockStmt [ T_ELSE BlockStmt ]
+IfStmt         ::= T_IF T_LPAREN Expression T_RPAREN BlockStmt [ T_ELSE BlockStmt ]
 
-WhileStmt      ::= T_WHILE "(" Expression ")" BlockStmt
+WhileStmt      ::= T_WHILE T_LPAREN Expression T_RPAREN BlockStmt
 
-DoWhileStmt    ::= T_DO BlockStmt T_WHILE "(" Expression ")" ";"
+DoWhileStmt    ::= T_DO BlockStmt T_WHILE T_LPAREN Expression T_RPAREN ";"
 
-ForStmt        ::= T_FOR "(" [ ( VarDecl | ExpressionStmt ) ] [ Expression ] ";" [ Expression ] ")" BlockStmt
+ForStmt        ::= T_FOR T_LPAREN [ ( VarDecl | ExpressionStmt ) ] [ Expression ] ";" [ Expression ] T_RPAREN BlockStmt
 
-SwitchStmt     ::= T_SWITCH "(" Expression ")" T_LBRACE { ( T_CASE Expression BlockStmt | T_DEFAULT BlockStmt ) } T_RBRACE
+SwitchStmt     ::= T_SWITCH T_LPAREN Expression T_RPAREN T_LBRACE { ( T_CASE Expression BlockStmt | T_DEFAULT BlockStmt ) } T_RBRACE
 
 ReturnStmt     ::= T_RETURN [ Expression ] ";"
 
-PrintStmt      ::= T_PRINT "(" [ ExpressionList ] ")" ";"
+PrintStmt      ::= T_PRINT T_LPAREN [ ExpressionList ] T_RPAREN ";"
 
 ExpressionList ::= Expression { "," Expression }
 
@@ -64,12 +68,12 @@ Unary          ::= [ ( T_MINUS | T_NOT ) ] Primary
 
 Primary        ::= Literal
                  | T_IDENTIFIER [ CallSuffix ]
-                 | "(" Expression ")"
+                 | T_LPAREN Expression T_RPAREN
 
-CallSuffix     ::= "(" [ ExpressionList ] ")"
+CallSuffix     ::= T_LPAREN [ ExpressionList ] T_RPAREN
 
 Literal        ::= T_INTLIT
-                 | T_FLOATLIT
+                 | T_FLOATLIT  
                  | T_STRINGLIT
                  | T_CHARLIT
                  | T_BOOLLIT
@@ -81,5 +85,4 @@ Type           ::= T_INT
                  | T_BOOL
                  | T_VOID
                  | T_STRING
-
 ```
