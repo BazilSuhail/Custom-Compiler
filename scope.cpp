@@ -469,3 +469,22 @@ public:
         return errors;
     }
 };
+
+// Function to perform scope analysis
+void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens) {
+    ScopeAnalyzer analyzer;
+    vector<ScopeError> errors = analyzer.analyze(ast, tokens);
+
+    if (!errors.empty()) {
+        cout << "\n=== Scope Analysis Errors ===\n";
+        for (const auto& error : errors) {
+            cout << "[Scope Error] " << error.message
+                 << " (line " << error.line << ", col " << error.column << ")\n";
+        }
+        cout << "Scope analysis failed with " << errors.size() << " error(s)\n";
+        exit(EXIT_FAILURE);
+    }
+
+    cout << "\n=== Scope Analysis Successful ===\n";
+    cout << "No scope errors found.\n";
+}
