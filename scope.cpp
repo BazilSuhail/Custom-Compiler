@@ -11,10 +11,11 @@ struct SymbolInfo {
     bool isFunction;
     bool isEnum;
     bool isEnumValue;
+    bool isPrototype; // New field to distinguish prototypes from definitions
     vector<pair<TokenType, string>> params; // For functions
     
-    SymbolInfo(TokenType t, const string& n, int l, int c, bool isFunc = false, bool isEnumSym = false, bool isEnumVal = false, vector<pair<TokenType, string>> p = {})
-        : type(t), name(n), line(l), column(c), isFunction(isFunc), isEnum(isEnumSym), isEnumValue(isEnumVal), params(p) {}
+    SymbolInfo(TokenType t, const string& n, int l, int c, bool isFunc = false, bool isEnumSym = false, bool isEnumVal = false, bool isProto = false, vector<pair<TokenType, string>> p = {})
+        : type(t), name(n), line(l), column(c), isFunction(isFunc), isEnum(isEnumSym), isEnumValue(isEnumVal), isPrototype(isProto), params(p) {}
 };
 
 // === Scope Frame (Spaghetti Stack Node) ===
@@ -73,19 +74,6 @@ private:
         return nullptr;
     }
 
-    // Find a symbol in the current scope only (for redefinition checks)
-    SymbolInfo* lookupInCurrentScope(const string& name) {
-        return currentScope->findSymbol(name);
-    }
-
-    // Get the current token's position for error reporting
-    pair<int, int> getCurrentPosition() {
-        if (currentTokenIndex < tokens.size()) {
-            return {tokens[currentTokenIndex].line, tokens[currentTokenIndex].column};
-        }
-        return {-1, -1};
-    }
-
     // Create a new child scope
     void enterScope() {
         auto newScope = make_unique<ScopeFrame>(currentScope, currentScope->level + 1);
@@ -106,42 +94,29 @@ private:
         errors.push_back(ScopeError(type, name, line, col));
     }
 
-    // Check if two types are compatible for redefinition checks
-    bool areTypesCompatible(TokenType t1, TokenType t2) {
-        return t1 == t2;
-    }
-
-    // Check if two function signatures are the same
+    // Check if two function signatures are the same (C-style: types only, not names)
     bool areFunctionSignaturesEqual(const vector<pair<TokenType, string>>& params1, 
                                    const vector<pair<TokenType, string>>& params2) {
         if (params1.size() != params2.size()) return false;
         for (size_t i = 0; i < params1.size(); i++) {
-            if (params1[i].first != params2[i].first) return false;
-            // Note: parameter names don't need to match for function signatures
+            if (params1[i].first != params2[i].first) return false;  // Compare types only
         }
         return true;
     }
 
     // Analyze variable declaration
     void analyzeVarDecl(const VarDecl& decl, int line, int col) {
-        // Check if variable already exists in current scope
         if (currentScope->hasSymbol(decl.name)) {
             addError(ScopeErrorType::VariableRedefinition, decl.name, line, col);
         } else {
-            // Check for conflicting declaration (e.g., variable with same name as function)
             SymbolInfo* existing = lookupSymbol(decl.name);
-            if (existing && existing->isFunction) {
-                addError(ScopeErrorType::ConflictingDeclaration, decl.name, line, col);
-            } else if (existing && existing->isEnum) {
-                addError(ScopeErrorType::ConflictingDeclaration, decl.name, line, col);
-            } else if (existing && existing->isEnumValue) {
+            if (existing && (existing->isFunction || existing->isEnum || existing->isEnumValue)) {
                 addError(ScopeErrorType::ConflictingDeclaration, decl.name, line, col);
             } else {
                 currentScope->addSymbol(SymbolInfo(decl.type, decl.name, line, col, false));
             }
         }
         
-        // Analyze initializer if present
         if (decl.initializer) {
             analyzeExpression(decl.initializer->node);
         }
@@ -149,36 +124,31 @@ private:
 
     // Analyze function declaration
     void analyzeFunctionDecl(const FunctionDecl& func, int line, int col) {
-        // Check if function already exists in current scope
-        SymbolInfo* existing = currentScope->findSymbol(func.name);
+        // Check globally for existing function with same name
+        SymbolInfo* existing = lookupSymbol(func.name);
+        
         if (existing && existing->isFunction) {
-            // Check if it's a redefinition vs prototype
             if (areFunctionSignaturesEqual(existing->params, func.params)) {
-                // If the existing is just a prototype, this is a definition
-                // If the existing is already a definition, this is a redefinition
-                if (existing->line != -1) { // If existing has a valid line, it's a definition
-                    addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
+                if (existing->isPrototype) {
+                    // Replace prototype with definition in current scope
+                    currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
                 } else {
-                    // Update the existing prototype with the definition
-                    currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, func.params));
+                    addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
                 }
             } else {
                 addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
             }
+        } else if (existing) {
+            addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
         } else {
-            // Check for conflicting declaration
-            SymbolInfo* existingInAnyScope = lookupSymbol(func.name);
-            if (existingInAnyScope) {
-                addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
-            } else {
-                currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, func.params));
-            }
+            // Add function to current scope (which should be global scope at this point)
+            currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
         }
         
         // Enter function scope for parameters
+        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
         
-        // Add parameters to current scope, checking for redefinitions
         set<string> paramNames;
         for (const auto& param : func.params) {
             if (paramNames.count(param.second) > 0) {
@@ -189,65 +159,47 @@ private:
             }
         }
         
-        // Analyze function body
         for (const auto& stmt : func.body) {
             analyzeNode(stmt->node);
         }
         
-        // Exit function scope
-        exitScope();
+        // Exit function scope and return to original scope
+        currentScope = originalScope;
     }
 
     // Analyze function prototype
     void analyzeFunctionProto(const FunctionProto& proto, int line, int col) {
-        // Check if function prototype already exists in current scope
-        SymbolInfo* existing = currentScope->findSymbol(proto.name);
+        SymbolInfo* existing = lookupSymbol(proto.name); // Check globally
+        
         if (existing && existing->isFunction) {
-            // Check if it's a conflicting prototype vs definition
             if (areFunctionSignaturesEqual(existing->params, proto.params)) {
-                // If existing is a definition, this is OK (prototype after definition)
-                // If existing is a prototype, this is a redefinition
-                if (existing->line == -1 || existing->line == line) { // If it's also a prototype
+                if (existing->isPrototype) {
                     addError(ScopeErrorType::FunctionPrototypeRedefinition, proto.name, line, col);
                 }
+                // If existing is a definition, adding prototype is OK
             } else {
                 addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
             }
+        } else if (existing) {
+            addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
         } else {
-            // Check for conflicting declaration
-            SymbolInfo* existingInAnyScope = lookupSymbol(proto.name);
-            if (existingInAnyScope && existingInAnyScope->isFunction) {
-                // If there's already a function with same signature, allow it (for multiple prototypes)
-                if (areFunctionSignaturesEqual(existingInAnyScope->params, proto.params)) {
-                    // Same signature - this is OK, but we don't add it again
-                    return;
-                } else {
-                    addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
-                }
-            } else if (existingInAnyScope) {
-                addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
-            } else {
-                currentScope->addSymbol(SymbolInfo(proto.returnType, proto.name, line, col, true, false, false, proto.params));
-            }
+            currentScope->addSymbol(SymbolInfo(proto.returnType, proto.name, line, col, true, false, false, true, proto.params));
         }
     }
 
     // Analyze enum declaration
     void analyzeEnumDecl(const EnumDecl& enm, int line, int col) {
-        // Check if enum name already exists in current scope
         if (currentScope->hasSymbol(enm.name)) {
             addError(ScopeErrorType::EnumRedefinition, enm.name, line, col);
         } else {
-            // Check for conflicting declaration
             SymbolInfo* existing = lookupSymbol(enm.name);
             if (existing) {
                 addError(ScopeErrorType::ConflictingDeclaration, enm.name, line, col);
             } else {
-                currentScope->addSymbol(SymbolInfo(T_ENUM, enm.name, line, col, false, true));
+                currentScope->addSymbol(SymbolInfo(T_ENUM, enm.name, line, col, false, true, false, false, {}));
             }
         }
         
-        // Analyze enum values
         if (holds_alternative<EnumValueList>(enm.values->node)) {
             const auto& valueList = get<EnumValueList>(enm.values->node);
             set<string> enumValues;
@@ -257,17 +209,28 @@ private:
                     addError(ScopeErrorType::EnumVariantRedefinition, value, line, col);
                 } else {
                     enumValues.insert(value);
-                    
-                    // Check if enum value conflicts with other symbols
                     SymbolInfo* existing = lookupSymbol(value);
                     if (existing) {
                         addError(ScopeErrorType::ConflictingDeclaration, value, line, col);
                     } else {
-                        currentScope->addSymbol(SymbolInfo(T_INT, value, line, col, false, false, true));
+                        currentScope->addSymbol(SymbolInfo(T_INT, value, line, col, false, false, true, false, {}));
                     }
                 }
             }
         }
+    }
+
+    // Analyze main declaration
+    void analyzeMainDecl(const MainDecl& main) {
+        ScopeFrame* originalScope = currentScope; // Save current scope
+        enterScope();
+        
+        for (const auto& stmt : main.body) {
+            analyzeNode(stmt->node);
+        }
+        
+        // Exit main scope and return to original scope
+        currentScope = originalScope;
     }
 
     // Analyze function call
@@ -275,16 +238,13 @@ private:
         if (holds_alternative<Identifier>(call.callee->node)) {
             const auto& ident = get<Identifier>(call.callee->node);
             SymbolInfo* funcSym = lookupSymbol(ident.name);
-            
             if (!funcSym || !funcSym->isFunction) {
                 addError(ScopeErrorType::UndefinedFunctionCalled, ident.name, line, col);
             }
         } else {
-            // If the callee is not an identifier, analyze it as an expression
             analyzeExpression(call.callee->node);
         }
         
-        // Analyze arguments
         for (const auto& arg : call.args) {
             analyzeExpression(arg->node);
         }
@@ -318,8 +278,6 @@ private:
                          is_same_v<T, BoolLiteral>) {
                 // Literals don't need scope analysis
             } else if constexpr (is_same_v<T, Identifier>) {
-                // We need to find the position of this identifier in the tokens
-                // For now, we'll pass -1, -1, but ideally we'd track token positions
                 analyzeIdentifier(node, -1, -1);
             } else if constexpr (is_same_v<T, BinaryExpr>) {
                 analyzeBinaryExpr(node);
@@ -335,43 +293,55 @@ private:
     void analyzeIfStmt(const IfStmt& stmt) {
         if (stmt.condition) analyzeExpression(stmt.condition->node);
         
+        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
+        
         for (const auto& ifStmt : stmt.ifBody) {
             analyzeNode(ifStmt->node);
         }
-        exitScope();
         
-        enterScope();
-        for (const auto& elseStmt : stmt.elseBody) {
-            analyzeNode(elseStmt->node);
+        currentScope = originalScope; // Return to original scope
+        
+        if (!stmt.elseBody.empty()) {
+            enterScope();
+            for (const auto& elseStmt : stmt.elseBody) {
+                analyzeNode(elseStmt->node);
+            }
+            currentScope = originalScope; // Return to original scope again
         }
-        exitScope();
     }
 
     // Analyze while statement
     void analyzeWhileStmt(const WhileStmt& stmt) {
         if (stmt.condition) analyzeExpression(stmt.condition->node);
         
+        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
+        
         for (const auto& bodyStmt : stmt.body) {
             analyzeNode(bodyStmt->node);
         }
-        exitScope();
+        
+        currentScope = originalScope; // Return to original scope
     }
 
     // Analyze do-while statement
     void analyzeDoWhileStmt(const DoWhileStmt& stmt) {
+        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
+        
         if (stmt.body) {
             analyzeNode(stmt.body->node);
         }
-        exitScope();
+        
+        currentScope = originalScope; // Return to original scope
         
         if (stmt.condition) analyzeExpression(stmt.condition->node);
     }
 
     // Analyze for statement
     void analyzeForStmt(const ForStmt& stmt) {
+        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
         
         if (stmt.init) analyzeNode(stmt.init->node);
@@ -382,7 +352,7 @@ private:
             analyzeNode(stmt.body->node);
         }
         
-        exitScope();
+        currentScope = originalScope; // Return to original scope
     }
 
     // Analyze switch statement
@@ -391,17 +361,19 @@ private:
         
         for (const auto& caseStmt : stmt.cases) {
             if (caseStmt) {
+                ScopeFrame* originalScope = currentScope; // Save current scope
                 enterScope();
                 analyzeNode(caseStmt->node);
-                exitScope();
+                currentScope = originalScope; // Return to original scope
             }
         }
         
+        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
         for (const auto& defaultStmt : stmt.defaultBody) {
             analyzeNode(defaultStmt->node);
         }
-        exitScope();
+        currentScope = originalScope; // Return to original scope
     }
 
     // Analyze return statement
@@ -425,11 +397,14 @@ private:
 
     // Analyze block statement
     void analyzeBlockStmt(const BlockStmt& block) {
+        ScopeFrame* originalScope = currentScope; // Save current scope
         enterScope();
+        
         for (const auto& stmt : block.body) {
             analyzeNode(stmt->node);
         }
-        exitScope();
+        
+        currentScope = originalScope; // Return to original scope
     }
 
     // Main analysis function for AST nodes
@@ -438,13 +413,15 @@ private:
             using T = decay_t<decltype(n)>;
             
             if constexpr (is_same_v<T, VarDecl>) {
-                analyzeVarDecl(n, -1, -1); // Position info not available here
+                analyzeVarDecl(n, -1, -1);
             } else if constexpr (is_same_v<T, FunctionDecl>) {
                 analyzeFunctionDecl(n, -1, -1);
             } else if constexpr (is_same_v<T, FunctionProto>) {
                 analyzeFunctionProto(n, -1, -1);
             } else if constexpr (is_same_v<T, EnumDecl>) {
                 analyzeEnumDecl(n, -1, -1);
+            } else if constexpr (is_same_v<T, MainDecl>) {
+                analyzeMainDecl(n);
             } else if constexpr (is_same_v<T, CallExpr>) {
                 analyzeCallExpr(n, -1, -1);
             } else if constexpr (is_same_v<T, Identifier>) {
@@ -472,7 +449,6 @@ private:
             } else if constexpr (is_same_v<T, BlockStmt>) {
                 analyzeBlockStmt(n);
             }
-            // Other node types that don't need scope analysis
         }, node);
     }
 
@@ -483,7 +459,7 @@ public:
     }
 
     vector<ScopeError> analyze(const vector<ASTPtr>& ast, const vector<Token>& tokenList) {
-        tokens = tokenList; // Store tokens for position info
+        tokens = tokenList;
         errors.clear();
         
         for (const auto& node : ast) {

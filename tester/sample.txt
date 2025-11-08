@@ -1,56 +1,28 @@
 include<main>
 include"main.h"
 
-enum MEOW { YELLOW, BLUE };
+enum MEOW { YELLOW,YELLOW, BLUE };
 
-int add(int x){
-    return x+2;
+
+int add(int m);
+int add(int m);
+
+int add(int m){
+    return m+2;
 }
 
-int add(int b, char a){
-    return x+2;
+int add(int m){
+    return m+2;
 }
 
 main {
-    int x = 42 + 5 - 8 * 10; 
+    enum ma{a};
+    int x = 42 + 5 / 8 * 10; 
     float ❤️ = 3.14159;
-    y=a;
-    print("Hello World! 🌍");
+    int ans = add(2);
 
-    for (int i = 0; i < 5; i = i + 1) {
-        print(a);
-    }
+    print("Hello World! 🌍",mm);
+    int m = ans;
     
-    print("Value of x: ", y);
-
-    if (y > 0) {
-        int ans;
-        print("Positive");
-    } else {
-        print("Non-positive");
-    }
-
-    print(ans);
-
-    while (x > 40) {
-        x = x - 1;
-    }
-
-    do {
-        苹果 = a + 1;
-    } while (苹果 < 45);
-
-    switch (苹果) {
-        case 42 {
-            print("Answer");
-        }
-        default {
-            print("Other");
-        }
-    }
-
-    int result = add(1, 2);
-    print(result);
-
     return 0;
 }
