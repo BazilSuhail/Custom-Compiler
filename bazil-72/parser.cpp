@@ -235,6 +235,26 @@ void printFunctionDecl(const FunctionDecl& node, int indent) {
     }
 }
 
+// Add print function for FunctionProto
+void printFunctionProto(const FunctionProto& node, int indent) {
+    cout << string(indent, ' ') << "FunctionProto(";
+    node.printType(node.returnType);
+    cout << ", \"" << node.name << "\")\n";
+    for (const auto& param : node.params) {
+        cout << string(indent + 2, ' ') << "Param: ";
+        switch (param.first) {
+            case T_INT: cout << "int"; break;
+            case T_FLOAT: cout << "float"; break;
+            case T_DOUBLE: cout << "double"; break;
+            case T_CHAR: cout << "char"; break;
+            case T_BOOL: cout << "bool"; break;
+            case T_VOID: cout << "void"; break;
+            default: cout << "unknown"; break;
+        }
+        cout << " " << param.second << "\n";
+    }
+}
+
 void printMainDecl(const MainDecl& node, int indent) {
     cout << string(indent, ' ') << "MainDecl\n";
     for (const auto& stmt : node.body) {
@@ -346,6 +366,7 @@ void printASTNode(const ASTNodeVariant& node, int indent) {
         else if constexpr (std::is_same_v<T, VarDecl>) printVarDecl(n, indent);
         else if constexpr (std::is_same_v<T, BlockStmt>) printBlockStmt(n, indent);
         else if constexpr (std::is_same_v<T, FunctionDecl>) printFunctionDecl(n, indent);
+        else if constexpr (std::is_same_v<T, FunctionProto>) printFunctionProto(n, indent); // <-- Add this
         else if constexpr (std::is_same_v<T, MainDecl>) printMainDecl(n, indent);
         else if constexpr (std::is_same_v<T, IfStmt>) printIfStmt(n, indent);
         else if constexpr (std::is_same_v<T, WhileStmt>) printWhileStmt(n, indent);
@@ -446,6 +467,32 @@ private:
     bool isIdentifierNode(const ASTPtr& node) const {
         if (!node) return false;
         return holds_alternative<Identifier>(node->node);
+    }
+
+    // Check if current position is a function declaration vs function prototype
+    bool isFunctionDefinition() const {
+        if (current + 1 >= tokens.size()) return false;
+        size_t i = current + 1;
+        
+        // Look for identifier followed by LPAREN, then LBRACE (function definition)
+        if (i < tokens.size() && tokens[i].type == T_IDENTIFIER) {
+            i++;
+            if (i < tokens.size() && tokens[i].type == T_LPAREN) {
+                i++;
+                // Skip parameters
+                int parenCount = 1;
+                while (i < tokens.size() && parenCount > 0) {
+                    if (tokens[i].type == T_LPAREN) parenCount++;
+                    else if (tokens[i].type == T_RPAREN) parenCount--;
+                    i++;
+                }
+                
+                if (i < tokens.size() && tokens[i].type == T_LBRACE) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     // ---- Pratt parser core ----
@@ -622,8 +669,28 @@ private:
         if (check(T_ENUM)) {
             return parseEnumDeclaration();
         }
-   
-        if (isTypeToken(currentToken.type)) return parseVariableDeclaration();
+
+        if (isTypeToken(currentToken.type)) {
+            const Token& next = peek(1);
+            if (next.type == T_IDENTIFIER) {
+                // Look ahead further to determine if it's a function or variable declaration
+                // We need to check if after the identifier there's a '(' (function) or other tokens (variable)
+                size_t i = current + 2; // After type and identifier
+                if (i < tokens.size() && tokens[i].type == T_LPAREN) {
+                    // It's a function (definition or prototype)
+                    if (isFunctionDefinition()) {
+                        return parseFunctionDeclaration();
+                    } else {
+                        return parseFunctionPrototype();
+                    }
+                } else {
+                    // It's a variable declaration
+                    return parseVariableDeclaration();
+                }
+            } else {
+                return parseVariableDeclaration();
+            }
+        }
         if (check(T_PRINT)) return parsePrintStatement();
         if (check(T_IF)) return parseIfStatement();
         if (check(T_WHILE)) return parseWhileStatement();
@@ -634,15 +701,14 @@ private:
         if (check(T_LBRACE)) return parseBlockStatement();
         if (check(T_MAIN)) return parseMainDeclaration();
         if (match(T_BREAK)) {
-            expect(T_SEMICOLON);
-            // Consider creating a proper BreakStmt AST node instead of Identifier
-            return make_unique<ASTNode>(Identifier("break")); // simple placeholder for BreakStmt
+                expect(T_SEMICOLON);
+                // Consider creating a proper BreakStmt AST node instead of Identifier
+                return make_unique<ASTNode>(Identifier("break")); // simple placeholder for BreakStmt
         }
         ASTPtr expr = parseExpression();
         consumeSemicolon();
         return make_unique<ASTNode>(ExpressionStmt(move(expr)));
     }
-
 
     ASTPtr parseVariableDeclaration() {
         TokenType type = currentToken.type;
@@ -656,6 +722,52 @@ private:
 
         consumeSemicolon();
         return make_unique<ASTNode>(VarDecl(type, name, move(initializer)));
+    }
+
+    ASTPtr parseFunctionPrototype() {
+        TokenType returnType = currentToken.type;
+        advance();
+
+        Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+        string name = nameToken.value;
+
+        expect(T_LPAREN);
+        vector<pair<TokenType, string>> params;
+        if (!check(T_RPAREN)) {
+            do {
+                TokenType paramType = currentToken.type;
+                advance();
+                Token paramName = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+                params.push_back({paramType, paramName.value});
+            } while (match(T_COMMA));
+        }
+        expect(T_RPAREN);
+        consumeSemicolon(); // Prototypes end with semicolon
+        
+        return make_unique<ASTNode>(FunctionProto(returnType, name, move(params)));
+    }
+
+    ASTPtr parseFunctionDeclaration() {
+        TokenType returnType = currentToken.type;
+        advance();
+
+        Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+        string name = nameToken.value;
+
+        expect(T_LPAREN);
+        vector<pair<TokenType, string>> params;
+        if (!check(T_RPAREN)) {
+            do {
+                TokenType paramType = currentToken.type;
+                advance();
+                Token paramName = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+                params.push_back({paramType, paramName.value});
+            } while (match(T_COMMA));
+        }
+        expect(T_RPAREN);
+
+        vector<ASTPtr> body = parseBlock();
+        return make_unique<ASTNode>(FunctionDecl(returnType, name, move(params), move(body)));
     }
 
     ASTPtr parsePrintStatement() {
@@ -805,29 +917,6 @@ private:
         return make_unique<ASTNode>(MainDecl(move(body)));
     }
 
-    ASTPtr parseFunctionDeclaration() {
-        TokenType returnType = currentToken.type;
-        advance();
-
-        Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
-        string name = nameToken.value;
-
-        expect(T_LPAREN);
-        vector<pair<TokenType, string>> params;
-        if (!check(T_RPAREN)) {
-            do {
-                TokenType paramType = currentToken.type;
-                advance();
-                Token paramName = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
-                params.push_back({paramType, paramName.value});
-            } while (match(T_COMMA));
-        }
-        expect(T_RPAREN);
-
-        vector<ASTPtr> body = parseBlock();
-        return make_unique<ASTNode>(FunctionDecl(returnType, name, move(params), move(body)));
-    }
-
     ASTPtr parseIncludeStatement() {
         expect(T_INCLUDE); // Consume 'include'
         if (match(T_LT)) { // Handle include <header>
@@ -880,10 +969,6 @@ public:
 
         // Continue with the rest
         while (currentToken.type != T_EOF) {
-            // if (check(T_IDENTIFIER) && currentToken.value == "include") {
-            //     declarations.push_back(parseIncludeStatement());
-            //     continue;
-            // }
             if (check(T_INCLUDE)) { // Also handle subsequent include statements
                 declarations.push_back(parseIncludeStatement());
                 continue;
@@ -891,7 +976,12 @@ public:
             if (isTypeToken(currentToken.type)) {
                 const Token& next = peek(1);
                 if (next.type == T_IDENTIFIER) {
-                    declarations.push_back(parseFunctionDeclaration());
+                    // Check if it's a function definition or prototype
+                    if (isFunctionDefinition()) {
+                        declarations.push_back(parseFunctionDeclaration());
+                    } else {
+                        declarations.push_back(parseFunctionPrototype());
+                    }
                 } else {
                     declarations.push_back(parseStatement());
                 }

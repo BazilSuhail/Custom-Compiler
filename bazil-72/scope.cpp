@@ -111,17 +111,6 @@ private:
         return t1 == t2;
     }
 
-    // Check if two function signatures are the same
-    bool areFunctionSignaturesEqual(const vector<pair<TokenType, string>>& params1, 
-                                   const vector<pair<TokenType, string>>& params2) {
-        if (params1.size() != params2.size()) return false;
-        for (size_t i = 0; i < params1.size(); i++) {
-            if (params1[i].first != params2[i].first) return false;
-            // Note: parameter names don't need to match for function signatures
-        }
-        return true;
-    }
-
     // Analyze variable declaration
     void analyzeVarDecl(const VarDecl& decl, int line, int col) {
         // Check if variable already exists in current scope
@@ -150,25 +139,22 @@ private:
     // Analyze function declaration
     void analyzeFunctionDecl(const FunctionDecl& func, int line, int col) {
         // Check if function already exists in current scope
-        SymbolInfo* existing = currentScope->findSymbol(func.name);
-        if (existing && existing->isFunction) {
-            // Check if it's a redefinition vs prototype
-            if (areFunctionSignaturesEqual(existing->params, func.params)) {
-                // If the existing is just a prototype, this is a definition
-                // If the existing is already a definition, this is a redefinition
-                if (existing->line != -1) { // If existing has a valid line, it's a definition
+        if (currentScope->hasSymbol(func.name)) {
+            SymbolInfo* existing = currentScope->findSymbol(func.name);
+            if (existing && existing->isFunction) {
+                // Check if it's a redefinition vs prototype
+                if (existing->params == func.params) {
                     addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
                 } else {
-                    // Update the existing prototype with the definition
-                    currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, func.params));
+                    addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
                 }
             } else {
                 addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
             }
         } else {
             // Check for conflicting declaration
-            SymbolInfo* existingInAnyScope = lookupSymbol(func.name);
-            if (existingInAnyScope) {
+            SymbolInfo* existing = lookupSymbol(func.name);
+            if (existing) {
                 addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
             } else {
                 currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, func.params));
@@ -201,30 +187,22 @@ private:
     // Analyze function prototype
     void analyzeFunctionProto(const FunctionProto& proto, int line, int col) {
         // Check if function prototype already exists in current scope
-        SymbolInfo* existing = currentScope->findSymbol(proto.name);
-        if (existing && existing->isFunction) {
-            // Check if it's a conflicting prototype vs definition
-            if (areFunctionSignaturesEqual(existing->params, proto.params)) {
-                // If existing is a definition, this is OK (prototype after definition)
-                // If existing is a prototype, this is a redefinition
-                if (existing->line == -1 || existing->line == line) { // If it's also a prototype
+        if (currentScope->hasSymbol(proto.name)) {
+            SymbolInfo* existing = currentScope->findSymbol(proto.name);
+            if (existing && existing->isFunction) {
+                // Check if it's a conflicting prototype
+                if (existing->params == proto.params) {
                     addError(ScopeErrorType::FunctionPrototypeRedefinition, proto.name, line, col);
+                } else {
+                    addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
                 }
             } else {
                 addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
             }
         } else {
             // Check for conflicting declaration
-            SymbolInfo* existingInAnyScope = lookupSymbol(proto.name);
-            if (existingInAnyScope && existingInAnyScope->isFunction) {
-                // If there's already a function with same signature, allow it (for multiple prototypes)
-                if (areFunctionSignaturesEqual(existingInAnyScope->params, proto.params)) {
-                    // Same signature - this is OK, but we don't add it again
-                    return;
-                } else {
-                    addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
-                }
-            } else if (existingInAnyScope) {
+            SymbolInfo* existing = lookupSymbol(proto.name);
+            if (existing) {
                 addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
             } else {
                 currentScope->addSymbol(SymbolInfo(proto.returnType, proto.name, line, col, true, false, false, proto.params));
@@ -318,15 +296,13 @@ private:
                          is_same_v<T, BoolLiteral>) {
                 // Literals don't need scope analysis
             } else if constexpr (is_same_v<T, Identifier>) {
-                // We need to find the position of this identifier in the tokens
-                // For now, we'll pass -1, -1, but ideally we'd track token positions
-                analyzeIdentifier(node, -1, -1);
+                analyzeIdentifier(node, -1, -1); // Position info not available here
             } else if constexpr (is_same_v<T, BinaryExpr>) {
                 analyzeBinaryExpr(node);
             } else if constexpr (is_same_v<T, UnaryExpr>) {
                 analyzeUnaryExpr(node);
             } else if constexpr (is_same_v<T, CallExpr>) {
-                analyzeCallExpr(node, -1, -1);
+                analyzeCallExpr(node, -1, -1); // Position info not available here
             }
         }, expr);
     }

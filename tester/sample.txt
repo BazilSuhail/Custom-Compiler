@@ -1,27 +1,26 @@
 include<main>
 include"main.h"
 
-enum Color { YELLOW, YELLOW, YELLOW };
+enum MEOW { YELLOW, BLUE };
 
-// Function declaration
-int add(int a, int b) {
-    return a + b;
+int add(int x){
+    return x+2;
 }
 
-string hello(){
-    string result = "Hello World";
-    return result;
+int add(int b, char a){
+    return x+2;
 }
 
 main {
-    int x = 42 + 5 - 8 * 10;
-    char y;
-    char a;
-
-    int 苹果;
-    
+    int x = 42 + 5 - 8 * 10; 
     float ❤️ = 3.14159;
+    y=a;
     print("Hello World! 🌍");
+
+    for (int i = 0; i < 5; i = i + 1) {
+        print(a);
+    }
+    
     print("Value of x: ", y);
 
     if (y > 0) {
@@ -40,10 +39,6 @@ main {
     do {
         苹果 = a + 1;
     } while (苹果 < 45);
-
-    for (int i = 0; i < 5; i = i + 1) {
-        print(i);
-    }
 
     switch (苹果) {
         case 42 {

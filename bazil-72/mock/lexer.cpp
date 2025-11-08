@@ -1,4 +1,50 @@
-#include"compiler.h"
+#include <iostream>
+#include <string>
+#include <map>
+#include <cstring>
+#include <fstream>
+#include <sstream>
+using namespace std;
+
+// === Token Types ===
+enum TokenType {
+    // Types
+    T_INT, T_FLOAT, T_DOUBLE, T_CHAR, T_VOID, T_BOOL, T_ENUM,
+
+    // Literals
+    T_IDENTIFIER, T_INTLIT, T_FLOATLIT, T_STRINGLIT, T_CHARLIT, T_BOOLLIT,
+
+    // Brackets & Separators
+    T_LPAREN, T_RPAREN, T_LBRACE, T_RBRACE, T_LBRACKET, T_RBRACKET,
+    T_SEMICOLON, T_COMMA, T_DOT,
+
+    // Operators
+    T_ASSIGNOP, T_EQUALOP, T_NE, T_LT, T_GT, T_LE, T_GE,
+    T_PLUS, T_MINUS, T_MULTIPLY, T_DIVIDE, T_MODULO,
+    T_INCREMENT, T_DECREMENT,
+    T_AND, T_OR, T_NOT,
+
+    // Keywords
+    T_IF, T_ELSE, T_WHILE, T_RETURN, T_PRINT,
+    T_MAIN, T_INCLUDE,
+
+    // New keywords
+    T_STRING, T_DO, T_SWITCH, T_BREAK, T_FOR, T_DEFAULT, T_CASE, T_COLON,
+
+    // Comments
+    T_SINGLE_COMMENT, T_MULTI_COMMENT,
+
+    // Error & EOF
+    T_ERROR, T_EOF
+};
+
+struct Token {
+    TokenType type;
+    string value;
+    int line;
+    int column;
+};
+
 // === Static Keyword Map ===
 static const map<string, TokenType> keywords = {
     {"int", T_INT}, {"float", T_FLOAT}, {"double", T_DOUBLE},
@@ -313,7 +359,6 @@ bool getNextToken(LexerState& state, Token& token) {
 }
 
 // === Token Type to String ===
-
 const char* tokenTypeToString(TokenType type) {
     switch (type) {
         case T_INCLUDE: return "T_INCLUDE";
@@ -378,14 +423,28 @@ const char* tokenTypeToString(TokenType type) {
     }
 }
 
-/* ======== */
+// =========================================================================
 
-vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename) {
-    // Read the input file
-    ifstream inputFile(inputFilename);
+void testLexer(const string& code, ostream& out) {
+    LexerState state = createLexerState(code.c_str());
+    Token token;
+    while (getNextToken(state, token)) {
+        if (token.type == T_ERROR) {
+            out << "ERROR(line " << token.line << ", col " << token.column << "): " << token.value << "\n";
+        } 
+        else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
+            //out << tokenTypeToString(token.type) << "(" << token.value << "), " << "line: " << token.line << ", col: " << token.column <<"\n";
+            out << tokenTypeToString(token.type) << "(" << token.value << ")," << token.line << "," << token.column <<"\n";
+        }
+    }
+    out << endl;
+}
+
+int main() {
+    ifstream inputFile("tester/sample.txt");
     if (!inputFile.is_open()) {
-        cerr << "Failed to open input file: " << inputFilename << endl;
-        return {};
+        cerr << "Failed to open input.txt" << endl;
+        return 1;
     }
 
     stringstream buffer;
@@ -393,32 +452,16 @@ vector<Token> lexAndDumpToFile(const string& inputFilename, const string& output
     string code = buffer.str();
     inputFile.close();
 
-    // Lexing
-    vector<Token> tokens;
-    LexerState state = createLexerState(code.c_str());
-    Token token;
-
-    while (getNextToken(state, token)) {
-        if (token.type == T_ERROR) {
-            cerr << "ERROR(line " << token.line << ", col " << token.column << "): " << token.value << "\n";
-        } else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
-            tokens.push_back(token);
-        }
+    ofstream outputFile("tester/tokens.txt", ios::out | ios::trunc);
+    if (!outputFile.is_open()) {
+        cerr << "Failed to open tester/tokens.txt" << endl;
+        return 1;
     }
 
-    // Append EOF token
-    tokens.push_back({T_EOF, "EOF", -1, -1});
+    testLexer(code, outputFile);
 
-    // Write tokens to output file for debugging
-    ofstream outFile(outputFilename, ios::out | ios::trunc);
-    if (!outFile.is_open()) {
-        cerr << "Failed to open output file: " << outputFilename << endl;
-    } else {
-        for (const auto& t : tokens) {
-            outFile << tokenTypeToString(t.type) << "(" << t.value << ")," << t.line << "," << t.column << "\n";
-        }
-        outFile.close();
-    }
+    outputFile.close();
+    cout << "Lexing completed successfully. Results written to tester/tokens.txt" << endl;
 
-    return tokens;
+    return 0;
 }
