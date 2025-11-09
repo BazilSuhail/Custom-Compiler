@@ -11,9 +11,9 @@ int main(int argc, char* argv[]) {
     vector<Token> tokens = lexAndDumpToFile(inputFile, tokenFile);
 
     // Parse tokens into AST
-    auto ast = parseFromFile(tokens);
+    auto ast = parseFromFile(tokens); 
     performScopeAnalysis(ast, tokens);
-
+ 
     return 0;
 }
 

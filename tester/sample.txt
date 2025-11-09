@@ -1,30 +1,42 @@
 include<main>
 include"main.h"
 
-enum MEOW { YELLOW, BLUE };
-
+enum MEOW { YELLOW, BLUE, BLUE };
+enum MEOW { RED };
 
 int add(int m);
+int add(int m);
+float add(int a);
+
 int add(int m){
     add1();
-    return m+2;
+    meow();
+    return b;
 }
-int add1(int m);
-
 
 int add1(int m){
     int ans  = m;
     return m+2;
 }
 
+float add1(int m){
+    int ans  = m;
+    return m+2;
+}
+
 main {
-    enum ma{a};
+    enum invalidEnum {a};
+
     int x = 42 + 5 / 8 * 10; 
     float ❤️ = 3.14159;
     int ans = add(2);
 
     print("Hello World! 🌍");
     int m = ans;
+    int m = 5;
+    m = error;
+    
+    float m = 3.2;
     
     return 0;
 }

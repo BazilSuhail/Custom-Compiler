@@ -1,32 +1,31 @@
 #include"compiler.h"
+
 // === Static Keyword Map ===
 static const map<string, TokenType> keywords = {
     {"int", T_INT}, {"float", T_FLOAT}, {"double", T_DOUBLE},
     {"char", T_CHAR}, {"void", T_VOID}, {"bool", T_BOOL}, {"enum", T_ENUM},
-
     {"true", T_BOOLLIT}, {"false", T_BOOLLIT},
     {"if", T_IF}, {"else", T_ELSE}, {"while", T_WHILE}, {"return", T_RETURN},
     {"print", T_PRINT}, {"main", T_MAIN},
-
-    // Newly added keywords
     {"string", T_STRING}, {"do", T_DO}, {"switch", T_SWITCH}, {"include", T_INCLUDE},
     {"break", T_BREAK}, {"for", T_FOR}, {"default", T_DEFAULT}, {"case", T_CASE}
 };
-
 
 // === Single-character tokens ===
 static const map<char, TokenType> singleChars = {
     {'(', T_LPAREN}, {')', T_RPAREN}, {'{', T_LBRACE}, {'}', T_RBRACE},
     {'[', T_LBRACKET}, {']', T_RBRACKET}, {';', T_SEMICOLON},
-    {',', T_COMMA}, {'.', T_DOT}, {'+', T_PLUS}, {'-', T_MINUS},{':', T_COLON},   // <-- added here
+    {',', T_COMMA}, {'.', T_DOT}, {'+', T_PLUS}, {'-', T_MINUS},{':', T_COLON},
     {'*', T_MULTIPLY}, {'/', T_DIVIDE}, {'%', T_MODULO}, {'=', T_ASSIGNOP},
-    {'!', T_NOT}, {'<', T_LT}, {'>', T_GT}
+    {'!', T_NOT}, {'<', T_LT}, {'>', T_GT}, {'&', T_BITAND}, {'|', T_BITOR},
+    {'^', T_BITXOR}
 };
 
 // === Two-character operators ===
 static const map<string, TokenType> twoCharOps = {
     {"==", T_EQUALOP}, {"!=", T_NE}, {"<=", T_LE}, {">=", T_GE},
-    {"&&", T_AND}, {"||", T_OR}, {"++", T_INCREMENT}, {"--", T_DECREMENT}
+    {"&&", T_AND}, {"||", T_OR}, {"++", T_INCREMENT}, {"--", T_DECREMENT},
+    {"<<", T_BITLSHIFT}, {">>", T_BITRSHIFT}
 };
 
 // === Lexer State ===
@@ -354,6 +353,11 @@ const char* tokenTypeToString(TokenType type) {
         case T_GT: return "T_GT";
         case T_LE: return "T_LE";
         case T_GE: return "T_GE";
+        case T_BITAND: return "T_BITAND";      // Added
+        case T_BITOR: return "T_BITOR";        // Added
+        case T_BITXOR: return "T_BITXOR";      // Added
+        case T_BITLSHIFT: return "T_BITLSHIFT"; // Added
+        case T_BITRSHIFT: return "T_BITRSHIFT"; // Added
         case T_PLUS: return "T_PLUS";
         case T_MINUS: return "T_MINUS";
         case T_MULTIPLY: return "T_MULTIPLY";
