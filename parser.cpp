@@ -114,7 +114,6 @@ struct ParseError {
             case T_BITXOR: return "T_BITXOR";
             case T_BITLSHIFT: return "T_BITLSHIFT";
             case T_BITRSHIFT: return "T_BITRSHIFT";
-
             case T_MAIN: return "T_MAIN";
             case T_EOF: return "T_EOF";
             default: return "T_UNKNOWN";
@@ -635,27 +634,24 @@ private:
         return make_unique<ASTNode>(BinaryExpr(op.type, move(left), move(right), op.line, op.column));
     }
 
-    // ------------------------ Parse enums with position tracking
     ASTPtr parseEnumDeclaration() {
-        Token enumToken = currentToken;  // Position of 'enum'
-        expect(T_ENUM); // Consume 'enum'
-        Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier); // Get enum name
+        Token enumToken = currentToken;
+        expect(T_ENUM);
+        Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
         string name = nameToken.value;
         expect(T_LBRACE); // Consume '{'
 
         vector<string> values;
-        if (!check(T_RBRACE)) { // Check if enum body is not empty
+        if (!check(T_RBRACE)) {
             do {
-                Token valueToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier); // Get enum value name
+                Token valueToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
                 values.push_back(valueToken.value);
             } while (match(T_COMMA)); // Handle comma-separated values
         }
         expect(T_RBRACE); // Consume '}'
         consumeSemicolon(); // Enums end with semicolon
 
-        // Create the EnumValueList AST node with position
         auto valueList = make_unique<ASTNode>(EnumValueList(move(values), nameToken.line, nameToken.column));
-        // Create the EnumDecl AST node with position of enum keyword
         return make_unique<ASTNode>(EnumDecl(name, move(valueList), enumToken.line, enumToken.column));
     }
 
@@ -663,7 +659,7 @@ private:
     ASTPtr parseCallExpression(ASTPtr callee) {
         if (!isIdentifierNode(callee)) throw ParseError(ParseErrorType::InvalidCallTarget, currentToken);
 
-        Token callToken = currentToken;  // Position of '('
+        Token callToken = currentToken; 
         expect(T_LPAREN);
         vector<ASTPtr> args;
         if (!check(T_RPAREN)) {
@@ -677,9 +673,8 @@ private:
     
     // Modify parseStatement to recognize enum declarations and track positions
     ASTPtr parseStatement() {
-        Token stmtToken = currentToken;  // Capture statement start position
+        Token stmtToken = currentToken; 
 
-        // Check for enum declaration first
         if (check(T_ENUM)) {
             return parseEnumDeclaration();
         }
@@ -687,11 +682,9 @@ private:
         if (isTypeToken(currentToken.type)) {
             const Token& next = peek(1);
             if (next.type == T_IDENTIFIER) {
-                // Look ahead further to determine if it's a function or variable declaration
-                // We need to check if after the identifier there's a '(' (function) or other tokens (variable)
                 size_t i = current + 2; // After type and identifier
+
                 if (i < tokens.size() && tokens[i].type == T_LPAREN) {
-                    // It's a function (definition or prototype)
                     if (isFunctionDefinition()) {
                         return parseFunctionDeclaration();
                     } else {
@@ -715,12 +708,6 @@ private:
         if (check(T_LBRACE)) return parseBlockStatement();
         if (check(T_MAIN)) return parseMainDeclaration(); 
         if (check(T_BREAK)) return parseBreakStatement();
-        // if (match(T_BREAK)) {
-        //     Token breakToken = currentToken;  // Position of 'break'
-        //     expect(T_SEMICOLON);
-        //     // Consider creating a proper BreakStmt AST node instead of Identifier
-        //     return make_unique<ASTNode>(Identifier("break", breakToken.line, breakToken.column)); // simple placeholder for BreakStmt
-        // }
         
         ASTPtr expr = parseExpression();
         consumeSemicolon();
@@ -955,35 +942,38 @@ private:
     }
 
     ASTPtr parseIncludeStatement() {
-        Token includeToken = currentToken;  // Capture 'include' position
-        expect(T_INCLUDE); // Consume 'include'
-        if (match(T_LT)) { // Handle include <header>
+        Token includeToken = currentToken; 
+        expect(T_INCLUDE); 
+
+        if (match(T_LT)) { 
             if (check(T_MAIN)) {
-                advance(); // Consume T_MAIN
-                expect(T_GT); // Consume '>'
+                advance(); 
+                expect(T_GT); 
                 return make_unique<ASTNode>(IncludeStmt("main", includeToken.line, includeToken.column));
-            } else {
-                // Handle include <other_header>
+            } 
+            else {
                 string header;
                 if (check(T_IDENTIFIER)) {
                     header = currentToken.value;
-                    advance(); // Consume identifier
-                } else {
-                    // Or handle other tokens that might represent a header name within <>
-                    throw ParseError(ParseErrorType::ExpectedIdentifier, currentToken); // Or a more specific error
+                    advance();
+                } 
+                else {
+                    throw ParseError(ParseErrorType::ExpectedIdentifier, currentToken); 
                 }
                 expect(T_GT); // Consume '>'
                 return make_unique<ASTNode>(IncludeStmt(header, includeToken.line, includeToken.column));
             }
-        } else if (check(T_STRINGLIT)) { // Handle include "header"
+        } 
+        else if (check(T_STRINGLIT)) {
             Token headerTok = currentToken;
-            advance(); // Consume string literal
+            advance();
             string header = headerTok.value;
             if (header.size() >= 2 && header.front() == '"' && header.back() == '"') {
-                header = header.substr(1, header.size() - 2); // Remove quotes
+                header = header.substr(1, header.size() - 2); 
             }
             return make_unique<ASTNode>(IncludeStmt(header, includeToken.line, includeToken.column));
-        } else {
+        } 
+        else {
             throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
         }
     }

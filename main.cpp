@@ -1,10 +1,9 @@
 #include "compiler.h"
-#include <string>
 
 int main(int argc, char* argv[]) {
-    // Determine input file
-    string fileName = (argc > 1) ? argv[1] : "sample"; // user-provided or default
-    string inputFile = "tester/" + fileName + ".txt";               // prepend tester/
+    // Determine input file - // user-provided or default
+    string fileName = (argc > 1) ? argv[1] : "sample"; 
+    string inputFile = "tester/" + fileName + ".txt";
     string tokenFile = "tester/tokens.txt";
 
     // Run lexer and save tokens

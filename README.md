@@ -21,17 +21,20 @@ Identifier resolution walks upward from the current scope to the global scope. F
 
 ## Error Types
 Defined in `compiler.h` (`ScopeErrorType`):
-* UndeclaredVariableAccessed
-* UndefinedFunctionCalled
-* VariableRedefinition
-* FunctionPrototypeRedefinition
-* ConflictingFunctionDefinition
-* ConflictingDeclaration (name used for different kinds/signatures)
-* ParameterRedefinition (duplicate parameter name in same function)
-* InvalidForwardReference (reserved for future use)
-* InvalidStorageClassUsage (reserved for future use)
-* EnumRedefinition
-* EnumVariantRedefinition
+```cpp
+// Scope Error Types and Their Purpose:
+* UndeclaredVariableAccessed         // Variable used but never declared anywhere
+* UndefinedFunctionCalled            // Function called but never declared/defined anywhere
+* VariableRedefinition               // Variable declared multiple times with same name and type in same scope
+* FunctionPrototypeRedefinition      // Function prototype (forward declaration) declared multiple times with identical signature
+* ConflictingFunctionDefinition      // Function defined with different return type but same parameters
+* ConflictingDeclaration             // Name used for different symbol types (e.g., variable vs function, or same function name with different return types)
+* ParameterRedefinition              // Same parameter name used twice in one function's parameter list
+* InvalidForwardReference            // Symbol referenced before declaration but exists later in code (currently used when symbol declared but out of scope)
+* InvalidStorageClassUsage           // Declaration in wrong scope level (currently used for enums declared in non-global scope)
+* EnumRedefinition                   // Enum type name declared multiple times
+* EnumVariantRedefinition            // Same value name used twice within one enum definition
+```
 
 Each becomes a `ScopeError` with a formatted `message` string.
 
@@ -57,66 +60,6 @@ void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens
 ```
 This builds a `ScopeAnalyzer`, runs analysis, prints all scope errors (if any), and terminates on failure (`exit(EXIT_FAILURE)`).
 
-## Usage Example
-```cpp
-// After lexing and parsing:
-auto tokens = lexAndDumpToFile("tester/sample.txt", "tester/tokens.txt");
-auto ast = parseFromFile(tokens);
-performScopeAnalysis(ast, tokens); // exits on error, prints success message otherwise
-```
-
-### Sample Source Illustrating Errors
-```c
-int foo(int x);        // prototype
-int foo(int y) {       // OK: matches prototype
-    return y;          
-}
-int foo(int z) {       // Error: conflicting function definition (duplicate definition)
-    return z;          
-}
-
-int foo(float z);      // Error: conflicting declaration (different signature)
-
-int a = 1;
-int a = 2;             // Error: variable redefinition
-
-enum Color { RED, GREEN, RED }; // Error: enum variant redefinition (RED twice)
-```
-
-### Example Identifier Resolution
-```c
-int a = 10;
-void f() {
-    int a = 3;   // shadows outer a (allowed – no warning yet)
-    int b = a;   // resolves to inner a
-}
-int b = a;       // resolves to global a
-```
-
-## Integration Order
-1. Lexing (`lexer.cpp`)
-2. Parsing (`parser.cpp` → AST)
-3. Scope analysis (`scope.cpp`)
-4. (Future) Type checking / semantic passes
-
-Run sequence in `main.cpp` already follows this order.
-
-## Performance Notes
-Complexity is roughly O(N * D) where N = number of AST nodes and D = maximum scope depth; typical code keeps D small. Symbol lookups are O(1) per scope via `unordered_map`.
-
-## Limitations / Future Work
-* No warnings for shadowing yet (level field could enable this).
-* `InvalidForwardReference` and `InvalidStorageClassUsage` are placeholders.
-* Does not verify return type consistency with call sites.
-* No type compatibility checking for assignments or expressions.
-* Function overloading by parameter type beyond exact match isn't supported (first conflicting signature wins an error).
-
-## Extending The Analyzer
-Add new checks by:
-1. Introducing a new `ScopeErrorType` value.
-2. Adding handling logic inside `ScopeAnalyzer::analyzeNode` or specific helpers.
-3. Emitting errors through `addError(...)`.
-
 ## Building
 ```bash
 g++ -std=c++11 -o compiler main.cpp lexer.cpp parser.cpp scope.cpp
@@ -132,3 +75,212 @@ No scope errors found.
 On failure each error line begins with `[Scope Error]` followed by the message.
 
 ---
+
+# Scope Analyzer - Error Detection Examples
+
+## Overview
+The Scope Analyzer performs semantic analysis to detect declaration conflicts, undefined symbols, and scope violations.
+
+---
+
+## Test Code
+```cpp
+include<main>
+include"main.h"
+
+enum Color { RED, GREEN, GREEN };
+enum Color { BLUE };
+
+int calculate(int x);
+int calculate(int x);
+float calculate(int x);
+
+int calculate(int x, int x){
+    processData();
+    validateInput();
+    return x;
+}
+
+int processData(int value){
+    int result = value;
+    return result + 2;
+}
+
+float processData(int value){
+    int result = value;
+    return result + 2;
+}
+
+main {
+    enum Status {ACTIVE};
+
+    int count = 42 + 5 / 8 * 10; 
+    float pi = 3.14159;
+    int total = calculate(2);
+
+    print("Application Started");
+    int status = total;
+    int status = 5;
+    status = undefined;
+    
+    float status = 3.2;
+    
+    return 0;
+}
+```
+
+---
+
+## Detected Errors
+
+### 1. Enum Variant Redefinition
+**Error:** `Enum variant redefinition: 'GREEN' at line: 4`
+```cpp
+enum Color { RED, GREEN, GREEN };  // ❌ GREEN appears twice
+```
+
+---
+
+### 2. Enum Redefinition
+**Error:** `Enum redefinition: 'Color' at line: 5`
+```cpp
+enum Color { RED, GREEN };
+enum Color { BLUE };  // ❌ Color enum already defined
+```
+
+---
+
+### 3. Function Prototype Redefinition
+**Error:** `Function prototype redefinition: 'calculate' at line: 8`
+```cpp
+int calculate(int x);
+int calculate(int x);  // ❌ Identical prototype declared twice
+```
+
+---
+
+### 4. Conflicting Declaration (Prototype)
+**Error:** `Conflicting declaration: 'calculate' at line: 9`
+```cpp
+int calculate(int x);
+float calculate(int x);  // ❌ Different return type, same parameters
+```
+
+---
+
+### 5. Conflicting Function Definition
+**Error:** `Conflicting function definition: 'calculate' at line: 11`
+```cpp
+int calculate(int x);
+int calculate(int x, int x){ ... }  // ❌ Signature mismatch with prototype
+```
+
+---
+
+### 6. Parameter Redefinition
+**Error:** `Parameter redefinition: 'x' at line: 11`
+```cpp
+int calculate(int x, int x){  // ❌ Parameter 'x' used twice
+    return x;
+}
+```
+
+---
+
+### 7. Invalid Forward Reference
+**Error:** `Invalid forward reference: 'processData' at line: 12`
+```cpp
+int calculate(int x, int x){
+    processData();  // ❌ Called before definition
+    return x;
+}
+
+int processData(int value){ ... }  // Defined later
+```
+
+---
+
+### 8. Undefined Function Called
+**Error:** `Undefined function called: 'validateInput' at line: 13`
+```cpp
+int calculate(int x, int x){
+    validateInput();  // ❌ Never declared or defined anywhere
+    return x;
+}
+```
+
+---
+
+### 9. Conflicting Function Definition (Return Type)
+**Error:** `Conflicting function definition: 'processData' at line: 22`
+```cpp
+int processData(int value){
+    return value + 2;
+}
+
+float processData(int value){  // ❌ Same parameters, different return type
+    return value + 2;
+}
+```
+
+---
+
+### 10. Invalid Storage Class Usage
+**Error:** `Invalid storage class usage for: 'Status' at line: 28`
+```cpp
+main {
+    enum Status {ACTIVE};  // ❌ Enums must be declared at global scope
+}
+```
+
+---
+
+### 11. Variable Redefinition
+**Error:** `Variable redefinition: 'status' at line: 36`
+```cpp
+int status = total;
+int status = 5;  // ❌ Same name, same type in same scope
+```
+
+---
+
+### 12. Undeclared Variable Accessed
+**Error:** `Undeclared variable accessed: 'undefined' at line: 37`
+```cpp
+status = undefined;  // ❌ 'undefined' never declared
+```
+
+---
+
+### 13. Conflicting Declaration (Variable)
+**Error:** `Conflicting declaration: 'status' at line: 39`
+```cpp
+int status = 5;
+float status = 3.2;  // ❌ Same name, different type in same scope
+```
+
+---
+
+## Error Summary
+
+| Category | Error Count |
+|----------|-------------|
+| Enum Errors | 2 |
+| Function Errors | 6 |
+| Variable Errors | 3 |
+| Undefined Symbols | 2 |
+| **Total Errors** | **13** |
+
+---
+
+## Analysis Result
+```
+Scope analysis failed with 13 error(s)
+```
+
+The analyzer successfully detected all semantic violations including:
+- ✓ Duplicate declarations
+- ✓ Type conflicts  
+- ✓ Forward references
+- ✓ Scope violations
+- ✓ Undefined symbols

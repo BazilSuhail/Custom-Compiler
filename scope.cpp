@@ -103,7 +103,6 @@ private:
         // Check for redefinition in current scope
         SymbolInfo* localSym = currentScope->findSymbol(decl.name);
         if (localSym != nullptr) {
-            // Check if it's the same type (redefinition) or different type (conflicting)
             if (localSym->type == decl.type) {
                 addError(ScopeErrorType::VariableRedefinition, decl.name, line, col);
             } else {
@@ -112,7 +111,6 @@ private:
             return;
         }
         
-        // Check for conflicts with functions, enums, or enum values
         SymbolInfo* existing = lookupSymbol(decl.name);
         if (existing != nullptr) {
             if (existing->isFunction || existing->isEnum || existing->isEnumValue) {
@@ -121,7 +119,6 @@ private:
             }
         }
         
-        // Add variable to current scope
         currentScope->addSymbol(SymbolInfo(decl.type, decl.name, line, col, false));
         allDeclaredSymbols[decl.name].push_back(SymbolInfo(decl.type, decl.name, line, col, false));
         
@@ -138,7 +135,6 @@ private:
         int line = func.line;
         int col = func.column;
         
-        // Check for conflicts in current scope
         SymbolInfo* localSym = currentScope->findSymbol(func.name);
         
         if (localSym != nullptr) {
@@ -147,11 +143,9 @@ private:
             handleParentScopeFunctionConflict(func, line, col);
         }
         
-        // Add function to symbol table
         currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
         allDeclaredSymbols[func.name].push_back(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
         
-        // Enter function scope and analyze parameters and body
         analyzeFunctionBody(func);
     }
     
@@ -428,8 +422,6 @@ private:
     }
 
     // ===== STATEMENT ANALYSIS =====
-    
-    // Analyze an if statement
     void analyzeIfStmt(const IfStmt& stmt) {
         if (stmt.condition) {
             analyzeExpressionNode(stmt.condition->node);
@@ -447,8 +439,7 @@ private:
         exitScope();
     }
 
-    // Analyze a while loop
-    void analyzeWhileStmt(const WhileStmt& stmt) {
+    void analyzeWhileStmt(const WhileStmt& stmt) {  
         if (stmt.condition) {
             analyzeExpressionNode(stmt.condition->node);
         }
@@ -460,7 +451,6 @@ private:
         exitScope();
     }
 
-    // Analyze a do-while loop
     void analyzeDoWhileStmt(const DoWhileStmt& stmt) {
         enterScope();
         if (stmt.body) {
@@ -473,7 +463,6 @@ private:
         }
     }
 
-    // Analyze a for loop
     void analyzeForStmt(const ForStmt& stmt) {
         enterScope();
         if (stmt.init) {
@@ -492,7 +481,6 @@ private:
         exitScope();
     }
 
-    // Analyze a switch statement
     void analyzeSwitchStmt(const SwitchStmt& stmt) {
         if (stmt.expression) {
             analyzeExpressionNode(stmt.expression->node);
@@ -513,21 +501,18 @@ private:
         exitScope();
     }
 
-    // Analyze a return statement
     void analyzeReturnStmt(const ReturnStmt& stmt) {
         if (stmt.value) {
             analyzeExpressionNode(stmt.value->node);
         }
     }
 
-    // Analyze a print statement
     void analyzePrintStmt(const PrintStmt& stmt) {
         for (const auto& arg : stmt.args) {
             analyzeExpressionNode(arg->node);
         }
     }
 
-    // Analyze an expression statement
     void analyzeExpressionStmt(const ExpressionStmt& stmt) {
         analyzeExpressionNode(stmt.expr->node);
     }
@@ -619,8 +604,6 @@ private:
             return;
         }
     }
-
-    // ===== DECLARATION COLLECTOR =====
     
     // First pass: collect all declarations for forward reference checking
     void collectDeclarations(const ASTNodeVariant& node) {
@@ -666,7 +649,6 @@ public:
         currentScope = globalScope.get();
     }
 
-    // Transfer ownership of the symbol table to caller
     unique_ptr<ScopeFrame> transferSymbolTable() {
         return move(globalScope);
     }
