@@ -1,271 +1,134 @@
-# C-Style Language Parser
+# Scope Analyzer Module
 
-A comprehensive recursive descent parser for a C-style programming language, built in C++. This parser works in conjunction with a custom lexical analyzer to parse source code and generate an Abstract Syntax Tree (AST).
+This module performs scope analysis on the parsed AST of a C‑style language. It validates symbol declarations, detects conflicting or duplicate definitions, resolves function prototypes vs. definitions, and verifies identifier usage across nested scopes.
 
-## Features
+## What It Does
+* Builds a tree of scope frames (global + nested) while walking the AST.
+* Tracks variables, functions, enums, and enum values via a `SymbolInfo` record.
+* Distinguishes function prototypes (`isPrototype`) from full definitions.
+* Enforces C‑style rules: matching signatures, no duplicate definitions, prototypes must not repeat.
+* Reports scope errors with line/column + human readable messages.
 
-### Language Support
-- **Data Types**: `int`, `float`, `double`, `char`, `bool`, `void`
-- **Type Qualifiers**: `const`
-- **Control Flow**: `if/else`, `while`, `do-while`, `for`, `switch/case/default`
-- **Flow Control**: `break`, `continue`, `return`
-- **Functions**: Function declarations with parameters and return types
-- **Variables**: Variable declarations with optional initialization
-- **Preprocessor**: `#include`, `#define` (with macro support)
-- **Enumerations**: `enum` declarations
+## Core Data Structures
+### SymbolInfo
+Fields include: type, name, position, flags (`isFunction`, `isEnum`, `isEnumValue`, `isPrototype`), and parameter list (vector of `(TokenType, name)`). Only parameter types are used for signature comparison.
 
-### Operators
-- **Arithmetic**: `+`, `-`, `*`, `/`, `%` (including modulo)
-- **Comparison**: `==`, `!=`, `<`, `>`, `<=`, `>=`
-- **Logical**: `&&`, `||`, `!`
-- **Bitwise**: `&`, `|`, `^`, `~`, `<<`, `>>`
-- **Assignment**: `=`
-- **Increment/Decrement**: `++`, `--` (both prefix and postfix)
-- **Unary**: `+`, `-`, `!`, `~`
+### ScopeFrame
+Represents one lexical scope. Holds: symbol map, children, parent pointer, and a `level` (used for potential shadowing logic). New blocks / control structures / function bodies create child scopes.
 
-### Advanced Features
-- **Operator Precedence**: Proper handling of operator precedence and associativity
-- **Complex Expressions**: Support for nested and complex expressions
-- **Function Calls**: Function invocation with argument lists
-- **Nested Control Flow**: Support for deeply nested control structures
-- **Type Combinations**: Simple type specifiers like `const int`
-- **Macro Definitions**: Both object-like and function-like macros
+### Lookup Strategy
+Identifier resolution walks upward from the current scope to the global scope. First hit wins. This allows shadowing but currently does not emit a warning for it.
 
-## Architecture
+## Error Types
+Defined in `compiler.h` (`ScopeErrorType`):
+* UndeclaredVariableAccessed
+* UndefinedFunctionCalled
+* VariableRedefinition
+* FunctionPrototypeRedefinition
+* ConflictingFunctionDefinition
+* ConflictingDeclaration (name used for different kinds/signatures)
+* ParameterRedefinition (duplicate parameter name in same function)
+* InvalidForwardReference (reserved for future use)
+* InvalidStorageClassUsage (reserved for future use)
+* EnumRedefinition
+* EnumVariantRedefinition
 
-### Parser Design
-The parser uses a **recursive descent** parsing strategy with the following key components:
+Each becomes a `ScopeError` with a formatted `message` string.
 
-- **LexerState Integration**: Works directly with the lexer's token stream
-- **AST Generation**: Builds a comprehensive Abstract Syntax Tree
-- **Error Handling**: Robust error reporting with line and column information
-- **Memory Management**: Uses smart pointers for automatic memory management
+## Analysis Flow
+1. Start at global scope.
+2. For each top‑level AST node:
+   * Variable declarations: ensure not already declared in current scope and not conflicting with function/enum names.
+   * Function prototypes: add or error if a prototype with same signature exists; allow if a later definition matches.
+   * Function definitions: check for existing symbol: 
+      - If matching prototype in same scope: upgrade prototype to definition.
+      - If definition already exists (same scope or parent): error.
+      - If signature differs: error.
+   * Enum declarations: ensure unique enum name; add each enum value as its own symbol (prevent conflicts).
+3. Statement / block constructs (`if`, `while`, `for`, `switch`, `do‑while`, blocks) push a new scope before processing their bodies.
+4. Identifier and call expressions resolve symbols and emit errors if undefined or not a function.
 
-### AST Node Types
+## Function Signature Matching
+Only parameter types are compared (names ignored) for equality. Return type is currently not part of the signature comparison in this module.
+
+## Public Entry Point
 ```cpp
-// Declarations
-- FnDecl (Function Declaration)
-- VarDecl (Variable Declaration)
-- EnumDecl (Enumeration Declaration)
-
-// Statements
-- IfStmt, WhileStmt, DoWhileStmt, ForStmt, SwitchStmt
-- ReturnStmt, BreakStmt, ContinueStmt
-- AssignStmt, ExprStmt, CaseStmt
-
-// Expressions
-- BinaryExpr, UnaryExpr, CallExpr
-- LiteralExpr, IdentifierExpr
-
-// Preprocessor
-- IncludeDirective, DefineDirective
+void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens);
 ```
+This builds a `ScopeAnalyzer`, runs analysis, prints all scope errors (if any), and terminates on failure (`exit(EXIT_FAILURE)`).
 
-### Parsing Methods
-The parser follows a clear hierarchy of parsing methods:
-
-```
-declaration() → statement() → expression()
-    ↓              ↓             ↓
-fnDecl()      ifStmt()     assignment()
-varDecl()     whileStmt()  logicalOr()
-enumDecl()    forStmt()    logicalAnd()
-              ...          bitwiseOr()
-                          ...
-                          primary()
-```
-
-## Usage
-
-### Compilation
-```bash
-g++ -o parser parser.cpp
-```
-
-### Running Tests
-The parser includes comprehensive tests covering all language features:
-```bash
-./parser
-```
-
-### Using in Your Project
+## Usage Example
 ```cpp
-#include "parser.cpp"  // Includes lexer.cpp automatically
+// After lexing and parsing:
+auto tokens = lexAndDumpToFile("tester/sample.txt", "tester/tokens.txt");
+auto ast = parseFromFile(tokens);
+performScopeAnalysis(ast, tokens); // exits on error, prints success message otherwise
+```
 
-// Create lexer state
-LexerState state = createLexerState(sourceCode);
-
-// Create parser and parse
-Parser parser(state);
-vector<unique_ptr<AstNode>> ast = parser.parse();
-
-// Process AST nodes
-for (const auto& node : ast) {
-    cout << node->toString() << endl;
+### Sample Source Illustrating Errors
+```c
+int foo(int x);        // prototype
+int foo(int y) {       // OK: matches prototype
+    return y;          
 }
-```
-
-## Code Examples
-
-### Variable Declarations
-```c
-// Basic types
-int x = 10;
-float pi = 3.14;
-bool flag = true;
-
-// With const qualifier
-const int constantVar = 42;
-const double value = 3.14159;
-```
-
-### Function Declarations
-```c
-// Simple function
-int add(int a, int b) {
-    return a + b;
-}
-```
-
-### Control Flow
-```c
-// Conditional
-if (x > 0) {
-    processPositive(x);
-} else {
-    processNegative(x);
+int foo(int z) {       // Error: conflicting function definition (duplicate definition)
+    return z;          
 }
 
-// Loops
-while (running) {
-    update();
-}
+int foo(float z);      // Error: conflicting declaration (different signature)
 
-for (int i = 0; i < count; i++) {
-    if (i % 2 == 0) continue;
-    processOdd(i);
-}
+int a = 1;
+int a = 2;             // Error: variable redefinition
 
-// Switch statement
-switch (option) {
-    case 1:
-        handleOption1();
-        break;
-    case 2:
-        handleOption2();
-        break;
-    default:
-        handleDefault();
-        break;
-}
+enum Color { RED, GREEN, RED }; // Error: enum variant redefinition (RED twice)
 ```
 
-### Expressions
+### Example Identifier Resolution
 ```c
-// Arithmetic with proper precedence
-int result = (a + b) * c - d / 2 % 3;
-
-// Logical operations
-bool condition = (x > 5) && (y < 10) || !flag;
-
-// Bitwise operations
-int bits = a & b | c ^ d;
-int shifted = value << 2 >> 1;
-int negated = ~mask;
-
-// Complex expressions
-bool complex = ((a & 2) << 8) | (b >> 4) && !(c % 2) || (d >= e);
-```
-
-### Preprocessor Directives
-```c
-// Include directives
-#include <stdio.h>
-#include "myheader.h"
-
-// Macro definitions
-#define PI 3.14159
-#define MAX_SIZE 100
-#define SQUARE(x) ((x) * (x))
-#define MIN(a, b) ((a) < (b))
-```
-
-### Enumerations
-```c
-enum Color {
-    RED,
-    GREEN,
-    BLUE
-};
-
-enum Status {
-    ACTIVE,
-    INACTIVE,
-    PENDING
-};
-```
-
-## AST Output Format
-
-The parser generates human-readable AST representations. For example:
-
-**Source Code:**
-```c
-int factorial(int n) {
-    if (n <= 1) {
-        return 1;
-    }
-    return n * factorial(n - 1);
+int a = 10;
+void f() {
+    int a = 3;   // shadows outer a (allowed – no warning yet)
+    int b = a;   // resolves to inner a
 }
+int b = a;       // resolves to global a
 ```
 
-## Error Handling
+## Integration Order
+1. Lexing (`lexer.cpp`)
+2. Parsing (`parser.cpp` → AST)
+3. Scope analysis (`scope.cpp`)
+4. (Future) Type checking / semantic passes
 
-The parser provides detailed error messages with location information:
+Run sequence in `main.cpp` already follows this order.
+
+## Performance Notes
+Complexity is roughly O(N * D) where N = number of AST nodes and D = maximum scope depth; typical code keeps D small. Symbol lookups are O(1) per scope via `unordered_map`.
+
+## Limitations / Future Work
+* No warnings for shadowing yet (level field could enable this).
+* `InvalidForwardReference` and `InvalidStorageClassUsage` are placeholders.
+* Does not verify return type consistency with call sites.
+* No type compatibility checking for assignments or expressions.
+* Function overloading by parameter type beyond exact match isn't supported (first conflicting signature wins an error).
+
+## Extending The Analyzer
+Add new checks by:
+1. Introducing a new `ScopeErrorType` value.
+2. Adding handling logic inside `ScopeAnalyzer::analyzeNode` or specific helpers.
+3. Emitting errors through `addError(...)`.
+
+## Building
+```bash
+g++ -std=c++11 -o compiler main.cpp lexer.cpp parser.cpp scope.cpp
 ```
-Parse Error: Expected ';' after variable declaration at line 5, column 12
-Parse Error: Expected ')' after condition at line 8, column 15
-Parse Error: Unexpected token at line 10, column 3
+(Adjust flags and file list as needed.)
+
+## Output Behavior
+On success:
 ```
-
-## Testing
-
-The parser includes comprehensive test suites covering:
-
-1. Arithmetic operators with modulo
-2. Logical operators  
-3. Bitwise operators
-4. While loops
-5. Do-while loops
-6. Switch-case statements
-7. Continue statements
-8. Type qualifiers (const)
-9. Simple type combinations
-10. Functions with simple const types
-11. Nested control flow
-12. Complex expressions
-13. All unary operators
-14. Include directives
-15. Define directives
-16. Mixed preprocessor and code
-17. Enum declarations
-18. Error handling and edge cases
-
-## Dependencies
-
-- **Lexer**: Requires `lexer.cpp` for tokenization
-- **C++ Standard**: C++11 or later (uses smart pointers, auto, etc.)
-- **Compiler**: GCC, Clang, or any C++11 compatible compiler
-
-## Architecture Benefits
-
-1. **Memory Efficient**: Streams tokens one at a time instead of loading all into memory
-2. **Modular Design**: Clear separation between lexing and parsing phases  
-3. **Extensible**: Easy to add new language constructs
-4. **Robust**: Comprehensive error handling and recovery
-5. **Fast**: Efficient recursive descent parsing
-6. **Standard Compliant**: Follows established C language grammar patterns
+=== Scope Analysis Successful ===
+No scope errors found.
+```
+On failure each error line begins with `[Scope Error]` followed by the message.
 
 ---
-
-*This parser is part of a custom compiler project and serves as the syntax analysis phase of the compilation pipeline.*
