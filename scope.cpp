@@ -1,6 +1,4 @@
 #include "compiler.h"
-#include <stack>
-#include <set>
 
 struct SymbolInfo {
     TokenType type;

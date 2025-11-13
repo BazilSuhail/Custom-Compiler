@@ -16,6 +16,10 @@
 #include <variant>
 #include <functional>
 
+#include <stack> 
+#include <unordered_set>
+#include <set>
+
 using namespace std;
 
 enum TokenType {
