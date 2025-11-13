@@ -343,6 +343,10 @@ void printPrintStmt(const PrintStmt& node, int indent) {
     }
 }
 
+void printBreakStmt(const BreakStmt& node, int indent) {
+    cout << string(indent, ' ') << "BreakStmt\n";
+}
+
 void printExpressionStmt(const ExpressionStmt& node, int indent) {
     cout << string(indent, ' ') << "ExpressionStmt\n";
     if (node.expr) printASTNode(node.expr->node, indent + 2);
@@ -376,6 +380,7 @@ void printASTNode(const ASTNodeVariant& node, int indent) {
         else if constexpr (std::is_same_v<T, SwitchStmt>) printSwitchStmt(n, indent);
         else if constexpr (std::is_same_v<T, ReturnStmt>) printReturnStmt(n, indent);
         else if constexpr (std::is_same_v<T, PrintStmt>) printPrintStmt(n, indent);
+        else if constexpr (is_same_v<T, BreakStmt>) printBreakStmt(n, indent); // break statment
         else if constexpr (std::is_same_v<T, ExpressionStmt>) printExpressionStmt(n, indent);
     }, node);
 }
@@ -662,7 +667,7 @@ private:
         expect(T_RPAREN);
         return make_unique<ASTNode>(CallExpr(move(callee), move(args)));
     }
-    
+
     // Modify parseStatement to recognize enum declarations
     ASTPtr parseStatement() {
         // Check for enum declaration first
@@ -700,11 +705,13 @@ private:
         if (check(T_RETURN)) return parseReturnStatement();
         if (check(T_LBRACE)) return parseBlockStatement();
         if (check(T_MAIN)) return parseMainDeclaration();
-        if (match(T_BREAK)) {
-                expect(T_SEMICOLON);
-                // Consider creating a proper BreakStmt AST node instead of Identifier
-                return make_unique<ASTNode>(Identifier("break")); // simple placeholder for BreakStmt
-        }
+        if (check(T_BREAK)) return parseBreakStatement();
+
+        // if (match(T_BREAK)) {
+        //         expect(T_SEMICOLON);
+        //         // Consider creating a proper BreakStmt AST node instead of Identifier
+        //         return make_unique<ASTNode>(Identifier("break")); // simple placeholder for BreakStmt
+        // }
         ASTPtr expr = parseExpression();
         consumeSemicolon();
         return make_unique<ASTNode>(ExpressionStmt(move(expr)));
@@ -769,6 +776,13 @@ private:
         vector<ASTPtr> body = parseBlock();
         return make_unique<ASTNode>(FunctionDecl(returnType, name, move(params), move(body)));
     }
+
+    ASTPtr parseBreakStatement() {
+        expect(T_BREAK);
+        expect(T_SEMICOLON);
+        return make_unique<ASTNode>(BreakStmt());
+    }
+
 
     ASTPtr parsePrintStatement() {
         expect(T_PRINT);

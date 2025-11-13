@@ -61,6 +61,7 @@ enum class ScopeErrorType {
     UndefinedFunctionCalled,
     VariableRedefinition,
     FunctionPrototypeRedefinition,
+    
     ConflictingFunctionDefinition,
     ConflictingDeclaration,
     ParameterRedefinition,
@@ -324,6 +325,10 @@ struct SwitchStmt {
         : expression(move(e)), cases(move(c)), defaultBody(move(d)) {}
 };
 
+struct BreakStmt {
+    BreakStmt() = default;
+};
+
 struct ReturnStmt {
     unique_ptr<struct ASTNode> value;
     ReturnStmt(unique_ptr<struct ASTNode> val = nullptr) : value(move(val)) {}
@@ -365,6 +370,7 @@ using ASTNodeVariant = variant<
     SwitchStmt,
     ReturnStmt,
     PrintStmt,
+    BreakStmt, // valid in statements
     ExpressionStmt
 >;
 
