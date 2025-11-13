@@ -108,7 +108,13 @@ struct ParseError {
             case T_COLON: return "T_COLON";
             case T_INCLUDE: return "T_INCLUDE";
             case T_ENUM: return "T_ENUM";
-
+            // Bitwise operators - Add these lines
+            case T_BITAND: return "T_BITAND";
+            case T_BITOR: return "T_BITOR";
+            case T_BITXOR: return "T_BITXOR";
+            case T_BITLSHIFT: return "T_BITLSHIFT";
+            case T_BITRSHIFT: return "T_BITRSHIFT";
+            
             case T_MAIN: return "T_MAIN";
             case T_EOF: return "T_EOF";
             default: return "T_UNKNOWN";
@@ -343,6 +349,10 @@ void printPrintStmt(const PrintStmt& node, int indent) {
     }
 }
 
+void printBreakStmt(const BreakStmt& node, int indent) {
+    cout << string(indent, ' ') << "BreakStmt\n";
+}
+
 void printExpressionStmt(const ExpressionStmt& node, int indent) {
     cout << string(indent, ' ') << "ExpressionStmt\n";
     if (node.expr) printASTNode(node.expr->node, indent + 2);
@@ -376,6 +386,7 @@ void printASTNode(const ASTNodeVariant& node, int indent) {
         else if constexpr (std::is_same_v<T, SwitchStmt>) printSwitchStmt(n, indent);
         else if constexpr (std::is_same_v<T, ReturnStmt>) printReturnStmt(n, indent);
         else if constexpr (std::is_same_v<T, PrintStmt>) printPrintStmt(n, indent);
+        else if constexpr (is_same_v<T, BreakStmt>) printBreakStmt(n, indent); // break statment
         else if constexpr (std::is_same_v<T, ExpressionStmt>) printExpressionStmt(n, indent);
     }, node);
 }
@@ -450,6 +461,9 @@ private:
             case T_PLUS: case T_MINUS: return TERM;
             case T_MULTIPLY: case T_DIVIDE: case T_MODULO: return FACTOR;
             case T_LPAREN: return CALL;
+            // Add bitwise operators with appropriate precedence
+            case T_BITAND: case T_BITOR: case T_BITXOR: return TERM;  // Bitwise ops have same precedence as +/-
+            case T_BITLSHIFT: case T_BITRSHIFT: return TERM;  // Shift ops have same precedence as +/-
             default: return LOWEST;
         }
     }
@@ -529,6 +543,10 @@ private:
             case T_DIVIDE: case T_MODULO: case T_EQUALOP: case T_NE:
             case T_LT: case T_GT: case T_LE: case T_GE: case T_AND: case T_OR:
                 return parseBinaryExpression(move(left), precedence);
+
+            // Add bitwise operators here
+            case T_BITAND: case T_BITOR: case T_BITXOR: case T_BITLSHIFT: case T_BITRSHIFT:
+            return parseBinaryExpression(move(left), precedence);
 
             case T_LPAREN:
                 if (isIdentifierNode(left)) return parseCallExpression(move(left));
@@ -662,7 +680,7 @@ private:
         expect(T_RPAREN);
         return make_unique<ASTNode>(CallExpr(move(callee), move(args)));
     }
-    
+
     // Modify parseStatement to recognize enum declarations
     ASTPtr parseStatement() {
         // Check for enum declaration first
@@ -700,11 +718,13 @@ private:
         if (check(T_RETURN)) return parseReturnStatement();
         if (check(T_LBRACE)) return parseBlockStatement();
         if (check(T_MAIN)) return parseMainDeclaration();
-        if (match(T_BREAK)) {
-                expect(T_SEMICOLON);
-                // Consider creating a proper BreakStmt AST node instead of Identifier
-                return make_unique<ASTNode>(Identifier("break")); // simple placeholder for BreakStmt
-        }
+        if (check(T_BREAK)) return parseBreakStatement();
+
+        // if (match(T_BREAK)) {
+        //         expect(T_SEMICOLON);
+        //         // Consider creating a proper BreakStmt AST node instead of Identifier
+        //         return make_unique<ASTNode>(Identifier("break")); // simple placeholder for BreakStmt
+        // }
         ASTPtr expr = parseExpression();
         consumeSemicolon();
         return make_unique<ASTNode>(ExpressionStmt(move(expr)));
@@ -769,6 +789,13 @@ private:
         vector<ASTPtr> body = parseBlock();
         return make_unique<ASTNode>(FunctionDecl(returnType, name, move(params), move(body)));
     }
+
+    ASTPtr parseBreakStatement() {
+        expect(T_BREAK);
+        expect(T_SEMICOLON);
+        return make_unique<ASTNode>(BreakStmt());
+    }
+
 
     ASTPtr parsePrintStatement() {
         expect(T_PRINT);
