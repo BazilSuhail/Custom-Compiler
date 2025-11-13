@@ -161,56 +161,58 @@ struct TypeChkErrorStruct {
     int column;
     string message;
 
-    TypeChkErrorStruct(TypeChkError t, const string& n, int l, int c) 
-        : type(t), name(n), line(l), column(c) {
-        switch (t) {
+    TypeChkErrorStruct(TypeChkError t, const string& n, int l, int c)
+        : type(t), name(n), line(l), column(c)
+    {
+        switch(t) {
             case ErroneousVarDecl:
-                message = "Variable declared with invalid type: '" + n + "'";
+                message = "(ErroneousVarDecl) Variable declared with invalid type: '" + n + "'";
                 break;
             case FnCallParamCount:
-                message = "Function call has wrong number of arguments: '" + n + "'";
+                message = "(FnCallParamCount) Function call has wrong number of arguments: '" + n + "'";
                 break;
             case FnCallParamType:
-                message = "Function call has argument of wrong type: '" + n + "'";
+                message = "(FnCallParamType) Function call has argument of wrong type: '" + n + "'";
                 break;
             case ErroneousReturnType:
-                message = "Function returns value of wrong type: '" + n + "'";
+                message = "(ErroneousReturnType) Function returns value of wrong type: '" + n + "'";
                 break;
             case ExpressionTypeMismatch:
-                message = "Expression uses incompatible types: '" + n + "'";
+                message = "(ExpressionTypeMismatch) Expression uses incompatible types: '" + n + "'";
                 break;
             case ExpectedBooleanExpression:
-                message = "Expected boolean expression: '" + n + "'";
+                message = "(ExpectedBooleanExpression) Expected boolean expression: '" + n + "'";
                 break;
             case ErroneousBreak:
-                message = "'break' used outside loop or switch: '" + n + "'";
+                message = "(ErroneousBreak) 'break' used outside loop or switch: '" + n + "'";
                 break;
             case NonBooleanCondStmt:
-                message = "Condition in if/while is not boolean: '" + n + "'";
+                message = "(NonBooleanCondStmt) Condition in if/while is not boolean: '" + n + "'";
                 break;
             case EmptyExpression:
-                message = "Expression is missing or empty: '" + n + "'";
+                message = "(EmptyExpression) Expression is missing or empty: '" + n + "'";
                 break;
             case AttemptedBoolOpOnNonBools:
-                message = "Boolean operation used on non-boolean values: '" + n + "'";
+                message = "(AttemptedBoolOpOnNonBools) Boolean operation used on non-boolean values: '" + n + "'";
                 break;
             case AttemptedBitOpOnNonInt:
-                message = "Bitwise operation used on non-integer type: '" + n + "'";
+                message = "(AttemptedBitOpOnNonInt) Bitwise operation used on non-integer type: '" + n + "'";
                 break;
             case AttemptedShiftOnNonInt:
-                message = "Shift operator used on non-integer type: '" + n + "'";
+                message = "(AttemptedShiftOnNonInt) Shift operator used on non-integer type: '" + n + "'";
                 break;
             case AttemptedAddOpOnNonNumeric:
-                message = "Addition/subtraction used on non-numeric types: '" + n + "'";
+                message = "(AttemptedAddOpOnNonNumeric) Addition/subtraction used on non-numeric types: '" + n + "'";
                 break;
             case AttemptedExponentiationOfNonNumeric:
-                message = "Exponentiation used on non-numeric types: '" + n + "'";
+                message = "(AttemptedExponentiationOfNonNumeric) Exponentiation used on non-numeric types: '" + n + "'";
                 break;
             case ReturnStmtNotFound:
-                message = "Function missing return statement: '" + n + "'";
+                message = "(ReturnStmtNotFound) Function missing return statement: '" + n + "'";
                 break;
         }
     }
+
 };
 
 // === AST Node Types (using std::variant) ===

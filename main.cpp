@@ -14,6 +14,8 @@ int main(int argc, char* argv[]) {
     auto ast = parseFromFile(tokens);
     performScopeAnalysis(ast, tokens);
 
+    performTypeChecking(ast, tokens); 
+
     return 0;
 }
 
