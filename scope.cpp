@@ -57,6 +57,9 @@ private:
     vector<ScopeError> errors;
     vector<Token> tokens;
     size_t currentTokenIndex;
+    
+    // Store all declared symbols for forward reference checking
+    unordered_map<string, vector<SymbolInfo>> allDeclaredSymbols;
 
     // Walks up scope chain to find symbol
     SymbolInfo* lookupSymbol(const string& name) {
@@ -88,6 +91,24 @@ private:
         errors.push_back(ScopeError(type, name, line, col));
     }
 
+    // Check if a symbol exists anywhere in the program (for forward reference)
+    bool isSymbolDeclaredAnywhere(const string& name) {
+        return allDeclaredSymbols.find(name) != allDeclaredSymbols.end();
+    }
+
+    // Check if function exists with matching signature anywhere
+    bool isFunctionDeclaredAnywhere(const string& name, const vector<pair<TokenType, string>>& params) {
+        auto it = allDeclaredSymbols.find(name);
+        if (it != allDeclaredSymbols.end()) {
+            for (const auto& sym : it->second) {
+                if (sym.isFunction && areFunctionSignaturesEqual(sym.params, params)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // C-style: compare parameter types only, not names
     bool areFunctionSignaturesEqual(const vector<pair<TokenType, string>>& params1, 
                                    const vector<pair<TokenType, string>>& params2) {
@@ -99,6 +120,20 @@ private:
     }
 
     void analyzeVarDecl(const VarDecl& decl, int line, int col) {
+        // Check if enum is being used as variable type
+        if (decl.type == T_ENUM) {
+            SymbolInfo* enumType = lookupSymbol(decl.name);
+            if (enumType && enumType->isEnum) {
+                // This is actually an enum declaration, not a variable with enum type
+            } else {
+                // If trying to declare variable with enum type, check if enum exists
+                SymbolInfo* enumSym = lookupSymbol(decl.name);
+                if (!enumSym || !enumSym->isEnum) {
+                    addError(ScopeErrorType::UndeclaredVariableAccessed, decl.name, line, col);
+                }
+            }
+        }
+        
         if (currentScope->hasSymbol(decl.name)) {
             addError(ScopeErrorType::VariableRedefinition, decl.name, line, col);
         } else {
@@ -107,6 +142,7 @@ private:
                 addError(ScopeErrorType::ConflictingDeclaration, decl.name, line, col);
             } else {
                 currentScope->addSymbol(SymbolInfo(decl.type, decl.name, line, col, false));
+                allDeclaredSymbols[decl.name].push_back(SymbolInfo(decl.type, decl.name, line, col, false));
             }
         }
         
@@ -116,31 +152,15 @@ private:
     }
 
     void analyzeFunctionDecl(const FunctionDecl& func, int line, int col) {
-    SymbolInfo* localSym = currentScope->findSymbol(func.name);
-    
-    if (localSym) {
-        if (localSym->isFunction) {
-            if (areFunctionSignaturesEqual(localSym->params, func.params)) {
-                if (localSym->isPrototype) {
-                    // Replace prototype with definition
-                    localSym->isPrototype = false;
-                } else {
-                    addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
-                }
-            } else {
-                addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
-            }
-        } else {
-            addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
-        }
-    } else {
-        SymbolInfo* existing = lookupSymbol(func.name);
+        SymbolInfo* localSym = currentScope->findSymbol(func.name);
         
-        if (existing) {
-            if (existing->isFunction) {
-                if (areFunctionSignaturesEqual(existing->params, func.params)) {
-                    if (!existing->isPrototype) {
-                        // In C, can't redefine function even from parent scope
+        if (localSym) {
+            if (localSym->isFunction) {
+                if (areFunctionSignaturesEqual(localSym->params, func.params)) {
+                    if (localSym->isPrototype) {
+                        // Replace prototype with definition
+                        localSym->isPrototype = false;
+                    } else {
                         addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
                     }
                 } else {
@@ -149,29 +169,46 @@ private:
             } else {
                 addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
             }
+        } else {
+            SymbolInfo* existing = lookupSymbol(func.name);
+            
+            if (existing) {
+                if (existing->isFunction) {
+                    if (areFunctionSignaturesEqual(existing->params, func.params)) {
+                        if (!existing->isPrototype) {
+                            // In C, can't redefine function even from parent scope
+                            addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
+                        }
+                    } else {
+                        addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
+                    }
+                } else {
+                    addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
+                }
+            }
+            
+            currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
+            allDeclaredSymbols[func.name].push_back(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
         }
         
-        currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
-    }
-    
-    enterScope();
-    
-    set<string> paramNames;
-    for (const auto& param : func.params) {
-        if (paramNames.count(param.second) > 0) {
-            addError(ScopeErrorType::ParameterRedefinition, param.second, line, col);
-        } else {
-            paramNames.insert(param.second);
-            currentScope->addSymbol(SymbolInfo(param.first, param.second, line, col, false));
+        enterScope();
+        
+        set<string> paramNames;
+        for (const auto& param : func.params) {
+            if (paramNames.count(param.second) > 0) {
+                addError(ScopeErrorType::ParameterRedefinition, param.second, line, col);
+            } else {
+                paramNames.insert(param.second);
+                currentScope->addSymbol(SymbolInfo(param.first, param.second, line, col, false));
+            }
         }
+        
+        for (const auto& stmt : func.body) {
+            analyzeNode(stmt->node);
+        }
+        
+        exitScope();
     }
-    
-    for (const auto& stmt : func.body) {
-        analyzeNode(stmt->node);
-    }
-    
-    exitScope();
-}
 
     void analyzeFunctionProto(const FunctionProto& proto, int line, int col) {
         SymbolInfo* existing = lookupSymbol(proto.name);
@@ -188,10 +225,16 @@ private:
             addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
         } else {
             currentScope->addSymbol(SymbolInfo(proto.returnType, proto.name, line, col, true, false, false, true, proto.params));
+            allDeclaredSymbols[proto.name].push_back(SymbolInfo(proto.returnType, proto.name, line, col, true, false, false, true, proto.params));
         }
     }
 
     void analyzeEnumDecl(const EnumDecl& enm, int line, int col) {
+        // Check if enum is declared in global scope (not inside function)
+        if (currentScope->level > 0) { // Not global scope
+            addError(ScopeErrorType::InvalidStorageClassUsage, enm.name, line, col);
+        }
+        
         if (currentScope->hasSymbol(enm.name)) {
             addError(ScopeErrorType::EnumRedefinition, enm.name, line, col);
         } else {
@@ -200,6 +243,7 @@ private:
                 addError(ScopeErrorType::ConflictingDeclaration, enm.name, line, col);
             } else {
                 currentScope->addSymbol(SymbolInfo(T_ENUM, enm.name, line, col, false, true, false, false, {}));
+                allDeclaredSymbols[enm.name].push_back(SymbolInfo(T_ENUM, enm.name, line, col, false, true, false, false, {}));
             }
         }
         
@@ -217,6 +261,7 @@ private:
                         addError(ScopeErrorType::ConflictingDeclaration, value, line, col);
                     } else {
                         currentScope->addSymbol(SymbolInfo(T_INT, value, line, col, false, false, true, false, {}));
+                        allDeclaredSymbols[value].push_back(SymbolInfo(T_INT, value, line, col, false, false, true, false, {}));
                     }
                 }
             }
@@ -237,8 +282,14 @@ private:
         if (holds_alternative<Identifier>(call.callee->node)) {
             const auto& ident = get<Identifier>(call.callee->node);
             SymbolInfo* funcSym = lookupSymbol(ident.name);
+            
             if (!funcSym || !funcSym->isFunction) {
-                addError(ScopeErrorType::UndefinedFunctionCalled, ident.name, line, col);
+                // Check if function exists anywhere in the program (forward reference)
+                if (isSymbolDeclaredAnywhere(ident.name)) {
+                    addError(ScopeErrorType::InvalidForwardReference, ident.name, line, col);
+                } else {
+                    addError(ScopeErrorType::UndefinedFunctionCalled, ident.name, line, col);
+                }
             }
         } else {
             analyzeExpression(call.callee->node);
@@ -252,7 +303,12 @@ private:
     void analyzeIdentifier(const Identifier& ident, int line, int col) {
         SymbolInfo* sym = lookupSymbol(ident.name);
         if (!sym) {
-            addError(ScopeErrorType::UndeclaredVariableAccessed, ident.name, line, col);
+            // Check if this symbol exists anywhere in the program (forward reference)
+            if (isSymbolDeclaredAnywhere(ident.name)) {
+                addError(ScopeErrorType::InvalidForwardReference, ident.name, line, col);
+            } else {
+                addError(ScopeErrorType::UndeclaredVariableAccessed, ident.name, line, col);
+            }
         }
     }
 
@@ -428,12 +484,37 @@ public:
     vector<ScopeError> analyze(const vector<ASTPtr>& ast, const vector<Token>& tokenList) {
         tokens = tokenList;
         errors.clear();
+        allDeclaredSymbols.clear(); // Clear for fresh analysis
         
+        // First pass: collect all declared symbols
+        for (const auto& node : ast) {
+            collectDeclarations(node->node);
+        }
+        
+        // Second pass: perform actual analysis
         for (const auto& node : ast) {
             analyzeNode(node->node);
         }
         
         return errors;
+    }
+    
+private:
+    // Helper function to collect all declarations for forward reference checking
+    void collectDeclarations(const ASTNodeVariant& node) {
+        visit([this](const auto& n) {
+            using T = decay_t<decltype(n)>;
+            
+            if constexpr (is_same_v<T, VarDecl>) {
+                allDeclaredSymbols[n.name].push_back(SymbolInfo(n.type, n.name, -1, -1, false));
+            } else if constexpr (is_same_v<T, FunctionDecl>) {
+                allDeclaredSymbols[n.name].push_back(SymbolInfo(n.returnType, n.name, -1, -1, true, false, false, false, n.params));
+            } else if constexpr (is_same_v<T, FunctionProto>) {
+                allDeclaredSymbols[n.name].push_back(SymbolInfo(n.returnType, n.name, -1, -1, true, false, false, true, n.params));
+            } else if constexpr (is_same_v<T, EnumDecl>) {
+                allDeclaredSymbols[n.name].push_back(SymbolInfo(T_ENUM, n.name, -1, -1, false, true, false, false, {}));
+            }
+        }, node);
     }
 };
 
@@ -445,7 +526,6 @@ void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens
         cout << "\n=== Scope Analysis Errors ===\n";
         for (const auto& error : errors) {
             cout << "[Scope Error] " << error.message << ")\n";
-            //cout << "[Scope Error] " << error.message << " (line " << error.line << ", col " << error.column << ")\n";
         }
         cout << "Scope analysis failed with " << errors.size() << " error(s)\n";
         exit(EXIT_FAILURE);

@@ -4,6 +4,7 @@ include"main.h"
 enum MEOW { YELLOW, BLUE };
 
 
+    enum ma{a};
 int add(int m);
 int add(int m){
     add1();
@@ -18,7 +19,6 @@ int add1(int m){
 }
 
 main {
-    enum ma{a};
     int x = 42 + 5 / 8 * 10; 
     float ❤️ = 3.14159;
     int ans = add(2);

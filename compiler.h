@@ -35,6 +35,9 @@ enum TokenType {
     T_INCREMENT, T_DECREMENT,
     T_AND, T_OR, T_NOT,
 
+    // Bitwise operators
+    T_BITAND, T_BITOR, T_BITXOR, T_BITLSHIFT, T_BITRSHIFT,
+
     // Keywords
     T_IF, T_ELSE, T_WHILE, T_RETURN, T_PRINT,
     T_MAIN, T_INCLUDE,
@@ -47,6 +50,20 @@ enum TokenType {
 
     // Error & EOF
     T_ERROR, T_EOF
+};
+
+
+// Add type enum for type checking
+enum DataType {
+    TYPE_INT,
+    TYPE_FLOAT,
+    TYPE_DOUBLE,
+    TYPE_CHAR,
+    TYPE_BOOL,
+    TYPE_STRING,
+    TYPE_VOID,
+    TYPE_ENUM,
+    TYPE_ERROR
 };
 
 struct Token {
@@ -113,6 +130,84 @@ struct ScopeError {
                 break;
             case ScopeErrorType::EnumVariantRedefinition:
                 message = "Enum variant redefinition: '" + n + "'";
+                break;
+        }
+    }
+};
+
+// === Type Checking Errors ===
+enum TypeChkError {
+    ErroneousVarDecl,            // Variable declared incorrectly or with invalid type
+    FnCallParamCount,            // Function called with wrong number of arguments
+    FnCallParamType,             // Function called with argument of wrong type
+    ErroneousReturnType,         // Function returns a value of wrong type
+    ExpressionTypeMismatch,      // Expression uses incompatible types
+    ExpectedBooleanExpression,   // Expression expected to be boolean but isn't
+    ErroneousBreak,              // 'break' used outside loop or switch
+    NonBooleanCondStmt,          // Condition in if/while is not boolean
+    EmptyExpression,             // Expression is missing or empty
+    AttemptedBoolOpOnNonBools,   // Boolean operation used on non-boolean values
+    AttemptedBitOpOnNonInt,      // Bitwise operation used on non-integer types
+    AttemptedShiftOnNonInt,      // Shift operator used on non-integer type
+    AttemptedAddOpOnNonNumeric,  // Addition/subtraction used on non-numeric types
+    AttemptedExponentiationOfNonNumeric, // Exponentiation used on non-numeric types
+    ReturnStmtNotFound           // Function missing a return statement where required
+};
+
+struct TypeChkErrorStruct {
+    TypeChkError type;
+    string name;
+    int line;
+    int column;
+    string message;
+
+    TypeChkErrorStruct(TypeChkError t, const string& n, int l, int c) 
+        : type(t), name(n), line(l), column(c) {
+        switch (t) {
+            case ErroneousVarDecl:
+                message = "Variable declared with invalid type: '" + n + "'";
+                break;
+            case FnCallParamCount:
+                message = "Function call has wrong number of arguments: '" + n + "'";
+                break;
+            case FnCallParamType:
+                message = "Function call has argument of wrong type: '" + n + "'";
+                break;
+            case ErroneousReturnType:
+                message = "Function returns value of wrong type: '" + n + "'";
+                break;
+            case ExpressionTypeMismatch:
+                message = "Expression uses incompatible types: '" + n + "'";
+                break;
+            case ExpectedBooleanExpression:
+                message = "Expected boolean expression: '" + n + "'";
+                break;
+            case ErroneousBreak:
+                message = "'break' used outside loop or switch: '" + n + "'";
+                break;
+            case NonBooleanCondStmt:
+                message = "Condition in if/while is not boolean: '" + n + "'";
+                break;
+            case EmptyExpression:
+                message = "Expression is missing or empty: '" + n + "'";
+                break;
+            case AttemptedBoolOpOnNonBools:
+                message = "Boolean operation used on non-boolean values: '" + n + "'";
+                break;
+            case AttemptedBitOpOnNonInt:
+                message = "Bitwise operation used on non-integer type: '" + n + "'";
+                break;
+            case AttemptedShiftOnNonInt:
+                message = "Shift operator used on non-integer type: '" + n + "'";
+                break;
+            case AttemptedAddOpOnNonNumeric:
+                message = "Addition/subtraction used on non-numeric types: '" + n + "'";
+                break;
+            case AttemptedExponentiationOfNonNumeric:
+                message = "Exponentiation used on non-numeric types: '" + n + "'";
+                break;
+            case ReturnStmtNotFound:
+                message = "Function missing return statement: '" + n + "'";
                 break;
         }
     }
@@ -389,7 +484,8 @@ using ASTPtr = unique_ptr<ASTNode>;
 
 vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename);
 vector<unique_ptr<ASTNode>> parseFromFile(const vector<Token>& tokens);
-//vector<ScopeError> performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens)
 void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens);
+
+void performTypeChecking(const vector<ASTPtr>& ast, const vector<Token>& tokens);
 
 #endif

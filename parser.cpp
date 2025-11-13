@@ -108,7 +108,13 @@ struct ParseError {
             case T_COLON: return "T_COLON";
             case T_INCLUDE: return "T_INCLUDE";
             case T_ENUM: return "T_ENUM";
-
+            // Bitwise operators - Add these lines
+            case T_BITAND: return "T_BITAND";
+            case T_BITOR: return "T_BITOR";
+            case T_BITXOR: return "T_BITXOR";
+            case T_BITLSHIFT: return "T_BITLSHIFT";
+            case T_BITRSHIFT: return "T_BITRSHIFT";
+            
             case T_MAIN: return "T_MAIN";
             case T_EOF: return "T_EOF";
             default: return "T_UNKNOWN";
@@ -455,6 +461,9 @@ private:
             case T_PLUS: case T_MINUS: return TERM;
             case T_MULTIPLY: case T_DIVIDE: case T_MODULO: return FACTOR;
             case T_LPAREN: return CALL;
+            // Add bitwise operators with appropriate precedence
+            case T_BITAND: case T_BITOR: case T_BITXOR: return TERM;  // Bitwise ops have same precedence as +/-
+            case T_BITLSHIFT: case T_BITRSHIFT: return TERM;  // Shift ops have same precedence as +/-
             default: return LOWEST;
         }
     }
@@ -534,6 +543,10 @@ private:
             case T_DIVIDE: case T_MODULO: case T_EQUALOP: case T_NE:
             case T_LT: case T_GT: case T_LE: case T_GE: case T_AND: case T_OR:
                 return parseBinaryExpression(move(left), precedence);
+
+            // Add bitwise operators here
+            case T_BITAND: case T_BITOR: case T_BITXOR: case T_BITLSHIFT: case T_BITRSHIFT:
+            return parseBinaryExpression(move(left), precedence);
 
             case T_LPAREN:
                 if (isIdentifierNode(left)) return parseCallExpression(move(left));
