@@ -232,7 +232,7 @@ public:
         functionContext.pop();
     }
 
-    void analyzeFunctionProto(const FunctionProto& proto) {
+    void analyzeFunctionProto(const FunctionProto& proto, int line, int col) {
         DataType returnType = tokenTypeToDataType(proto.returnType);
         vector<DataType> paramTypes;
         
@@ -242,7 +242,7 @@ public:
         functionSignatures[proto.name] = make_pair(returnType, paramTypes);
     }
 
-    void analyzeEnumDecl(const EnumDecl& enm) {
+    void analyzeEnumDecl(const EnumDecl& enm, int line, int col) {
         if (holds_alternative<EnumValueList>(enm.values->node)) {
             const auto& valueList = get<EnumValueList>(enm.values->node);
             for (const string& value : valueList.values) {
@@ -252,9 +252,9 @@ public:
         symbolTypes[enm.name] = TYPE_ENUM;
     }
 
-    void analyzeIfStmt(const IfStmt& stmt) {
+    void analyzeIfStmt(const IfStmt& stmt, int line, int col) {
         if (stmt.condition && !isBooleanExpression(stmt.condition->node)) {
-            addError(NonBooleanCondStmt, "if condition", -1, -1);
+            addError(NonBooleanCondStmt, "if condition", line, col);
         }
         
         for (const auto& ifStmt : stmt.ifBody) {
@@ -265,9 +265,9 @@ public:
         }
     }
 
-    void analyzeWhileStmt(const WhileStmt& stmt) {
+    void analyzeWhileStmt(const WhileStmt& stmt, int line, int col) {
         if (stmt.condition && !isBooleanExpression(stmt.condition->node)) {
-            addError(NonBooleanCondStmt, "while condition", -1, -1);
+            addError(NonBooleanCondStmt, "while condition", line, col);
         }
         
         inLoopOrSwitch.push(true);
@@ -277,32 +277,32 @@ public:
         inLoopOrSwitch.pop();
     }
 
-    void analyzeDoWhileStmt(const DoWhileStmt& stmt) {
+    void analyzeDoWhileStmt(const DoWhileStmt& stmt, int line, int col) {
         inLoopOrSwitch.push(true);
         if (stmt.body) analyzeNode(stmt.body->node, false);
         if (stmt.condition && !isBooleanExpression(stmt.condition->node)) {
-            addError(NonBooleanCondStmt, "do-while condition", -1, -1);
+            addError(NonBooleanCondStmt, "do-while condition", line, col);
         }
         inLoopOrSwitch.pop();
     }
 
-    void analyzeForStmt(const ForStmt& stmt) {
+    void analyzeForStmt(const ForStmt& stmt, int line, int col) {
         inLoopOrSwitch.push(true);
         if (stmt.init) analyzeNode(stmt.init->node, false);
         if (stmt.condition && !isBooleanExpression(stmt.condition->node)) {
-            addError(NonBooleanCondStmt, "for condition", -1, -1);
+            addError(NonBooleanCondStmt, "for condition", line, col);
         }
         if (stmt.update) analyzeExpression(stmt.update->node);
         if (stmt.body) analyzeNode(stmt.body->node, false);
         inLoopOrSwitch.pop();
     }
 
-    void analyzeSwitchStmt(const SwitchStmt& stmt) {
+    void analyzeSwitchStmt(const SwitchStmt& stmt, int line, int col) {
         inLoopOrSwitch.push(true);
         if (stmt.expression) {
             DataType exprType = getTypeOfExpression(stmt.expression->node);
             if (!isIntegerType(exprType)) {
-                addError(ExpressionTypeMismatch, "switch expression", -1, -1);
+                addError(ExpressionTypeMismatch, "switch expression", line, col);
             }
         }
         
@@ -321,7 +321,7 @@ public:
         inLoopOrSwitch.pop();
     }
 
-    void analyzeReturnStmt(const ReturnStmt& stmt, bool& hasReturnStmt) {
+    void analyzeReturnStmt(const ReturnStmt& stmt, bool& hasReturnStmt, int line, int col) {
         hasReturnStmt = true;
         
         if (functionContext.empty()) return;
@@ -334,62 +334,63 @@ public:
         if (stmt.value) {
             DataType actualReturnType = getTypeOfExpression(stmt.value->node);
             if (expectedReturnType == TYPE_VOID) {
-                addError(ErroneousReturnType, currentFunc, -1, -1);
+                addError(ErroneousReturnType, currentFunc, line, col);
             } else if (actualReturnType != expectedReturnType && 
                       !(isNumericType(expectedReturnType) && isNumericType(actualReturnType))) {
-                addError(ErroneousReturnType, currentFunc, -1, -1);
+                addError(ErroneousReturnType, currentFunc, line, col);
             }
         } else if (expectedReturnType != TYPE_VOID) {
-            addError(ErroneousReturnType, currentFunc, -1, -1);
+            addError(ErroneousReturnType, currentFunc, line, col);
         }
     }
 
-    void analyzeBreakStmt() {
+    void analyzeBreakStmt(int line, int col) {
         if (inLoopOrSwitch.empty() || !inLoopOrSwitch.top()) {
-            addError(ErroneousBreak, "break", -1, -1);
+            addError(ErroneousBreak, "break", line, col);
         }
     }
 
-    void analyzeExpressionStmt(const ExpressionStmt& stmt) {
+    void analyzeExpressionStmt(const ExpressionStmt& stmt, int line, int col) {
         analyzeExpression(stmt.expr->node);
     }
 
-    void analyzeBinaryExpr(const BinaryExpr& expr) {
+    void analyzeBinaryExpr(const BinaryExpr& expr, int line, int col) {
         DataType leftType = getTypeOfExpression(expr.left->node);
         DataType rightType = getTypeOfExpression(expr.right->node);
         
         if (leftType == TYPE_ERROR || rightType == TYPE_ERROR) {
-            addError(ExpressionTypeMismatch, "binary expression", -1, -1);
+            addError(ExpressionTypeMismatch, "binary expression", line, col);
             return;
         }
         
         DataType resultType = getBinaryOpResultType(expr.op, leftType, rightType);
         if (resultType == TYPE_ERROR) {
+            // Determine error type based on the operator
             if ((expr.op == T_AND || expr.op == T_OR) && 
                 (!isBooleanType(leftType) || !isBooleanType(rightType))) {
-                addError(AttemptedBoolOpOnNonBools, "boolean operation", -1, -1);
+                addError(AttemptedBoolOpOnNonBools, "boolean operation", line, col);
             } else if ((expr.op == T_BITAND || expr.op == T_BITOR || expr.op == T_BITXOR) &&
                       (!isIntegerType(leftType) || !isIntegerType(rightType))) {
-                addError(AttemptedBitOpOnNonInt, "bitwise operation", -1, -1);
+                addError(AttemptedBitOpOnNonInt, "bitwise operation", line, col);
             } else if ((expr.op == T_BITLSHIFT || expr.op == T_BITRSHIFT) &&
                       (!isIntegerType(leftType) || !isIntegerType(rightType))) {
-                addError(AttemptedShiftOnNonInt, "shift operation", -1, -1);
+                addError(AttemptedShiftOnNonInt, "shift operation", line, col);
             } else if ((expr.op == T_PLUS || expr.op == T_MINUS) &&
                       (!isNumericType(leftType) || !isNumericType(rightType))) {
-                addError(AttemptedAddOpOnNonNumeric, "arithmetic operation", -1, -1);
+                addError(AttemptedAddOpOnNonNumeric, "arithmetic operation", line, col);
             } else {
-                addError(ExpressionTypeMismatch, "binary expression", -1, -1);
+                addError(ExpressionTypeMismatch, "binary expression", line, col);
             }
         }
     }
 
-    void analyzeCallExpr(const CallExpr& call) {
+    void analyzeCallExpr(const CallExpr& call, int line, int col) {
         if (holds_alternative<Identifier>(call.callee->node)) {
             const auto& callee = get<Identifier>(call.callee->node);
             auto funcIt = functionSignatures.find(callee.name);
             if (funcIt != functionSignatures.end()) {
                 if (call.args.size() != funcIt->second.second.size()) {
-                    addError(FnCallParamCount, callee.name, -1, -1);
+                    addError(FnCallParamCount, callee.name, line, col);
                 }
             }
         }
@@ -398,8 +399,12 @@ public:
     void analyzeExpression(const ASTNodeVariant& expr) {
         visit([this](const auto& node) {
             using T = decay_t<decltype(node)>;
-            if constexpr (is_same_v<T, BinaryExpr>) analyzeBinaryExpr(node);
-            else if constexpr (is_same_v<T, CallExpr>) analyzeCallExpr(node);
+            if constexpr (is_same_v<T, BinaryExpr>) {
+                analyzeBinaryExpr(node, -1, -1);
+            }
+            else if constexpr (is_same_v<T, CallExpr>) {
+                analyzeCallExpr(node, -1, -1);
+            }
         }, expr);
     }
 
@@ -407,18 +412,35 @@ public:
         visit([this, inFunction, &hasReturnStmt](const auto& n) {
             using T = decay_t<decltype(n)>;
             
-            if constexpr (is_same_v<T, VarDecl>) analyzeVarDecl(n, -1, -1);
-            else if constexpr (is_same_v<T, FunctionDecl>) analyzeFunctionDecl(n, -1, -1);
-            else if constexpr (is_same_v<T, FunctionProto>) analyzeFunctionProto(n);
-            else if constexpr (is_same_v<T, EnumDecl>) analyzeEnumDecl(n);
-            else if constexpr (is_same_v<T, IfStmt>) analyzeIfStmt(n);
-            else if constexpr (is_same_v<T, WhileStmt>) analyzeWhileStmt(n);
-            else if constexpr (is_same_v<T, DoWhileStmt>) analyzeDoWhileStmt(n);
-            else if constexpr (is_same_v<T, ForStmt>) analyzeForStmt(n);
-            else if constexpr (is_same_v<T, SwitchStmt>) analyzeSwitchStmt(n);
-            else if constexpr (is_same_v<T, ReturnStmt>) analyzeReturnStmt(n, hasReturnStmt);
-            else if constexpr (is_same_v<T, ExpressionStmt>) analyzeExpressionStmt(n);
-            else if constexpr (is_same_v<T, BreakStmt>) analyzeBreakStmt();
+            if constexpr (is_same_v<T, VarDecl>) {
+                analyzeVarDecl(n, -1, -1);
+            } else if constexpr (is_same_v<T, FunctionDecl>) {
+                analyzeFunctionDecl(n, -1, -1);
+            } else if constexpr (is_same_v<T, FunctionProto>) {
+                analyzeFunctionProto(n, -1, -1);
+            } else if constexpr (is_same_v<T, EnumDecl>) {
+                analyzeEnumDecl(n, -1, -1);
+            } else if constexpr (is_same_v<T, IfStmt>) {
+                analyzeIfStmt(n, -1, -1);
+            } else if constexpr (is_same_v<T, WhileStmt>) {
+                analyzeWhileStmt(n, -1, -1);
+            } else if constexpr (is_same_v<T, DoWhileStmt>) {
+                analyzeDoWhileStmt(n, -1, -1);
+            } else if constexpr (is_same_v<T, ForStmt>) {
+                analyzeForStmt(n, -1, -1);
+            } else if constexpr (is_same_v<T, SwitchStmt>) {
+                analyzeSwitchStmt(n, -1, -1);
+            } else if constexpr (is_same_v<T, ReturnStmt>) {
+                analyzeReturnStmt(n, hasReturnStmt, -1, -1);
+            } else if constexpr (is_same_v<T, ExpressionStmt>) {
+                analyzeExpressionStmt(n, -1, -1);
+            } else if constexpr (is_same_v<T, BreakStmt>) {
+                analyzeBreakStmt(-1, -1);
+            } else if constexpr (is_same_v<T, BinaryExpr>) {
+                analyzeBinaryExpr(n, -1, -1);
+            } else if constexpr (is_same_v<T, CallExpr>) {
+                analyzeCallExpr(n, -1, -1);
+            }
         }, node);
     }
 
