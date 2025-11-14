@@ -59,6 +59,54 @@ struct Token {
     int column;
 };
 
+struct SymbolInfo {
+    TokenType type;
+    string name;
+    int line;
+    int column;
+    bool isFunction;
+    bool isEnum;
+    bool isEnumValue;
+    bool isPrototype; // Distinguishes prototypes from definitions
+    vector<pair<TokenType, string>> params;
+    
+    SymbolInfo(TokenType t, const string& n, int l, int c, bool isFunc = false, bool isEnumSym = false, bool isEnumVal = false, bool isProto = false, vector<pair<TokenType, string>> p = {})
+        : type(t), name(n), line(l), column(c), isFunction(isFunc), isEnum(isEnumSym), isEnumValue(isEnumVal), isPrototype(isProto), params(p) {}
+};
+
+struct ScopeFrame {
+    unordered_map<string, SymbolInfo> symbols;
+    vector<unique_ptr<ScopeFrame>> children;
+    ScopeFrame* parent;
+    int level; // For shadowing detection
+    
+    ScopeFrame(ScopeFrame* p = nullptr, int l = 0) : parent(p), level(l) {}
+    
+    bool hasSymbol(const string& name) const {
+        return symbols.find(name) != symbols.end();
+    }
+    
+    SymbolInfo* findSymbol(const string& name) {
+        auto it = symbols.find(name);
+        if (it != symbols.end()) {
+            return &(it->second);
+        }
+        return nullptr;
+    }
+    
+    const SymbolInfo* findSymbol(const string& name) const {
+        auto it = symbols.find(name);
+        if (it != symbols.end()) {
+            return &(it->second);
+        }
+        return nullptr;
+    }
+    
+    void addSymbol(const SymbolInfo& sym) {
+        symbols.insert({sym.name, sym});
+    }
+};
+
 // === AST Node Types (using std::variant) ===
 struct IntLiteral {
     int value;
@@ -366,5 +414,5 @@ using ASTPtr = unique_ptr<ASTNode>;
 vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename);
 vector<unique_ptr<ASTNode>> parseFromFile(const vector<Token>& tokens);
 void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens);
-
+pair<vector<ScopeError>, unique_ptr<ScopeInfo>> returnScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens);
 #endif
