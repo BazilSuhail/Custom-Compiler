@@ -1,4 +1,7 @@
 #include "compiler.h"
+#include <stack>
+#include <unordered_map>
+#include <unordered_set>
 
 // Type information for tracking
 struct TypeInfo {
@@ -29,9 +32,10 @@ struct TypeScopeFrame {
     unordered_map<string, FunctionSignature> functions;
     unordered_map<string, DataType> enumValues; // Map enum values to their types
     unordered_map<string, DataType> enumTypes;  // Map enum names to their types
+    string currentFunctionName; // Track current function name for return type checking
     TypeScopeFrame* parent;
     
-    TypeScopeFrame(TypeScopeFrame* p = nullptr) : parent(p) {}
+    TypeScopeFrame(TypeScopeFrame* p = nullptr) : parent(p), currentFunctionName("") {}
     
     TypeInfo* findVariable(const string& name) {
         auto it = variables.find(name);
@@ -381,6 +385,7 @@ private:
         auto funcScope = make_unique<TypeScopeFrame>(currentScope);
         TypeScopeFrame* oldScope = currentScope;
         currentScope = funcScope.get();
+        currentScope->currentFunctionName = func.name; // Set current function name
         
         // Add parameters to function scope
         for (const auto& param : func.params) {
@@ -392,6 +397,8 @@ private:
         bool hasReturn = false;
         for (const auto& stmt : func.body) {
             if (holds_alternative<ReturnStmt>(stmt->node)) {
+                const auto& returnStmt = get<ReturnStmt>(stmt->node);
+                checkReturnStatement(returnStmt, func.name);
                 hasReturn = true;
             }
             checkNode(stmt->node);
@@ -415,8 +422,13 @@ private:
         auto mainScope = make_unique<TypeScopeFrame>(currentScope);
         TypeScopeFrame* oldScope = currentScope;
         currentScope = mainScope.get();
+        currentScope->currentFunctionName = "main"; // Set current function name
         
         for (const auto& stmt : main.body) {
+            if (holds_alternative<ReturnStmt>(stmt->node)) {
+                const auto& returnStmt = get<ReturnStmt>(stmt->node);
+                checkReturnStatement(returnStmt, "main");
+            }
             checkNode(stmt->node);
         }
         
@@ -434,6 +446,7 @@ private:
         auto ifScope = make_unique<TypeScopeFrame>(currentScope);
         TypeScopeFrame* oldScope = currentScope;
         currentScope = ifScope.get();
+        currentScope->currentFunctionName = currentScope->parent ? currentScope->parent->currentFunctionName : "";
         
         for (const auto& ifStmt : stmt.ifBody) {
             checkNode(ifStmt->node);
@@ -445,6 +458,7 @@ private:
         if (!stmt.elseBody.empty()) {
             auto elseScope = make_unique<TypeScopeFrame>(currentScope);
             currentScope = elseScope.get();
+            currentScope->currentFunctionName = currentScope->parent ? currentScope->parent->currentFunctionName : "";
             
             for (const auto& elseStmt : stmt.elseBody) {
                 checkNode(elseStmt->node);
@@ -467,6 +481,7 @@ private:
         auto loopScope = make_unique<TypeScopeFrame>(currentScope);
         TypeScopeFrame* oldScope = currentScope;
         currentScope = loopScope.get();
+        currentScope->currentFunctionName = currentScope->parent ? currentScope->parent->currentFunctionName : "";
         
         for (const auto& bodyStmt : stmt.body) {
             checkNode(bodyStmt->node);
@@ -483,6 +498,7 @@ private:
         auto loopScope = make_unique<TypeScopeFrame>(currentScope);
         TypeScopeFrame* oldScope = currentScope;
         currentScope = loopScope.get();
+        currentScope->currentFunctionName = currentScope->parent ? currentScope->parent->currentFunctionName : "";
         
         if (stmt.body && holds_alternative<BlockStmt>(stmt.body->node)) {
             const auto& block = get<BlockStmt>(stmt.body->node);
@@ -505,6 +521,7 @@ private:
         auto forScope = make_unique<TypeScopeFrame>(currentScope);
         TypeScopeFrame* oldScope = currentScope;
         currentScope = forScope.get();
+        currentScope->currentFunctionName = currentScope->parent ? currentScope->parent->currentFunctionName : "";
         
         // Check initialization
         if (stmt.init) {
@@ -559,6 +576,7 @@ private:
                 auto caseScope = make_unique<TypeScopeFrame>(currentScope);
                 TypeScopeFrame* oldScope = currentScope;
                 currentScope = caseScope.get();
+                currentScope->currentFunctionName = currentScope->parent ? currentScope->parent->currentFunctionName : "";
                 
                 for (const auto& stmtInCase : caseBlock.body) {
                     checkNode(stmtInCase->node);
@@ -573,6 +591,7 @@ private:
             auto defaultScope = make_unique<TypeScopeFrame>(currentScope);
             TypeScopeFrame* oldScope = currentScope;
             currentScope = defaultScope.get();
+            currentScope->currentFunctionName = currentScope->parent ? currentScope->parent->currentFunctionName : "";
             
             for (const auto& defaultStmt : stmt.defaultBody) {
                 checkNode(defaultStmt->node);
@@ -632,9 +651,10 @@ private:
             } else if constexpr (is_same_v<T, SwitchStmt>) {
                 checkSwitchStatement(n);
             } else if constexpr (is_same_v<T, ReturnStmt>) {
-                // We need to know the current function name for return checking
-                // For now, we'll assume we're in a function and check the return type
-                checkReturnStatement(n, "current_function"); // This would need context in a real implementation
+                // Use the current function name from the scope
+                if (!currentScope->currentFunctionName.empty()) {
+                    checkReturnStatement(n, currentScope->currentFunctionName);
+                }
             } else if constexpr (is_same_v<T, BreakStmt>) {
                 checkBreakStatement();
             } else if constexpr (is_same_v<T, CallExpr>) {
@@ -645,14 +665,14 @@ private:
                 auto blockScope = make_unique<TypeScopeFrame>(currentScope);
                 TypeScopeFrame* oldScope = currentScope;
                 currentScope = blockScope.get();
+                currentScope->currentFunctionName = currentScope->parent ? currentScope->parent->currentFunctionName : "";
                 
                 for (const auto& stmt : n.body) {
                     checkNode(stmt->node);
                 }
                 
                 currentScope = oldScope;
-            } 
-            else if constexpr (is_same_v<T, PrintStmt>) {
+            } else if constexpr (is_same_v<T, PrintStmt>) {
                 for (const auto& arg : n.args) {
                     getTypeOfExpression(arg->node);
                 }

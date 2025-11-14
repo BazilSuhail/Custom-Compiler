@@ -1,7 +1,4 @@
 #include "compiler.h"
-#include <stack>
-#include <unordered_map>
-#include <unordered_set>
 
 // Type information for tracking
 struct TypeInfo {
@@ -654,7 +651,8 @@ private:
                 }
                 
                 currentScope = oldScope;
-            } else if constexpr (is_same_v<T, PrintStmt>) {
+            } 
+            else if constexpr (is_same_v<T, PrintStmt>) {
                 for (const auto& arg : n.args) {
                     getTypeOfExpression(arg->node);
                 }
