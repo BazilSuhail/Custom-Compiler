@@ -16,10 +16,6 @@
 #include <variant>
 #include <functional>
 
-#include <stack> 
-#include <unordered_set>
-#include <set>
-
 using namespace std;
 
 enum TokenType {
@@ -56,198 +52,48 @@ enum TokenType {
     T_ERROR, T_EOF
 };
 
-
-// Add type enum for type checking
-enum DataType {
-    TYPE_INT,
-    TYPE_FLOAT,
-    TYPE_DOUBLE,
-    TYPE_CHAR,
-    TYPE_BOOL,
-    TYPE_STRING,
-    TYPE_VOID,
-    TYPE_ENUM,
-    TYPE_ERROR
-};
-
 struct Token {
     TokenType type;
     string value;
     int line;
     int column;
 };
-// === Scope Analysis Errors ===
-enum class ScopeErrorType {
-    UndeclaredVariableAccessed,
-    UndefinedFunctionCalled,
-    VariableRedefinition,
-    FunctionPrototypeRedefinition,
-    
-    ConflictingFunctionDefinition,
-    ConflictingDeclaration,
-    ParameterRedefinition,
-    InvalidForwardReference,
-    InvalidStorageClassUsage,
-    EnumRedefinition,
-    EnumVariantRedefinition,
-};
-
-struct ScopeError {
-    ScopeErrorType type;
-    string name;
-    int line;
-    int column;
-    string message;
-
-    ScopeError(ScopeErrorType t, const string& n, int l, int c) 
-        : type(t), name(n), line(l), column(c) {
-        switch (t) {
-            case ScopeErrorType::UndeclaredVariableAccessed:
-                message = "Undeclared variable accessed: '" + n + "'";
-                break;
-            case ScopeErrorType::UndefinedFunctionCalled:
-                message = "Undefined function called: '" + n + "'";
-                break;
-            case ScopeErrorType::VariableRedefinition:
-                message = "Variable redefinition: '" + n + "'";
-                break;
-            case ScopeErrorType::FunctionPrototypeRedefinition:
-                message = "Function prototype redefinition: '" + n + "'";
-                break;
-            case ScopeErrorType::ConflictingFunctionDefinition:
-                message = "Conflicting function definition: '" + n + "'";
-                break;
-            case ScopeErrorType::ConflictingDeclaration:
-                message = "Conflicting declaration: '" + n + "'";
-                break;
-            case ScopeErrorType::ParameterRedefinition:
-                message = "Parameter redefinition: '" + n + "'";
-                break;
-            case ScopeErrorType::InvalidForwardReference:
-                message = "Invalid forward reference: '" + n + "'";
-                break;
-            case ScopeErrorType::InvalidStorageClassUsage:
-                message = "Invalid storage class usage for: '" + n + "'";
-                break;
-            case ScopeErrorType::EnumRedefinition:
-                message = "Enum redefinition: '" + n + "'";
-                break;
-            case ScopeErrorType::EnumVariantRedefinition:
-                message = "Enum variant redefinition: '" + n + "'";
-                break;
-        }
-    }
-};
-
-// === Type Checking Errors ===
-enum TypeChkError {
-    ErroneousVarDecl,            // Variable declared incorrectly or with invalid type
-    FnCallParamCount,            // Function called with wrong number of arguments
-    FnCallParamType,             // Function called with argument of wrong type
-    ErroneousReturnType,         // Function returns a value of wrong type
-    ExpressionTypeMismatch,      // Expression uses incompatible types
-    ExpectedBooleanExpression,   // Expression expected to be boolean but isn't
-    ErroneousBreak,              // 'break' used outside loop or switch
-    NonBooleanCondStmt,          // Condition in if/while is not boolean
-    EmptyExpression,             // Expression is missing or empty
-    AttemptedBoolOpOnNonBools,   // Boolean operation used on non-boolean values
-    AttemptedBitOpOnNonInt,      // Bitwise operation used on non-integer types
-    AttemptedShiftOnNonInt,      // Shift operator used on non-integer type
-    AttemptedAddOpOnNonNumeric,  // Addition/subtraction used on non-numeric types
-    AttemptedExponentiationOfNonNumeric, // Exponentiation used on non-numeric types
-    ReturnStmtNotFound           // Function missing a return statement where required
-};
-
-struct TypeChkErrorStruct {
-    TypeChkError type;
-    string name;
-    int line;
-    int column;
-    string message;
-
-    TypeChkErrorStruct(TypeChkError t, const string& n, int l, int c)
-        : type(t), name(n), line(l), column(c)
-    {
-        switch(t) {
-            case ErroneousVarDecl:
-                message = "(ErroneousVarDecl) Variable declared with invalid type: '" + n + "'";
-                break;
-            case FnCallParamCount:
-                message = "(FnCallParamCount) Function call has wrong number of arguments: '" + n + "'";
-                break;
-            case FnCallParamType:
-                message = "(FnCallParamType) Function call has argument of wrong type: '" + n + "'";
-                break;
-            case ErroneousReturnType:
-                message = "(ErroneousReturnType) Function returns value of wrong type: '" + n + "'";
-                break;
-            case ExpressionTypeMismatch:
-                message = "(ExpressionTypeMismatch) Expression uses incompatible types: '" + n + "'";
-                break;
-            case ExpectedBooleanExpression:
-                message = "(ExpectedBooleanExpression) Expected boolean expression: '" + n + "'";
-                break;
-            case ErroneousBreak:
-                message = "(ErroneousBreak) 'break' used outside loop or switch: '" + n + "'";
-                break;
-            case NonBooleanCondStmt:
-                message = "(NonBooleanCondStmt) Condition in if/while is not boolean: '" + n + "'";
-                break;
-            case EmptyExpression:
-                message = "(EmptyExpression) Expression is missing or empty: '" + n + "'";
-                break;
-            case AttemptedBoolOpOnNonBools:
-                message = "(AttemptedBoolOpOnNonBools) Boolean operation used on non-boolean values: '" + n + "'";
-                break;
-            case AttemptedBitOpOnNonInt:
-                message = "(AttemptedBitOpOnNonInt) Bitwise operation used on non-integer type: '" + n + "'";
-                break;
-            case AttemptedShiftOnNonInt:
-                message = "(AttemptedShiftOnNonInt) Shift operator used on non-integer type: '" + n + "'";
-                break;
-            case AttemptedAddOpOnNonNumeric:
-                message = "(AttemptedAddOpOnNonNumeric) Addition/subtraction used on non-numeric types: '" + n + "'";
-                break;
-            case AttemptedExponentiationOfNonNumeric:
-                message = "(AttemptedExponentiationOfNonNumeric) Exponentiation used on non-numeric types: '" + n + "'";
-                break;
-            case ReturnStmtNotFound:
-                message = "(ReturnStmtNotFound) Function missing return statement: '" + n + "'";
-                break;
-        }
-    }
-
-};
 
 // === AST Node Types (using std::variant) ===
 struct IntLiteral {
     int value;
-    IntLiteral(int v) : value(v) {}
+    int line, column;  // Added position info
+    IntLiteral(int v, int l = -1, int c = -1) : value(v), line(l), column(c) {}
 };
 
 struct FloatLiteral {
     double value;
-    FloatLiteral(double v) : value(v) {}
+    int line, column;  // Added position info
+    FloatLiteral(double v, int l = -1, int c = -1) : value(v), line(l), column(c) {}
 };
 
 struct StringLiteral {
     string value;
-    StringLiteral(const string& v) : value(v) {}
+    int line, column;  // Added position info
+    StringLiteral(const string& v, int l = -1, int c = -1) : value(v), line(l), column(c) {}
 };
 
 struct CharLiteral {
     char value;
-    CharLiteral(char v) : value(v) {}
+    int line, column;  // Added position info
+    CharLiteral(char v, int l = -1, int c = -1) : value(v), line(l), column(c) {}
 };
 
 struct BoolLiteral {
     bool value;
-    BoolLiteral(bool v) : value(v) {}
+    int line, column;  // Added position info
+    BoolLiteral(bool v, int l = -1, int c = -1) : value(v), line(l), column(c) {}
 };
 
 struct Identifier {
     string name;
-    Identifier(const string& n) : name(n) {}
+    int line, column;  // Added position info
+    Identifier(const string& n, int l = -1, int c = -1) : name(n), line(l), column(c) {}
 };
 
 // === Expression Types ===
@@ -255,7 +101,9 @@ struct BinaryExpr {
     TokenType op;
     unique_ptr<struct ASTNode> left;
     unique_ptr<struct ASTNode> right;
-    BinaryExpr(TokenType o, unique_ptr<struct ASTNode> l, unique_ptr<struct ASTNode> r) : op(o), left(move(l)), right(move(r)) {}
+    int line, column;  // Added position info
+    BinaryExpr(TokenType o, unique_ptr<struct ASTNode> l, unique_ptr<struct ASTNode> r, int l_pos = -1, int c_pos = -1) 
+        : op(o), left(move(l)), right(move(r)), line(l_pos), column(c_pos) {}
     void printOp(TokenType t) const {
         switch (t) {
             case T_PLUS: cout << "+"; break;
@@ -280,31 +128,39 @@ struct BinaryExpr {
 struct UnaryExpr {
     TokenType op;
     unique_ptr<struct ASTNode> operand;
-    UnaryExpr(TokenType o, unique_ptr<struct ASTNode> opd) : op(o), operand(move(opd)) {}
+    int line, column;  // Added position info
+    UnaryExpr(TokenType o, unique_ptr<struct ASTNode> opd, int l = -1, int c = -1) 
+        : op(o), operand(move(opd)), line(l), column(c) {}
 };
 
 // ============= language syntax
 struct IncludeStmt {
     string header;
-    IncludeStmt(string h) : header(move(h)) {}
+    int line, column;  // Added position info
+    IncludeStmt(string h, int l = -1, int c = -1) : header(move(h)), line(l), column(c) {}
 };
 
 // Enum
 struct EnumValueList {
     vector<string> values;
-    EnumValueList(vector<string> v) : values(move(v)) {}
+    int line, column;  // Added position info
+    EnumValueList(vector<string> v, int l = -1, int c = -1) : values(move(v)), line(l), column(c) {}
 };
 
 struct EnumDecl {
     string name;
     unique_ptr<struct ASTNode> values; // Will hold EnumValueList
-    EnumDecl(const string& n, unique_ptr<struct ASTNode> v) : name(n), values(move(v)) {}
+    int line, column;  // Added position info
+    EnumDecl(const string& n, unique_ptr<struct ASTNode> v, int l = -1, int c = -1) 
+        : name(n), values(move(v)), line(l), column(c) {}
 };
 
 struct CallExpr {
     unique_ptr<struct ASTNode> callee;
     vector<unique_ptr<struct ASTNode>> args;
-    CallExpr(unique_ptr<struct ASTNode> c, vector<unique_ptr<struct ASTNode>> a) : callee(move(c)), args(move(a)) {}
+    int line, column;  // Added position info
+    CallExpr(unique_ptr<struct ASTNode> c, vector<unique_ptr<struct ASTNode>> a, int l = -1, int col = -1) 
+        : callee(move(c)), args(move(a)), line(l), column(col) {}
 };
 
 // === Statement Types ===
@@ -312,8 +168,9 @@ struct VarDecl {
     TokenType type;
     string name;
     unique_ptr<struct ASTNode> initializer;
-    VarDecl(TokenType t, const string& n, unique_ptr<struct ASTNode> init = nullptr)
-        : type(t), name(n), initializer(move(init)) {}
+    int line, column;  // Added position info
+    VarDecl(TokenType t, const string& n, unique_ptr<struct ASTNode> init = nullptr, int l = -1, int c = -1)
+        : type(t), name(n), initializer(move(init)), line(l), column(c) {}
     void printType(TokenType t) const {
         switch (t) {
             case T_INT: cout << "int"; break;
@@ -330,7 +187,8 @@ struct VarDecl {
 
 struct BlockStmt {
     vector<unique_ptr<struct ASTNode>> body;
-    BlockStmt(vector<unique_ptr<struct ASTNode>> b) : body(move(b)) {}
+    int line, column;  // Added position info
+    BlockStmt(vector<unique_ptr<struct ASTNode>> b, int l = -1, int c = -1) : body(move(b)), line(l), column(c) {}
 };
 
 // Add this struct to your header file after FunctionDecl
@@ -338,8 +196,9 @@ struct FunctionProto {
     TokenType returnType;
     string name;
     vector<pair<TokenType, string>> params;
-    FunctionProto(TokenType rt, const string& n, vector<pair<TokenType, string>> p)
-        : returnType(rt), name(n), params(move(p)) {}
+    int line, column;  // Added position info
+    FunctionProto(TokenType rt, const string& n, vector<pair<TokenType, string>> p, int l = -1, int c = -1)
+        : returnType(rt), name(n), params(move(p)), line(l), column(c) {}
     void printType(TokenType t) const {
         switch (t) {
             case T_INT: cout << "int"; break;
@@ -359,10 +218,11 @@ struct FunctionDecl {
     string name;
     vector<pair<TokenType, string>> params;
     vector<unique_ptr<struct ASTNode>> body;
+    int line, column;  // Added position info
     FunctionDecl(TokenType rt, const string& n,
                  vector<pair<TokenType, string>> p,
-                 vector<unique_ptr<struct ASTNode>> b)
-        : returnType(rt), name(n), params(move(p)), body(move(b)) {}
+                 vector<unique_ptr<struct ASTNode>> b, int l = -1, int c = -1)
+        : returnType(rt), name(n), params(move(p)), body(move(b)), line(l), column(c) {}
     void printType(TokenType t) const {
         switch (t) {
             case T_INT: cout << "int"; break;
@@ -379,28 +239,33 @@ struct FunctionDecl {
 
 struct MainDecl {
     vector<unique_ptr<struct ASTNode>> body;
-    MainDecl(vector<unique_ptr<struct ASTNode>> b) : body(move(b)) {}
+    int line, column;  // Added position info
+    MainDecl(vector<unique_ptr<struct ASTNode>> b, int l = -1, int c = -1) : body(move(b)), line(l), column(c) {}
 };
 
 struct IfStmt {
     unique_ptr<struct ASTNode> condition;
     vector<unique_ptr<struct ASTNode>> ifBody;
     vector<unique_ptr<struct ASTNode>> elseBody;
-    IfStmt(unique_ptr<struct ASTNode> cond, vector<unique_ptr<struct ASTNode>> ifb, vector<unique_ptr<struct ASTNode>> elseb)
-        : condition(move(cond)), ifBody(move(ifb)), elseBody(move(elseb)) {}
+    int line, column;  // Added position info
+    IfStmt(unique_ptr<struct ASTNode> cond, vector<unique_ptr<struct ASTNode>> ifb, vector<unique_ptr<struct ASTNode>> elseb, int l = -1, int c = -1)
+        : condition(move(cond)), ifBody(move(ifb)), elseBody(move(elseb)), line(l), column(c) {}
 };
 
 struct WhileStmt {
     unique_ptr<struct ASTNode> condition;
     vector<unique_ptr<struct ASTNode>> body;
-    WhileStmt(unique_ptr<struct ASTNode> cond, vector<unique_ptr<struct ASTNode>> b)
-        : condition(move(cond)), body(move(b)) {}
+    int line, column;  // Added position info
+    WhileStmt(unique_ptr<struct ASTNode> cond, vector<unique_ptr<struct ASTNode>> b, int l = -1, int c = -1)
+        : condition(move(cond)), body(move(b)), line(l), column(c) {}
 };
 
 struct DoWhileStmt {
     unique_ptr<struct ASTNode> body;
     unique_ptr<struct ASTNode> condition;
-    DoWhileStmt(unique_ptr<struct ASTNode> b, unique_ptr<struct ASTNode> c) : body(move(b)), condition(move(c)) {}
+    int line, column;  // Added position info
+    DoWhileStmt(unique_ptr<struct ASTNode> b, unique_ptr<struct ASTNode> c, int l = -1, int col = -1) 
+        : body(move(b)), condition(move(c)), line(l), column(col) {}
 };
 
 struct ForStmt {
@@ -408,41 +273,53 @@ struct ForStmt {
     unique_ptr<struct ASTNode> condition;
     unique_ptr<struct ASTNode> update;
     unique_ptr<struct ASTNode> body;
-    ForStmt(unique_ptr<struct ASTNode> i, unique_ptr<struct ASTNode> c, unique_ptr<struct ASTNode> u, unique_ptr<struct ASTNode> b)
-        : init(move(i)), condition(move(c)), update(move(u)), body(move(b)) {}
+    int line, column;  // Added position info
+    ForStmt(unique_ptr<struct ASTNode> i, unique_ptr<struct ASTNode> c, unique_ptr<struct ASTNode> u, unique_ptr<struct ASTNode> b, int l = -1, int col = -1)
+        : init(move(i)), condition(move(c)), update(move(u)), body(move(b)), line(l), column(col) {}
 };
 
 struct CaseBlock {
     unique_ptr<struct ASTNode> value;
     vector<unique_ptr<struct ASTNode>> body;
-    CaseBlock(unique_ptr<struct ASTNode> v, vector<unique_ptr<struct ASTNode>> b) : value(move(v)), body(move(b)) {}
+    int line, column;  // Added position info
+    CaseBlock(unique_ptr<struct ASTNode> v, vector<unique_ptr<struct ASTNode>> b, int l = -1, int c = -1) 
+        : value(move(v)), body(move(b)), line(l), column(c) {}
 };
 
 struct SwitchStmt {
     unique_ptr<struct ASTNode> expression;
     vector<unique_ptr<struct ASTNode>> cases;
     vector<unique_ptr<struct ASTNode>> defaultBody;
-    SwitchStmt(unique_ptr<struct ASTNode> e, vector<unique_ptr<struct ASTNode>> c, vector<unique_ptr<struct ASTNode>> d)
-        : expression(move(e)), cases(move(c)), defaultBody(move(d)) {}
-};
-
-struct BreakStmt {
-    BreakStmt() = default;
+    int line, column;  // Added position info
+    SwitchStmt(unique_ptr<struct ASTNode> e, vector<unique_ptr<struct ASTNode>> c, vector<unique_ptr<struct ASTNode>> d, int l = -1, int col = -1)
+        : expression(move(e)), cases(move(c)), defaultBody(move(d)), line(l), column(col) {}
 };
 
 struct ReturnStmt {
     unique_ptr<struct ASTNode> value;
-    ReturnStmt(unique_ptr<struct ASTNode> val = nullptr) : value(move(val)) {}
+    int line, column;  // Added position info
+    ReturnStmt(unique_ptr<struct ASTNode> val = nullptr, int l = -1, int c = -1) : value(move(val)), line(l), column(c) {}
+};
+
+// struct BreakStmt {
+//     BreakStmt() = default;
+// };
+
+struct BreakStmt {
+    int line, column;
+    BreakStmt(int l = -1, int c = -1) : line(l), column(c) {}
 };
 
 struct PrintStmt {
     vector<unique_ptr<struct ASTNode>> args;
-    PrintStmt(vector<unique_ptr<struct ASTNode>> a) : args(move(a)) {}
+    int line, column;  // Added position info
+    PrintStmt(vector<unique_ptr<struct ASTNode>> a, int l = -1, int c = -1) : args(move(a)), line(l), column(c) {}
 };
 
 struct ExpressionStmt {
     unique_ptr<struct ASTNode> expr;
-    ExpressionStmt(unique_ptr<struct ASTNode> e) : expr(move(e)) {}
+    int line, column;  // Added position info
+    ExpressionStmt(unique_ptr<struct ASTNode> e, int l = -1, int c = -1) : expr(move(e)), line(l), column(c) {}
 };
 
 using ASTNodeVariant = variant<
@@ -484,14 +361,10 @@ struct ASTNode {
 
 using ASTPtr = unique_ptr<ASTNode>;
 
-
-
 // ********************************* FUNCTION DECLARATIONS ******************************************
 
 vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename);
 vector<unique_ptr<ASTNode>> parseFromFile(const vector<Token>& tokens);
 void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens);
-
-void performTypeChecking(const vector<ASTPtr>& ast, const vector<Token>& tokens);
 
 #endif

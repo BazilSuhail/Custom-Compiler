@@ -114,7 +114,7 @@ struct ParseError {
             case T_BITXOR: return "T_BITXOR";
             case T_BITLSHIFT: return "T_BITLSHIFT";
             case T_BITRSHIFT: return "T_BITRSHIFT";
-            
+
             case T_MAIN: return "T_MAIN";
             case T_EOF: return "T_EOF";
             default: return "T_UNKNOWN";
@@ -122,70 +122,71 @@ struct ParseError {
     }
 };
 
-
+// Color codes
+const string RESET = "\033[0m";
 
 // Forward declarations for print functions
 void printASTNode(const ASTNodeVariant& node, int indent = 0);
 
 void printIntLiteral(const IntLiteral& node, int indent) {
-    cout << string(indent, ' ') << "IntLiteral(" << node.value << ")\n";
+    cout << string(indent, ' ') << "\033[1m\033[95m" << "IntLiteral(" << node.value << ")" << RESET << "\n";
 }
 
 void printFloatLiteral(const FloatLiteral& node, int indent) {
-    cout << string(indent, ' ') << "FloatLiteral(" << node.value << ")\n";
+    cout << string(indent, ' ') << "\033[1m\033[95m" << "FloatLiteral(" << node.value << ")" << RESET << "\n";
 }
 
 void printStringLiteral(const StringLiteral& node, int indent) {
-    cout << string(indent, ' ') << "StringLiteral(\"" << node.value << "\")\n";
+    cout << string(indent, ' ') << "\033[1m\033[33m" << "StringLiteral(\"" << node.value << "\")" << RESET << "\n";
 }
 
 void printCharLiteral(const CharLiteral& node, int indent) {
-    cout << string(indent, ' ') << "CharLiteral('" << node.value << "')\n";
+    cout << string(indent, ' ') << "\033[1m\033[33m" << "CharLiteral('" << node.value << "')" << RESET << "\n";
 }
 
 void printBoolLiteral(const BoolLiteral& node, int indent) {
-    cout << string(indent, ' ') << "BoolLiteral(" << (node.value ? "true" : "false") << ")\n";
+    cout << string(indent, ' ') << "\033[1m\033[35m" << "BoolLiteral(" << (node.value ? "true" : "false") << ")" << RESET << "\n";
 }
 
 void printIdentifier(const Identifier& node, int indent) {
-    cout << string(indent, ' ') << "Identifier(\"" << node.name << "\")\n";
+    cout << string(indent, ' ') << "\033[1m\033[32m" << "Identifier(\"" << node.name << "\")" << RESET << "\n";
 }
 
 void printBinaryExpr(const BinaryExpr& node, int indent) {
-    cout << string(indent, ' ') << "BinaryExpr(";
+    cout << string(indent, ' ') << "\033[1m\033[93m" << "BinaryExpr(";
     node.printOp(node.op);
-    cout << ")\n";
+    cout << ")" << RESET << "\n";
     if (node.left) printASTNode(node.left->node, indent + 2);
     if (node.right) printASTNode(node.right->node, indent + 2);
 }
 
 void printUnaryExpr(const UnaryExpr& node, int indent) {
-    cout << string(indent, ' ') << "UnaryExpr(";
+    cout << string(indent, ' ') << "\033[1m\033[31m" << "UnaryExpr(";
     if (node.op == T_MINUS) cout << "-";
     else if (node.op == T_NOT) cout << "!";
     else cout << "unary_op";
-    cout << ")\n";
+    cout << ")" << RESET << "\n";
     if (node.operand) printASTNode(node.operand->node, indent + 2);
 }
 
 void printIncludeStmt(const IncludeStmt& node, int indent) {
-    cout << string(indent, ' ') << "IncludeStmt(\"" << node.header << "\")\n";
+    cout << string(indent, ' ') << "\033[34m" << "IncludeStmt(\"" << node.header << "\")" << RESET << "\n";
 }
 
 // enums
 // Add print function for EnumValueList
 void printEnumValueList(const EnumValueList& node, int indent) {
-    cout << string(indent, ' ') << "EnumValueList(";
+    cout << string(indent, ' ') << "\033[1m\033[37m" << "EnumValueList(";
     for (size_t i = 0; i < node.values.size(); ++i) {
         if (i > 0) cout << ", ";
         cout << node.values[i];
     }
-    cout << ")" << endl;
+    cout << ")" << RESET << endl;
 }
 
 // Add print function for EnumDecl
 void printEnumDecl(const EnumDecl& node, int indent) {
-    cout << string(indent, ' ') << "EnumDecl(\"" << node.name << "\")" << endl;
+    cout << string(indent, ' ') << "\033[1m\033[37m" << "EnumDecl(\"" << node.name << "\")" << RESET << endl;
     if (node.values) {
         cout << string(indent + 2, ' ') << "Values:" << endl;
         printASTNode(node.values->node, indent + 4);
@@ -193,7 +194,7 @@ void printEnumDecl(const EnumDecl& node, int indent) {
 }
 
 void printCallExpr(const CallExpr& node, int indent) {
-    cout << string(indent, ' ') << "CallExpr\n";
+    cout << string(indent, ' ') << "\033[1m\033[34m" << "CallExpr" << RESET << "\n";
     cout << string(indent + 2, ' ') << "Callee:\n";
     if (node.callee) printASTNode(node.callee->node, indent + 4);
     if (!node.args.empty()) {
@@ -205,23 +206,23 @@ void printCallExpr(const CallExpr& node, int indent) {
 }
 
 void printVarDecl(const VarDecl& node, int indent) {
-    cout << string(indent, ' ') << "VarDecl(";
+    cout << string(indent, ' ') << "\033[1m\033[36m" << "VarDecl(";
     node.printType(node.type);
-    cout << ", \"" << node.name << "\")\n";
+    cout << ", \"" << node.name << "\")" << RESET << "\n";
     if (node.initializer) printASTNode(node.initializer->node, indent + 2);
 }
 
 void printBlockStmt(const BlockStmt& node, int indent) {
-    cout << string(indent, ' ') << "BlockStmt\n";
+    cout << string(indent, ' ') << "\033[1m\033[37m" << "BlockStmt" << RESET << "\n";
     for (const auto& stmt : node.body) {
         if (stmt) printASTNode(stmt->node, indent + 2);
     }
 }
 
 void printFunctionDecl(const FunctionDecl& node, int indent) {
-    cout << string(indent, ' ') << "FunctionDecl(";
+    cout << string(indent, ' ') << "\033[1m\033[33m" << "FunctionDecl(";
     node.printType(node.returnType);
-    cout << ", \"" << node.name << "\")\n";
+    cout << ", \"" << node.name << "\")" << RESET << "\n";
     for (const auto& param : node.params) {
         cout << string(indent + 2, ' ') << "Param: ";
         switch (param.first) {
@@ -243,9 +244,9 @@ void printFunctionDecl(const FunctionDecl& node, int indent) {
 
 // Add print function for FunctionProto
 void printFunctionProto(const FunctionProto& node, int indent) {
-    cout << string(indent, ' ') << "FunctionProto(";
+    cout << string(indent, ' ') << "\033[1m\033[33m" << "FunctionProto(";
     node.printType(node.returnType);
-    cout << ", \"" << node.name << "\")\n";
+    cout << ", \"" << node.name << "\")" << RESET << "\n";
     for (const auto& param : node.params) {
         cout << string(indent + 2, ' ') << "Param: ";
         switch (param.first) {
@@ -262,14 +263,14 @@ void printFunctionProto(const FunctionProto& node, int indent) {
 }
 
 void printMainDecl(const MainDecl& node, int indent) {
-    cout << string(indent, ' ') << "MainDecl\n";
+    cout << string(indent, ' ') << "\033[1m\033[33m" << "MainDecl" << RESET << "\n";
     for (const auto& stmt : node.body) {
         if (stmt) printASTNode(stmt->node, indent + 2);
     }
 }
 
 void printIfStmt(const IfStmt& node, int indent) {
-    cout << string(indent, ' ') << "IfStmt\n";
+    cout << string(indent, ' ') << "\033[1m\033[35m" << "IfStmt" << RESET << "\n";
     cout << string(indent + 2, ' ') << "Condition:\n";
     if (node.condition) printASTNode(node.condition->node, indent + 4);
     cout << string(indent + 2, ' ') << "IfBody:\n";
@@ -285,7 +286,7 @@ void printIfStmt(const IfStmt& node, int indent) {
 }
 
 void printWhileStmt(const WhileStmt& node, int indent) {
-    cout << string(indent, ' ') << "WhileStmt\n";
+    cout << string(indent, ' ') << "\033[1m\033[31m" << "WhileStmt" << RESET << "\n";
     cout << string(indent + 2, ' ') << "Condition:\n";
     if (node.condition) printASTNode(node.condition->node, indent + 4);
     cout << string(indent + 2, ' ') << "Body:\n";
@@ -295,7 +296,7 @@ void printWhileStmt(const WhileStmt& node, int indent) {
 }
 
 void printDoWhileStmt(const DoWhileStmt& node, int indent) {
-    cout << string(indent, ' ') << "DoWhileStmt\n";
+    cout << string(indent, ' ') << "\033[1m\033[31m" << "DoWhileStmt" << RESET << "\n";
     cout << string(indent+2, ' ') << "Body:\n";
     if (node.body) printASTNode(node.body->node, indent+4);
     cout << string(indent+2, ' ') << "Condition:\n";
@@ -303,7 +304,7 @@ void printDoWhileStmt(const DoWhileStmt& node, int indent) {
 }
 
 void printForStmt(const ForStmt& node, int indent) {
-    cout << string(indent, ' ') << "ForStmt\n";
+    cout << string(indent, ' ') << "\033[1m\033[31m" << "ForStmt" << RESET << "\n";
     if (node.init) { cout << string(indent+2, ' ') << "Init:\n"; printASTNode(node.init->node, indent+4); }
     if (node.condition) { cout << string(indent+2, ' ') << "Condition:\n"; printASTNode(node.condition->node, indent+4); }
     if (node.update) { cout << string(indent+2, ' ') << "Update:\n"; printASTNode(node.update->node, indent+4); }
@@ -312,7 +313,7 @@ void printForStmt(const ForStmt& node, int indent) {
 }
 
 void printCaseBlock(const CaseBlock& node, int indent) {
-    cout << string(indent, ' ') << "CaseBlock\n";
+    cout << string(indent, ' ') << "\033[1m\033[37m" << "CaseBlock" << RESET << "\n";
     cout << string(indent+2, ' ') << "Value:\n";
     if (node.value) printASTNode(node.value->node, indent+4);
     cout << string(indent+2, ' ') << "Body:\n";
@@ -322,7 +323,7 @@ void printCaseBlock(const CaseBlock& node, int indent) {
 }
 
 void printSwitchStmt(const SwitchStmt& node, int indent) {
-    cout << string(indent, ' ') << "SwitchStmt\n";
+    cout << string(indent, ' ') << "\033[1m\033[37m" << "SwitchStmt" << RESET << "\n";
     cout << string(indent+2, ' ') << "Expression:\n";
     if (node.expression) printASTNode(node.expression->node, indent+4);
     cout << string(indent+2, ' ') << "Cases:\n";
@@ -338,56 +339,55 @@ void printSwitchStmt(const SwitchStmt& node, int indent) {
 }
 
 void printReturnStmt(const ReturnStmt& node, int indent) {
-    cout << string(indent, ' ') << "ReturnStmt\n";
+    cout << string(indent, ' ') << "\033[1m\033[34m" << "ReturnStmt" << RESET << "\n";
     if (node.value) printASTNode(node.value->node, indent + 2);
 }
 
 void printPrintStmt(const PrintStmt& node, int indent) {
-    cout << string(indent, ' ') << "PrintStmt\n";
+    cout << string(indent, ' ') << "\033[1m\033[32m" << "PrintStmt" << RESET << "\n";
     for (const auto& arg : node.args) {
         if (arg) printASTNode(arg->node, indent + 2);
     }
 }
-
 void printBreakStmt(const BreakStmt& node, int indent) {
-    cout << string(indent, ' ') << "BreakStmt\n";
+    cout << string(indent, ' ') << "\033[31m" << "BreakStmt" << RESET << "\n";
 }
 
 void printExpressionStmt(const ExpressionStmt& node, int indent) {
-    cout << string(indent, ' ') << "ExpressionStmt\n";
+    cout << string(indent, ' ') << "\033[1m\033[37m" << "ExpressionStmt" << RESET << "\n";
     if (node.expr) printASTNode(node.expr->node, indent + 2);
 }
 
 void printASTNode(const ASTNodeVariant& node, int indent) {
     visit([indent](const auto& n) { 
-        using T = std::decay_t<decltype(n)>;
-        if constexpr (std::is_same_v<T, IntLiteral>) printIntLiteral(n, indent);
-        else if constexpr (std::is_same_v<T, FloatLiteral>) printFloatLiteral(n, indent);
-        else if constexpr (std::is_same_v<T, StringLiteral>) printStringLiteral(n, indent);
-        else if constexpr (std::is_same_v<T, CharLiteral>) printCharLiteral(n, indent);
-        else if constexpr (std::is_same_v<T, BoolLiteral>) printBoolLiteral(n, indent);
-        else if constexpr (std::is_same_v<T, Identifier>) printIdentifier(n, indent);
-        else if constexpr (std::is_same_v<T, BinaryExpr>) printBinaryExpr(n, indent);
-        else if constexpr (std::is_same_v<T, UnaryExpr>) printUnaryExpr(n, indent);
-        else if constexpr (std::is_same_v<T, IncludeStmt>) printIncludeStmt(n, indent);
-        else if constexpr (std::is_same_v<T, EnumValueList>) printEnumValueList(n, indent); 
-        else if constexpr (std::is_same_v<T, EnumDecl>) printEnumDecl(n, indent);// <-- enums case
-        else if constexpr (std::is_same_v<T, CallExpr>) printCallExpr(n, indent);
-        else if constexpr (std::is_same_v<T, VarDecl>) printVarDecl(n, indent);
-        else if constexpr (std::is_same_v<T, BlockStmt>) printBlockStmt(n, indent);
-        else if constexpr (std::is_same_v<T, FunctionDecl>) printFunctionDecl(n, indent);
-        else if constexpr (std::is_same_v<T, FunctionProto>) printFunctionProto(n, indent); // <-- Add this
-        else if constexpr (std::is_same_v<T, MainDecl>) printMainDecl(n, indent);
-        else if constexpr (std::is_same_v<T, IfStmt>) printIfStmt(n, indent);
-        else if constexpr (std::is_same_v<T, WhileStmt>) printWhileStmt(n, indent);
-        else if constexpr (std::is_same_v<T, DoWhileStmt>) printDoWhileStmt(n, indent);
-        else if constexpr (std::is_same_v<T, ForStmt>) printForStmt(n, indent);
-        else if constexpr (std::is_same_v<T, CaseBlock>) printCaseBlock(n, indent);
-        else if constexpr (std::is_same_v<T, SwitchStmt>) printSwitchStmt(n, indent);
-        else if constexpr (std::is_same_v<T, ReturnStmt>) printReturnStmt(n, indent);
-        else if constexpr (std::is_same_v<T, PrintStmt>) printPrintStmt(n, indent);
+        using T = decay_t<decltype(n)>;
+        if constexpr (is_same_v<T, IntLiteral>) printIntLiteral(n, indent);
+        else if constexpr (is_same_v<T, FloatLiteral>) printFloatLiteral(n, indent);
+        else if constexpr (is_same_v<T, StringLiteral>) printStringLiteral(n, indent);
+        else if constexpr (is_same_v<T, CharLiteral>) printCharLiteral(n, indent);
+        else if constexpr (is_same_v<T, BoolLiteral>) printBoolLiteral(n, indent);
+        else if constexpr (is_same_v<T, Identifier>) printIdentifier(n, indent);
+        else if constexpr (is_same_v<T, BinaryExpr>) printBinaryExpr(n, indent);
+        else if constexpr (is_same_v<T, UnaryExpr>) printUnaryExpr(n, indent);
+        else if constexpr (is_same_v<T, IncludeStmt>) printIncludeStmt(n, indent);
+        else if constexpr (is_same_v<T, EnumValueList>) printEnumValueList(n, indent); 
+        else if constexpr (is_same_v<T, EnumDecl>) printEnumDecl(n, indent);// <-- enums case
+        else if constexpr (is_same_v<T, CallExpr>) printCallExpr(n, indent);
+        else if constexpr (is_same_v<T, VarDecl>) printVarDecl(n, indent);
+        else if constexpr (is_same_v<T, BlockStmt>) printBlockStmt(n, indent);
+        else if constexpr (is_same_v<T, FunctionDecl>) printFunctionDecl(n, indent);
+        else if constexpr (is_same_v<T, FunctionProto>) printFunctionProto(n, indent); // <-- Add this
+        else if constexpr (is_same_v<T, MainDecl>) printMainDecl(n, indent);
+        else if constexpr (is_same_v<T, IfStmt>) printIfStmt(n, indent);
+        else if constexpr (is_same_v<T, WhileStmt>) printWhileStmt(n, indent);
+        else if constexpr (is_same_v<T, DoWhileStmt>) printDoWhileStmt(n, indent);
+        else if constexpr (is_same_v<T, ForStmt>) printForStmt(n, indent);
+        else if constexpr (is_same_v<T, CaseBlock>) printCaseBlock(n, indent);
+        else if constexpr (is_same_v<T, SwitchStmt>) printSwitchStmt(n, indent);
+        else if constexpr (is_same_v<T, ReturnStmt>) printReturnStmt(n, indent);
+        else if constexpr (is_same_v<T, PrintStmt>) printPrintStmt(n, indent);
         else if constexpr (is_same_v<T, BreakStmt>) printBreakStmt(n, indent); // break statment
-        else if constexpr (std::is_same_v<T, ExpressionStmt>) printExpressionStmt(n, indent);
+        else if constexpr (is_same_v<T, ExpressionStmt>) printExpressionStmt(n, indent);
     }, node);
 }
 
@@ -543,7 +543,7 @@ private:
             case T_DIVIDE: case T_MODULO: case T_EQUALOP: case T_NE:
             case T_LT: case T_GT: case T_LE: case T_GE: case T_AND: case T_OR:
                 return parseBinaryExpression(move(left), precedence);
-
+                
             // Add bitwise operators here
             case T_BITAND: case T_BITOR: case T_BITXOR: case T_BITLSHIFT: case T_BITRSHIFT:
             return parseBinaryExpression(move(left), precedence);
@@ -557,75 +557,67 @@ private:
         }
     }
 
-    // ---- Literal parsers with small helpers ----
-    ASTPtr makeIntLiteralFromToken(const Token& t) {
-        return make_unique<ASTNode>(IntLiteral(stoi(t.value)));
+    // ---- Literal parsers with position tracking ----
+    ASTPtr parseIntLiteral() {
+        Token t = currentToken;
+        advance();
+        return make_unique<ASTNode>(IntLiteral(stoi(t.value), t.line, t.column));
     }
-    ASTPtr makeFloatLiteralFromToken(const Token& t) {
-        return make_unique<ASTNode>(FloatLiteral(stod(t.value)));
+
+    ASTPtr parseFloatLiteral() {
+        Token t = currentToken;
+        advance();
+        return make_unique<ASTNode>(FloatLiteral(stod(t.value), t.line, t.column));
     }
-    ASTPtr makeStringLiteralFromToken(const Token& t) {
+
+    ASTPtr parseStringLiteral() {
+        Token t = currentToken;
+        advance();
         string s = t.value;
-        if (s.length() >= 2 && s.front() == '"' && s.back() == '"') s = s.substr(1, s.length() - 2);
-        return make_unique<ASTNode>(StringLiteral(s));
+        if (s.length() >= 2 && s.front() == '"' && s.back() == '"') {
+            s = s.substr(1, s.length() - 2);
+        }
+        return make_unique<ASTNode>(StringLiteral(s, t.line, t.column));
     }
-    ASTPtr makeCharLiteralFromToken(const Token& t) {
+
+    ASTPtr parseCharLiteral() {
+        Token t = currentToken;
+        advance();
         char c = '\0';
         if (t.value.size() >= 3 && t.value.front() == '\'' && t.value.back() == '\'') {
             c = t.value[1];
         } else if (!t.value.empty()) {
             c = t.value[0];
         }
-        return make_unique<ASTNode>(CharLiteral(c));
-    }
-    ASTPtr makeBoolLiteralFromToken(const Token& t) {
-        return make_unique<ASTNode>(BoolLiteral(t.value == "true"));
+        return make_unique<ASTNode>(CharLiteral(c, t.line, t.column));
     }
 
-    ASTPtr parseIntLiteral() {
-        Token t = currentToken;
-        advance();
-        return makeIntLiteralFromToken(t);
-    }
-    ASTPtr parseFloatLiteral() {
-        Token t = currentToken;
-        advance();
-        return makeFloatLiteralFromToken(t);
-    }
-    ASTPtr parseStringLiteral() {
-        Token t = currentToken;
-        advance();
-        return makeStringLiteralFromToken(t);
-    }
-    ASTPtr parseCharLiteral() {
-        Token t = currentToken;
-        advance();
-        return makeCharLiteralFromToken(t);
-    }
     ASTPtr parseBoolLiteral() {
         Token t = currentToken;
         advance();
-        return makeBoolLiteralFromToken(t);
+        return make_unique<ASTNode>(BoolLiteral(t.value == "true", t.line, t.column));
     }
 
     ASTPtr parseIdentifier() {
         Token t = currentToken;
         advance();
-        return make_unique<ASTNode>(Identifier(t.value));
+        return make_unique<ASTNode>(Identifier(t.value, t.line, t.column));
     }
 
     ASTPtr parseGroupedExpression() {
+        Token startToken = currentToken;  // Capture start position
         expect(T_LPAREN);
         ASTPtr expr = parseExpression();
         expect(T_RPAREN);
-        return expr;
+        // For grouped expressions, we'll use the position of the opening parenthesis
+        return make_unique<ASTNode>(BinaryExpr(T_LPAREN, move(expr), nullptr, startToken.line, startToken.column));
     }
 
     ASTPtr parseUnaryExpression() {
         Token op = currentToken;
         advance();
         ASTPtr right = parseExpression(UNARY);
-        return make_unique<ASTNode>(UnaryExpr(op.type, move(right)));
+        return make_unique<ASTNode>(UnaryExpr(op.type, move(right), op.line, op.column));
     }
 
     ASTPtr parseBinaryExpression(ASTPtr left, int precedence) {
@@ -640,11 +632,12 @@ private:
             }
         }
 
-        return make_unique<ASTNode>(BinaryExpr(op.type, move(left), move(right)));
+        return make_unique<ASTNode>(BinaryExpr(op.type, move(left), move(right), op.line, op.column));
     }
 
-    // ------------------------ Parse enums
+    // ------------------------ Parse enums with position tracking
     ASTPtr parseEnumDeclaration() {
+        Token enumToken = currentToken;  // Position of 'enum'
         expect(T_ENUM); // Consume 'enum'
         Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier); // Get enum name
         string name = nameToken.value;
@@ -660,16 +653,17 @@ private:
         expect(T_RBRACE); // Consume '}'
         consumeSemicolon(); // Enums end with semicolon
 
-        // Create the EnumValueList AST node
-        auto valueList = make_unique<ASTNode>(EnumValueList(move(values)));
-        // Create the EnumDecl AST node
-        return make_unique<ASTNode>(EnumDecl(name, move(valueList)));
+        // Create the EnumValueList AST node with position
+        auto valueList = make_unique<ASTNode>(EnumValueList(move(values), nameToken.line, nameToken.column));
+        // Create the EnumDecl AST node with position of enum keyword
+        return make_unique<ASTNode>(EnumDecl(name, move(valueList), enumToken.line, enumToken.column));
     }
 
-    // ---- Call expression ----
+    // ---- Call expression with position tracking ----
     ASTPtr parseCallExpression(ASTPtr callee) {
         if (!isIdentifierNode(callee)) throw ParseError(ParseErrorType::InvalidCallTarget, currentToken);
 
+        Token callToken = currentToken;  // Position of '('
         expect(T_LPAREN);
         vector<ASTPtr> args;
         if (!check(T_RPAREN)) {
@@ -678,11 +672,13 @@ private:
             } while (match(T_COMMA));
         }
         expect(T_RPAREN);
-        return make_unique<ASTNode>(CallExpr(move(callee), move(args)));
+        return make_unique<ASTNode>(CallExpr(move(callee), move(args), callToken.line, callToken.column));
     }
-
-    // Modify parseStatement to recognize enum declarations
+    
+    // Modify parseStatement to recognize enum declarations and track positions
     ASTPtr parseStatement() {
+        Token stmtToken = currentToken;  // Capture statement start position
+
         // Check for enum declaration first
         if (check(T_ENUM)) {
             return parseEnumDeclaration();
@@ -717,20 +713,22 @@ private:
         if (match(T_SWITCH)) return parseSwitchStatement();
         if (check(T_RETURN)) return parseReturnStatement();
         if (check(T_LBRACE)) return parseBlockStatement();
-        if (check(T_MAIN)) return parseMainDeclaration();
+        if (check(T_MAIN)) return parseMainDeclaration(); 
         if (check(T_BREAK)) return parseBreakStatement();
-
         // if (match(T_BREAK)) {
-        //         expect(T_SEMICOLON);
-        //         // Consider creating a proper BreakStmt AST node instead of Identifier
-        //         return make_unique<ASTNode>(Identifier("break")); // simple placeholder for BreakStmt
+        //     Token breakToken = currentToken;  // Position of 'break'
+        //     expect(T_SEMICOLON);
+        //     // Consider creating a proper BreakStmt AST node instead of Identifier
+        //     return make_unique<ASTNode>(Identifier("break", breakToken.line, breakToken.column)); // simple placeholder for BreakStmt
         // }
+        
         ASTPtr expr = parseExpression();
         consumeSemicolon();
-        return make_unique<ASTNode>(ExpressionStmt(move(expr)));
+        return make_unique<ASTNode>(ExpressionStmt(move(expr), stmtToken.line, stmtToken.column));
     }
 
     ASTPtr parseVariableDeclaration() {
+        Token typeToken = currentToken;  // Capture type position
         TokenType type = currentToken.type;
         advance();
 
@@ -741,10 +739,11 @@ private:
         if (match(T_ASSIGNOP)) initializer = parseExpression();
 
         consumeSemicolon();
-        return make_unique<ASTNode>(VarDecl(type, name, move(initializer)));
+        return make_unique<ASTNode>(VarDecl(type, name, move(initializer), typeToken.line, typeToken.column));
     }
 
     ASTPtr parseFunctionPrototype() {
+        Token returnToken = currentToken;  // Capture return type position
         TokenType returnType = currentToken.type;
         advance();
 
@@ -764,10 +763,11 @@ private:
         expect(T_RPAREN);
         consumeSemicolon(); // Prototypes end with semicolon
         
-        return make_unique<ASTNode>(FunctionProto(returnType, name, move(params)));
+        return make_unique<ASTNode>(FunctionProto(returnType, name, move(params), returnToken.line, returnToken.column));
     }
 
     ASTPtr parseFunctionDeclaration() {
+        Token returnToken = currentToken;  // Capture return type position
         TokenType returnType = currentToken.type;
         advance();
 
@@ -787,17 +787,18 @@ private:
         expect(T_RPAREN);
 
         vector<ASTPtr> body = parseBlock();
-        return make_unique<ASTNode>(FunctionDecl(returnType, name, move(params), move(body)));
+        return make_unique<ASTNode>(FunctionDecl(returnType, name, move(params), move(body), returnToken.line, returnToken.column));
     }
 
     ASTPtr parseBreakStatement() {
+        Token breakToken = currentToken;  // Capture 'print' position
         expect(T_BREAK);
         expect(T_SEMICOLON);
-        return make_unique<ASTNode>(BreakStmt());
+        return make_unique<ASTNode>(BreakStmt(breakToken.line, breakToken.column));
     }
 
-
     ASTPtr parsePrintStatement() {
+        Token printToken = currentToken;  // Capture 'print' position
         expect(T_PRINT);
         expect(T_LPAREN);
         vector<ASTPtr> args;
@@ -808,10 +809,11 @@ private:
         }
         expect(T_RPAREN);
         consumeSemicolon();
-        return make_unique<ASTNode>(PrintStmt(move(args)));
+        return make_unique<ASTNode>(PrintStmt(move(args), printToken.line, printToken.column));
     }
 
     ASTPtr parseIfStatement() {
+        Token ifToken = currentToken;  // Capture 'if' position
         expect(T_IF);
         expect(T_LPAREN);
         ASTPtr condition = parseExpression();
@@ -822,33 +824,36 @@ private:
         vector<ASTPtr> elseBody;
         if (match(T_ELSE)) elseBody = parseBlock();
 
-        return make_unique<ASTNode>(IfStmt(move(condition), move(ifBody), move(elseBody)));
+        return make_unique<ASTNode>(IfStmt(move(condition), move(ifBody), move(elseBody), ifToken.line, ifToken.column));
     }
 
     ASTPtr parseWhileStatement() {
+        Token whileToken = currentToken;  // Capture 'while' position
         expect(T_WHILE);
         expect(T_LPAREN);
         ASTPtr condition = parseExpression();
         expect(T_RPAREN);
 
         vector<ASTPtr> body = parseBlock();
-        return make_unique<ASTNode>(WhileStmt(move(condition), move(body)));
+        return make_unique<ASTNode>(WhileStmt(move(condition), move(body), whileToken.line, whileToken.column));
     }
 
-    // Replace the do-while method
+    // Replace the do-while method with position tracking
     ASTPtr parseDoWhileStatement() {
+        Token doToken = currentToken;  // Capture 'do' position
         vector<ASTPtr> bodyVec = parseBlock(); // Parse as vector first
-        ASTPtr body = make_unique<ASTNode>(BlockStmt(move(bodyVec))); // Wrap in BlockStmt
+        ASTPtr body = make_unique<ASTNode>(BlockStmt(move(bodyVec), doToken.line, doToken.column)); // Wrap in BlockStmt
         expect(T_WHILE);
         expect(T_LPAREN);
         ASTPtr cond = parseExpression();
         expect(T_RPAREN);
         expect(T_SEMICOLON);
-        return make_unique<ASTNode>(DoWhileStmt(move(body), move(cond)));
+        return make_unique<ASTNode>(DoWhileStmt(move(body), move(cond), doToken.line, doToken.column));
     }
 
-    // Replace the for method
+    // Replace the for method with position tracking
     ASTPtr parseForStatement() {
+        Token forToken = currentToken;  // Capture 'for' position
         expect(T_LPAREN);
 
         // init
@@ -856,14 +861,14 @@ private:
         if (!check(T_SEMICOLON)) {
             if (isTypeToken(currentToken.type)) {
                 // Parse variable declaration directly here
-                TokenType type = currentToken.type;
+                TokenType type = currentToken.type; 
                 advance();
                 Token identToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
                 string name = identToken.value;
                 ASTPtr initializer = nullptr;
                 if (match(T_ASSIGNOP)) initializer = parseExpression();
                 consumeSemicolon();
-                init = make_unique<ASTNode>(VarDecl(type, name, move(initializer)));
+                init = make_unique<ASTNode>(VarDecl(type, name, move(initializer), forToken.line, forToken.column));
             } else {
                 init = parseExpression();
                 expect(T_SEMICOLON);
@@ -881,11 +886,12 @@ private:
         expect(T_RPAREN);
 
         vector<ASTPtr> bodyVec = parseBlock(); // Parse as vector first
-        ASTPtr body = make_unique<ASTNode>(BlockStmt(move(bodyVec))); // Wrap in BlockStmt
-        return make_unique<ASTNode>(ForStmt(move(init), move(cond), move(update), move(body)));
+        ASTPtr body = make_unique<ASTNode>(BlockStmt(move(bodyVec), forToken.line, forToken.column)); // Wrap in BlockStmt
+        return make_unique<ASTNode>(ForStmt(move(init), move(cond), move(update), move(body), forToken.line, forToken.column));
     }
 
     ASTPtr parseSwitchStatement() {
+        Token switchToken = currentToken;  // Capture 'switch' position
         expect(T_LPAREN);
         ASTPtr expr = parseExpression();
         expect(T_RPAREN);
@@ -899,7 +905,7 @@ private:
                 ASTPtr val = parseExpression();
                 // Expect block statement directly after case value (no colon)
                 vector<ASTPtr> caseBody = parseBlock(); // This will parse the { ... } block
-                cases.push_back(make_unique<ASTNode>(CaseBlock(move(val), move(caseBody))));
+                cases.push_back(make_unique<ASTNode>(CaseBlock(move(val), move(caseBody), currentToken.line, currentToken.column)));
             } 
             else if (match(T_DEFAULT)) {
                 // Expect block statement directly after default (no colon)
@@ -911,23 +917,26 @@ private:
         }
         expect(T_RBRACE);
 
-        return make_unique<ASTNode>(SwitchStmt(move(expr), move(cases), move(defaultBody)));
+        return make_unique<ASTNode>(SwitchStmt(move(expr), move(cases), move(defaultBody), switchToken.line, switchToken.column));
     }
 
     ASTPtr parseReturnStatement() {
+        Token returnToken = currentToken;  // Capture 'return' position
         expect(T_RETURN);
         ASTPtr value = nullptr;
         if (!check(T_SEMICOLON) && !check(T_RBRACE)) value = parseExpression();
         consumeSemicolon();
-        return make_unique<ASTNode>(ReturnStmt(move(value)));
+        return make_unique<ASTNode>(ReturnStmt(move(value), returnToken.line, returnToken.column));
     }
 
     ASTPtr parseBlockStatement() {
+        Token blockToken = currentToken;  // Capture '{' position
         vector<ASTPtr> body = parseBlock();
-        return make_unique<ASTNode>(BlockStmt(move(body)));
+        return make_unique<ASTNode>(BlockStmt(move(body), blockToken.line, blockToken.column));
     }
 
     vector<ASTPtr> parseBlock() {
+        Token lbraceToken = currentToken;  // Capture '{' position
         expect(T_LBRACE);
         vector<ASTPtr> statements;
         while (!check(T_RBRACE) && !check(T_EOF)) {
@@ -939,18 +948,20 @@ private:
     }
 
     ASTPtr parseMainDeclaration() {
+        Token mainToken = currentToken;  // Capture 'main' position
         expect(T_MAIN);
         vector<ASTPtr> body = parseBlock();
-        return make_unique<ASTNode>(MainDecl(move(body)));
+        return make_unique<ASTNode>(MainDecl(move(body), mainToken.line, mainToken.column));
     }
 
     ASTPtr parseIncludeStatement() {
+        Token includeToken = currentToken;  // Capture 'include' position
         expect(T_INCLUDE); // Consume 'include'
         if (match(T_LT)) { // Handle include <header>
             if (check(T_MAIN)) {
                 advance(); // Consume T_MAIN
                 expect(T_GT); // Consume '>'
-                return make_unique<ASTNode>(IncludeStmt("main"));
+                return make_unique<ASTNode>(IncludeStmt("main", includeToken.line, includeToken.column));
             } else {
                 // Handle include <other_header>
                 string header;
@@ -962,7 +973,7 @@ private:
                     throw ParseError(ParseErrorType::ExpectedIdentifier, currentToken); // Or a more specific error
                 }
                 expect(T_GT); // Consume '>'
-                return make_unique<ASTNode>(IncludeStmt(header));
+                return make_unique<ASTNode>(IncludeStmt(header, includeToken.line, includeToken.column));
             }
         } else if (check(T_STRINGLIT)) { // Handle include "header"
             Token headerTok = currentToken;
@@ -971,7 +982,7 @@ private:
             if (header.size() >= 2 && header.front() == '"' && header.back() == '"') {
                 header = header.substr(1, header.size() - 2); // Remove quotes
             }
-            return make_unique<ASTNode>(IncludeStmt(header));
+            return make_unique<ASTNode>(IncludeStmt(header, includeToken.line, includeToken.column));
         } else {
             throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
         }
