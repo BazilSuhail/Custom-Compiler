@@ -14,30 +14,7 @@ int main(int argc, char* argv[]) {
     auto ast = parseFromFile(tokens);
     //performScopeAnalysis(ast, tokens);
 // Get both errors and symbol table
-    auto [errors, symbolTable] = performScopeAnalysis(ast, tokens);
-
-    // Handle errors if any
-    if (!errors.empty()) {
-        cout << "\n=== Scope Analysis Errors ===\n";
-        for (const auto& error : errors) {
-            cout << "[Scope Error] " << error.message << ")\n";
-        }
-        cout << "Scope analysis failed with " << errors.size() << " error(s)\n";
-        exit(EXIT_FAILURE);
-    }
-
-    cout << "\n=== Scope Analysis Successful ===\n";
-    cout << "No scope errors found.\n";
-    
-    // Now you can use the symbol table (symbolTable) for further processing
-    // Example: print the global scope symbols
-    cout << "\n=== Global Scope Symbols ===\n";
-    for (const auto& [name, sym] : symbolTable->symbols) {
-        cout << "Symbol: " << name << ", Type: " << getTokenTypeName(sym.type) 
-             << ", IsFunction: " << sym.isFunction << ", Level: " << sym.scopeLevel << "\n";
-    }
-
-
+    //performScopeAnalysis(ast, tokens);
 
     return 0;
 }
