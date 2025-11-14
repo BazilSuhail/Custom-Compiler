@@ -2,74 +2,13 @@
 #include <stack>
 #include <set>
 
-// === Scope Analysis Errors ===
-enum class ScopeErrorType {
-    UndeclaredVariableAccessed,
-    UndefinedFunctionCalled,
-    VariableRedefinition,
-    FunctionPrototypeRedefinition,
-    ConflictingFunctionDefinition,
-    ConflictingDeclaration,
-    ParameterRedefinition,
-    InvalidForwardReference,
-    InvalidStorageClassUsage,
-    EnumRedefinition,
-    EnumVariantRedefinition,
-};
-
-struct ScopeError {
-    ScopeErrorType type;
-    string name;
-    int line;
-    int column;
-    string message;
-
-    ScopeError(ScopeErrorType t, const string& n, int l, int c) 
-        : type(t), name(n), line(l), column(c) {
-        switch (t) {
-            case ScopeErrorType::UndeclaredVariableAccessed:
-                message = "Undeclared variable accessed: '" + n + "'";
-                break;
-            case ScopeErrorType::UndefinedFunctionCalled:
-                message = "Undefined function called: '" + n + "'";
-                break;
-            case ScopeErrorType::VariableRedefinition:
-                message = "Variable redefinition: '" + n + "'";
-                break;
-            case ScopeErrorType::FunctionPrototypeRedefinition:
-                message = "Function prototype redefinition: '" + n + "'";
-                break;
-            case ScopeErrorType::ConflictingFunctionDefinition:
-                message = "Conflicting function definition: '" + n + "'";
-                break;
-            case ScopeErrorType::ConflictingDeclaration:
-                message = "Conflicting declaration: '" + n + "'";
-                break;
-            case ScopeErrorType::ParameterRedefinition:
-                message = "Parameter redefinition: '" + n + "'";
-                break;
-            case ScopeErrorType::InvalidForwardReference:
-                message = "Invalid forward reference: '" + n + "'";
-                break;
-            case ScopeErrorType::InvalidStorageClassUsage:
-                message = "Invalid storage class usage for: '" + n + "'";
-                break;
-            case ScopeErrorType::EnumRedefinition:
-                message = "Enum redefinition: '" + n + "'";
-                break;
-            case ScopeErrorType::EnumVariantRedefinition:
-                message = "Enum variant redefinition: '" + n + "'";
-                break;
-        }
-    }
-};
 
 
 
 class ScopeAnalyzer {
 private:
-    unique_ptr<ScopeFrame> globalScope;
-    ScopeFrame* currentScope;
+    unique_ptr<ScopeInfo> globalScope;
+    ScopeInfo* currentScope;
     vector<ScopeError> errors;
     vector<Token> tokens;
     size_t currentTokenIndex;
@@ -79,7 +18,7 @@ private:
 
     // Walks up scope chain to find symbol
     SymbolInfo* lookupSymbol(const string& name) {
-        ScopeFrame* frame = currentScope;
+        ScopeInfo* frame = currentScope;
         while (frame != nullptr) {
             SymbolInfo* sym = frame->findSymbol(name);
             if (sym != nullptr) {
@@ -91,8 +30,8 @@ private:
     }
 
     void enterScope() {
-        auto newScope = make_unique<ScopeFrame>(currentScope, currentScope->level + 1);
-        ScopeFrame* newScopePtr = newScope.get();
+        auto newScope = make_unique<ScopeInfo>(currentScope->level + 1, currentScope);
+        ScopeInfo* newScopePtr = newScope.get();
         currentScope->children.push_back(move(newScope));
         currentScope = newScopePtr;
     }
@@ -157,8 +96,9 @@ private:
             if (existing && (existing->isFunction || existing->isEnum || existing->isEnumValue)) {
                 addError(ScopeErrorType::ConflictingDeclaration, decl.name, line, col);
             } else {
-                currentScope->addSymbol(SymbolInfo(decl.type, decl.name, line, col, false));
-                allDeclaredSymbols[decl.name].push_back(SymbolInfo(decl.type, decl.name, line, col, false));
+                SymbolInfo newSym(decl.type, decl.name, line, col, false, false, false, false, {}, currentScope->level);
+                currentScope->addSymbol(newSym);
+                allDeclaredSymbols[decl.name].push_back(newSym);
             }
         }
         
@@ -203,8 +143,9 @@ private:
                 }
             }
             
-            currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
-            allDeclaredSymbols[func.name].push_back(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
+            SymbolInfo newSym(func.returnType, func.name, line, col, true, false, false, false, func.params, currentScope->level);
+            currentScope->addSymbol(newSym);
+            allDeclaredSymbols[func.name].push_back(newSym);
         }
         
         enterScope();
@@ -215,7 +156,8 @@ private:
                 addError(ScopeErrorType::ParameterRedefinition, param.second, line, col);
             } else {
                 paramNames.insert(param.second);
-                currentScope->addSymbol(SymbolInfo(param.first, param.second, line, col, false));
+                SymbolInfo paramSym(param.first, param.second, line, col, false, false, false, false, {}, currentScope->level);
+                currentScope->addSymbol(paramSym);
             }
         }
         
@@ -240,8 +182,9 @@ private:
         } else if (existing) {
             addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
         } else {
-            currentScope->addSymbol(SymbolInfo(proto.returnType, proto.name, line, col, true, false, false, true, proto.params));
-            allDeclaredSymbols[proto.name].push_back(SymbolInfo(proto.returnType, proto.name, line, col, true, false, false, true, proto.params));
+            SymbolInfo newSym(proto.returnType, proto.name, line, col, true, false, false, true, proto.params, currentScope->level);
+            currentScope->addSymbol(newSym);
+            allDeclaredSymbols[proto.name].push_back(newSym);
         }
     }
 
@@ -258,8 +201,9 @@ private:
             if (existing) {
                 addError(ScopeErrorType::ConflictingDeclaration, enm.name, line, col);
             } else {
-                currentScope->addSymbol(SymbolInfo(T_ENUM, enm.name, line, col, false, true, false, false, {}));
-                allDeclaredSymbols[enm.name].push_back(SymbolInfo(T_ENUM, enm.name, line, col, false, true, false, false, {}));
+                SymbolInfo newSym(T_ENUM, enm.name, line, col, false, true, false, false, {}, currentScope->level);
+                currentScope->addSymbol(newSym);
+                allDeclaredSymbols[enm.name].push_back(newSym);
             }
         }
         
@@ -276,8 +220,9 @@ private:
                     if (existing) {
                         addError(ScopeErrorType::ConflictingDeclaration, value, line, col);
                     } else {
-                        currentScope->addSymbol(SymbolInfo(T_INT, value, line, col, false, false, true, false, {}));
-                        allDeclaredSymbols[value].push_back(SymbolInfo(T_INT, value, line, col, false, false, true, false, {}));
+                        SymbolInfo newSym(T_INT, value, line, col, false, false, true, false, {}, currentScope->level);
+                        currentScope->addSymbol(newSym);
+                        allDeclaredSymbols[value].push_back(newSym);
                     }
                 }
             }
@@ -493,11 +438,11 @@ private:
 
 public:
     ScopeAnalyzer() {
-        globalScope = make_unique<ScopeFrame>(nullptr, 0);
+        globalScope = make_unique<ScopeInfo>(nullptr, 0);
         currentScope = globalScope.get();
     }
 
-    vector<ScopeError> analyze(const vector<ASTPtr>& ast, const vector<Token>& tokenList) {
+    pair<vector<ScopeError>, unique_ptr<ScopeInfo>> analyze(const vector<ASTPtr>& ast, const vector<Token>& tokenList) {
         tokens = tokenList;
         errors.clear();
         allDeclaredSymbols.clear(); // Clear for fresh analysis
@@ -512,7 +457,8 @@ public:
             analyzeNode(node->node);
         }
         
-        return errors;
+        // Return both errors and the symbol table
+        return make_pair(errors, move(globalScope));
     }
     
 private:
@@ -534,19 +480,7 @@ private:
     }
 };
 
-void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens) {
+pair<vector<ScopeError>, unique_ptr<ScopeInfo>> performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens) {
     ScopeAnalyzer analyzer;
-    vector<ScopeError> errors = analyzer.analyze(ast, tokens);
-
-    if (!errors.empty()) {
-        cout << "\n=== Scope Analysis Errors ===\n";
-        for (const auto& error : errors) {
-            cout << "[Scope Error] " << error.message << ")\n";
-        }
-        cout << "Scope analysis failed with " << errors.size() << " error(s)\n";
-        exit(EXIT_FAILURE);
-    }
-
-    cout << "\n=== Scope Analysis Successful ===\n";
-    cout << "No scope errors found.\n";
+    return analyzer.analyze(ast, tokens);
 }
