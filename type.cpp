@@ -11,9 +11,9 @@ private:
     string currentFunctionName;
     int loopDepth;
     int switchDepth;
+    bool foundReturnStmt;
     
     // ===== SCOPE MANAGEMENT =====
-    
     SymbolInfo* lookupSymbol(const string& name) {
         ScopeFrame* frame = currentScope;
         while (frame != nullptr) {
@@ -172,12 +172,12 @@ private:
     
     // ===== DECLARATION CHECKING =====
     
-    void checkVarDecl(const VarDecl& decl) {
-        // Add variable to current scope symbol table
+    void checkVarDecl(const VarDecl& decl) { 
         currentScope->addSymbol(SymbolInfo(decl.type, decl.name, decl.line, decl.column, false));
         
-        // Check initializer type matches declaration type
         if (decl.initializer) {
+            checkExpressionNode(decl.initializer->node);
+            
             TokenType initType = inferType(decl.initializer->node);
             
             if (!areTypesStrictlyEqual(decl.type, initType)) {
@@ -187,18 +187,17 @@ private:
     }
     
     void checkFunctionDecl(const FunctionDecl& func) {
-        // Add function to symbol table
+
         currentScope->addSymbol(SymbolInfo(func.returnType, func.name, func.line, func.column, 
                                           true, false, false, false, func.params));
         
-        // Set current function context
         currentFunctionReturnType = func.returnType;
         currentFunctionName = func.name;
+        foundReturnStmt = false; 
         
         // Enter function scope
         enterScope();
         
-        // Add parameters to function scope
         for (const auto& param : func.params) {
             currentScope->addSymbol(SymbolInfo(param.first, param.second, func.line, func.column, false));
         }
@@ -208,17 +207,24 @@ private:
             checkASTNode(stmt->node);
         }
         
+        // Check if non-void function has a return statement
+        if (func.returnType != T_VOID && !foundReturnStmt) {
+            addError(ReturnStmtNotFound, func.line, func.column, func.name);
+        }
+        
         exitScope();
         
         // Reset function context
         currentFunctionReturnType = T_VOID;
         currentFunctionName = "";
+        foundReturnStmt = false;  // Reset flag
     }
     
     void checkFunctionProto(const FunctionProto& proto) {
-        // Add prototype to symbol table
-        currentScope->addSymbol(SymbolInfo(proto.returnType, proto.name, proto.line, proto.column,
-                                          true, false, false, true, proto.params));
+        currentScope->addSymbol(
+            SymbolInfo(proto.returnType, proto.name, proto.line, proto.column,
+                        true, false, false, true, proto.params)
+            );
     }
     
     // ===== EXPRESSION CHECKING =====
@@ -228,14 +234,12 @@ private:
             return;
         }
         
-        // Recursively check operands
         checkExpressionNode(expr.left->node);
         checkExpressionNode(expr.right->node);
         
         TokenType leftType = inferType(expr.left->node);
         TokenType rightType = inferType(expr.right->node);
         
-        // Boolean operators - require bool operands
         if (isBooleanOperator(expr.op)) {
             if (leftType != T_BOOL || rightType != T_BOOL) {
                 addError(AttemptedBoolOpOnNonBools, expr.line, expr.column);
@@ -243,7 +247,6 @@ private:
             return;
         }
         
-        // Bitwise operators - require int operands
         if (isBitwiseOperator(expr.op)) {
             if (leftType != T_INT || rightType != T_INT) {
                 addError(AttemptedBitOpOnNonInt, expr.line, expr.column);
@@ -251,7 +254,6 @@ private:
             return;
         }
         
-        // Shift operators - require int operands
         if (isShiftOperator(expr.op)) {
             if (leftType != T_INT || rightType != T_INT) {
                 addError(AttemptedShiftOnNonInt, expr.line, expr.column);
@@ -259,11 +261,11 @@ private:
             return;
         }
         
-        // Arithmetic operators - require numeric operands of same type
         if (isArithmeticOperator(expr.op)) {
             if (!isNumericType(leftType) || !isNumericType(rightType)) {
                 addError(AttemptedAddOpOnNonNumeric, expr.line, expr.column);
-            } else if (!areTypesStrictlyEqual(leftType, rightType)) {
+            } 
+            else if (!areTypesStrictlyEqual(leftType, rightType)) {
                 addError(ExpressionTypeMismatch, expr.line, expr.column);
             }
             return;
@@ -279,13 +281,11 @@ private:
         
         // Assignment operator
         if (expr.op == T_ASSIGNOP) {
-            // Left side must be an identifier
             if (!holds_alternative<Identifier>(expr.left->node)) {
                 addError(ExpressionTypeMismatch, expr.line, expr.column);
                 return;
             }
             
-            // Types must match exactly
             if (!areTypesStrictlyEqual(leftType, rightType)) {
                 addError(ExpressionTypeMismatch, expr.line, expr.column);
             }
@@ -301,10 +301,18 @@ private:
         checkExpressionNode(expr.operand->node);
         TokenType operandType = inferType(expr.operand->node);
         
+        // Increment/Decrement operators require integer type
+        if (expr.op == T_INCREMENT || expr.op == T_DECREMENT) {
+            if (operandType != T_INT) {
+                addError(IncrementDecrementOnNonInt, expr.line, expr.column);
+            }
+            return;
+        }
+        
         // NOT operator requires bool
         if (expr.op == T_NOT) {
             if (operandType != T_BOOL) {
-                addError(AttemptedBoolOpOnNonBools, expr.line, expr.column);
+                addError(NotOnNonBool, expr.line, expr.column);
             }
             return;
         }
@@ -362,9 +370,17 @@ private:
     // ===== STATEMENT CHECKING =====
     
     void checkReturnStmt(const ReturnStmt& stmt) {
+        foundReturnStmt = true;  // Mark that we found a return statement
+        
         if (stmt.value) {
             checkExpressionNode(stmt.value->node);
             TokenType returnType = inferType(stmt.value->node);
+            
+            // Check if returning a value in a void function
+            if (currentFunctionReturnType == T_VOID) {
+                addError(ReturnStmtInVoid, stmt.line, stmt.column, currentFunctionName);
+                return;
+            }
             
             if (!areTypesStrictlyEqual(currentFunctionReturnType, returnType)) {
                 addError(ErroneousReturnType, stmt.line, stmt.column, currentFunctionName);
@@ -388,14 +404,12 @@ private:
             }
         }
         
-        // Check if body
         enterScope();
         for (const auto& s : stmt.ifBody) {
             checkASTNode(s->node);
         }
         exitScope();
         
-        // Check else body
         if (!stmt.elseBody.empty()) {
             enterScope();
             for (const auto& s : stmt.elseBody) {
@@ -406,7 +420,6 @@ private:
     }
     
     void checkWhileStmt(const WhileStmt& stmt) {
-        // Check condition is boolean
         if (stmt.condition) {
             checkExpressionNode(stmt.condition->node);
             TokenType condType = inferType(stmt.condition->node);
@@ -416,7 +429,6 @@ private:
             }
         }
         
-        // Enter loop context
         loopDepth++;
         enterScope();
         for (const auto& s : stmt.body) {
@@ -427,7 +439,7 @@ private:
     }
     
     void checkDoWhileStmt(const DoWhileStmt& stmt) {
-        // Enter loop context
+        
         loopDepth++;
         enterScope();
         if (stmt.body) {
@@ -436,7 +448,7 @@ private:
         exitScope();
         loopDepth--;
         
-        // Check condition is boolean
+        // 
         if (stmt.condition) {
             checkExpressionNode(stmt.condition->node);
             TokenType condType = inferType(stmt.condition->node);
@@ -482,8 +494,15 @@ private:
     
     void checkSwitchStmt(const SwitchStmt& stmt) {
         // Check switch expression
+        TokenType switchExprType = T_ERROR;
         if (stmt.expression) {
             checkExpressionNode(stmt.expression->node);
+            switchExprType = inferType(stmt.expression->node);
+            
+            // Switch expression must be int or char
+            if (switchExprType != T_INT && switchExprType != T_CHAR) {
+                addError(InvalidSwitchConditionType, stmt.line, stmt.column);
+            }
         }
         
         // Enter switch context
@@ -497,6 +516,12 @@ private:
                 // Check case value
                 if (caseBlock.value) {
                     checkExpressionNode(caseBlock.value->node);
+                    TokenType caseValueType = inferType(caseBlock.value->node);
+                    
+                    // Case value type must match switch expression type
+                    if (switchExprType != T_ERROR && !areTypesStrictlyEqual(switchExprType, caseValueType)) {
+                        addError(InvalidCaseValueType, caseBlock.line, caseBlock.column);
+                    }
                 }
                 
                 // Check case body
@@ -587,32 +612,43 @@ private:
         } 
         else if (holds_alternative<FunctionProto>(node)) {
             checkFunctionProto(get<FunctionProto>(node));
-        } else if (holds_alternative<EnumDecl>(node)) {
+        } 
+        else if (holds_alternative<EnumDecl>(node)) {
             checkEnumDecl(get<EnumDecl>(node));
-        } else if (holds_alternative<MainDecl>(node)) {
+        } 
+        else if (holds_alternative<MainDecl>(node)) {
             checkMainDecl(get<MainDecl>(node));
-        } else if (holds_alternative<ReturnStmt>(node)) {
+        } 
+        else if (holds_alternative<ReturnStmt>(node)) {
             checkReturnStmt(get<ReturnStmt>(node));
-        } else if (holds_alternative<IfStmt>(node)) {
+        } 
+        else if (holds_alternative<IfStmt>(node)) {
             checkIfStmt(get<IfStmt>(node));
-        } else if (holds_alternative<WhileStmt>(node)) {
+        } 
+        else if (holds_alternative<WhileStmt>(node)) {
             checkWhileStmt(get<WhileStmt>(node));
-        } else if (holds_alternative<DoWhileStmt>(node)) {
+        } 
+        else if (holds_alternative<DoWhileStmt>(node)) {
             checkDoWhileStmt(get<DoWhileStmt>(node));
-        } else if (holds_alternative<ForStmt>(node)) {
+        } 
+        else if (holds_alternative<ForStmt>(node)) {
             checkForStmt(get<ForStmt>(node));
-        } else if (holds_alternative<SwitchStmt>(node)) {
+        } 
+        else if (holds_alternative<SwitchStmt>(node)) {
             checkSwitchStmt(get<SwitchStmt>(node));
-        } else if (holds_alternative<BreakStmt>(node)) {
+        } 
+        else if (holds_alternative<BreakStmt>(node)) {
             checkBreakStmt(get<BreakStmt>(node));
-        } else if (holds_alternative<PrintStmt>(node)) {
+        } 
+        else if (holds_alternative<PrintStmt>(node)) {
             checkPrintStmt(get<PrintStmt>(node));
-        } else if (holds_alternative<ExpressionStmt>(node)) {
+        } 
+        else if (holds_alternative<ExpressionStmt>(node)) {
             checkExpressionStmt(get<ExpressionStmt>(node));
-        } else if (holds_alternative<BlockStmt>(node)) {
+        } 
+        else if (holds_alternative<BlockStmt>(node)) {
             checkBlockStmt(get<BlockStmt>(node));
         }
-        // Include statements don't need type checking
     }
     
 public:
@@ -623,6 +659,7 @@ public:
         currentFunctionName = "";
         loopDepth = 0;
         switchDepth = 0;
+        foundReturnStmt = false;  
     }
     
     vector<TypeCheckError> check(const vector<ASTPtr>& ast, const vector<Token>& tokens) {
