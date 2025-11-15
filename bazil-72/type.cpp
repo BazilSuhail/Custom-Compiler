@@ -1,702 +1,865 @@
 #include "compiler.h"
 
-// Type information for tracking
-struct TypeInfo {
-    DataType type;
-    bool isEnumType; // True if this is an enum type
-    string enumName; // Name of enum if isEnumType is true
-    
-    TypeInfo(DataType t, bool isEnum = false, const string& name = "") 
-        : type(t), isEnumType(isEnum), enumName(name) {}
-    
-    TypeInfo() : type(TYPE_ERROR), isEnumType(false) {}
-};
-
-// Function signature for type checking
-struct FunctionSignature {
-    DataType returnType;
-    vector<DataType> paramTypes;
-    bool hasReturnStmt; // Track if function has return statement
-    
-    FunctionSignature(DataType ret, const vector<DataType>& params) 
-        : returnType(ret), paramTypes(params), hasReturnStmt(false) {}
-    
-    FunctionSignature() : returnType(TYPE_VOID), hasReturnStmt(false) {}
-};
-
-struct TypeScopeFrame {
-    unordered_map<string, TypeInfo> variables;
-    unordered_map<string, FunctionSignature> functions;
-    unordered_map<string, DataType> enumValues; // Map enum values to their types
-    unordered_map<string, DataType> enumTypes;  // Map enum names to their types
-    TypeScopeFrame* parent;
-    
-    TypeScopeFrame(TypeScopeFrame* p = nullptr) : parent(p) {}
-    
-    TypeInfo* findVariable(const string& name) {
-        auto it = variables.find(name);
-        if (it != variables.end()) {
-            return &(it->second);
-        }
-        if (parent) {
-            return parent->findVariable(name);
-        }
-        return nullptr;
-    }
-    
-    FunctionSignature* findFunction(const string& name) {
-        auto it = functions.find(name);
-        if (it != functions.end()) {
-            return &(it->second);
-        }
-        if (parent) {
-            return parent->findFunction(name);
-        }
-        return nullptr;
-    }
-    
-    DataType* findEnumValue(const string& name) {
-        auto it = enumValues.find(name);
-        if (it != enumValues.end()) {
-            return &(it->second);
-        }
-        if (parent) {
-            return parent->findEnumValue(name);
-        }
-        return nullptr;
-    }
-    
-    DataType* findEnumType(const string& name) {
-        auto it = enumTypes.find(name);
-        if (it != enumTypes.end()) {
-            return &(it->second);
-        }
-        if (parent) {
-            return parent->findEnumType(name);
-        }
-        return nullptr;
-    }
-    
-    void addVariable(const string& name, const TypeInfo& type) {
-        variables[name] = type;
-    }
-    
-    void addFunction(const string& name, const FunctionSignature& sig) {
-        functions[name] = sig;
-    }
-    
-    void addEnumValue(const string& name, DataType type) {
-        enumValues[name] = type;
-    }
-    
-    void addEnumType(const string& name, DataType type) {
-        enumTypes[name] = type;
-    }
-};
-
 class TypeChecker {
 private:
-    unique_ptr<TypeScopeFrame> globalScope;
-    TypeScopeFrame* currentScope;
-    vector<TypeChkErrorStruct> errors;
+    unique_ptr<ScopeFrame> globalScope;
+    ScopeFrame* currentScope;
+    vector<TypeCheckError> errors;
     vector<Token> tokens;
-    stack<bool> inLoop; // Track if we're inside a loop (for break statements)
-    stack<bool> inSwitch; // Track if we're inside a switch (for break statements)
     
-    // Map to store function return types for checking
-    unordered_map<string, DataType> functionReturnTypes;
+    // Track current function's return type for return statement validation
+    TokenType currentFunctionReturnType;
+    bool insideFunction;
     
-    void addError(TypeChkError error, const string& name, int line, int col) {
-        errors.push_back(TypeChkErrorStruct(error, name, line, col));
+    // Track if we're inside a loop or switch for break statement validation
+    int loopDepth;
+    int switchDepth;
+    
+    // Store all declared symbols
+    unordered_map<string, vector<SymbolInfo>> allDeclaredSymbols;
+
+    // ===== SCOPE MANAGEMENT =====
+    
+    // Search for a symbol by walking up the scope chain
+    SymbolInfo* lookupSymbol(const string& name) {
+        ScopeFrame* frame = currentScope;
+        
+        while (frame != nullptr) {
+            SymbolInfo* sym = frame->findSymbol(name);
+            if (sym != nullptr) {
+                return sym;
+            }
+            frame = frame->parent;
+        }
+        
+        return nullptr;
     }
-    
-    // Convert TokenType to DataType
-    DataType tokenTypeToDataType(TokenType tokenType) {
-        switch (tokenType) {
-            case T_INT: return TYPE_INT;
-            case T_FLOAT: return TYPE_FLOAT;
-            case T_DOUBLE: return TYPE_DOUBLE;
-            case T_CHAR: return TYPE_CHAR;
-            case T_BOOL: return TYPE_BOOL;
-            case T_VOID: return TYPE_VOID;
-            case T_STRING: return TYPE_STRING;
-            case T_ENUM: return TYPE_ENUM;
-            default: return TYPE_ERROR;
+
+    // Create a new nested scope
+    void enterScope() {
+        auto newScope = make_unique<ScopeFrame>(currentScope, currentScope->level + 1);
+        ScopeFrame* newScopePtr = newScope.get();
+        currentScope->children.push_back(move(newScope));
+        currentScope = newScopePtr;
+    }
+
+    // Exit current scope and return to parent
+    void exitScope() {
+        if (currentScope->parent != nullptr) {
+            currentScope = currentScope->parent;
         }
     }
-    
-    // Check if a type is numeric
-    bool isNumericType(DataType type) {
-        return type == TYPE_INT || type == TYPE_FLOAT || type == TYPE_DOUBLE;
+
+    // Record a type checking error
+    void addError(TypeChkError type, int line, int col, const string& name = "") {
+        errors.push_back(TypeCheckError(type, line, col, name));
     }
+
+    // ===== TYPE CHECKING UTILITIES =====
     
-    // Check if a type is integer
-    bool isIntegerType(DataType type) {
-        return type == TYPE_INT;
+    // Check if a type is numeric (int, float, double)
+    bool isNumericType(TokenType type) {
+        return type == T_INT || type == T_FLOAT || type == T_DOUBLE;
     }
     
     // Check if a type is boolean
-    bool isBooleanType(DataType type) {
-        return type == TYPE_BOOL;
+    bool isBooleanType(TokenType type) {
+        return type == T_BOOL;
     }
     
-    // Check if types are compatible for assignment
-    bool areTypesCompatible(DataType left, DataType right) {
-        // Allow all numeric types to be compatible with each other for assignment
+    // Check if a type is integer
+    bool isIntegerType(TokenType type) {
+        return type == T_INT;
+    }
+    
+    // Check if two types are compatible for assignment
+    bool areTypesCompatible(TokenType left, TokenType right) {
+        // Exact match
+        if (left == right) {
+            return true;
+        }
+        
+        // Numeric type promotions allowed
         if (isNumericType(left) && isNumericType(right)) {
             return true;
         }
-        return left == right;
+        
+        return false;
     }
     
     // Get the result type of a binary operation
-    TypeInfo getBinaryOpResultType(TokenType op, const TypeInfo& left, const TypeInfo& right) {
-        if (left.type == TYPE_ERROR || right.type == TYPE_ERROR) {
-            return TypeInfo(TYPE_ERROR);
-        }
-        
-        // Handle comparison operators (always return bool)
-        if (op == T_EQUALOP || op == T_NE || op == T_LT || op == T_GT || op == T_LE || op == T_GE) {
-            if (left.type == right.type || (isNumericType(left.type) && isNumericType(right.type))) {
-                return TypeInfo(TYPE_BOOL);
-            } else {
-                return TypeInfo(TYPE_ERROR);
-            }
-        }
-        
-        // Handle logical operators (always return bool)
+    TokenType getResultType(TokenType left, TokenType right, TokenType op) {
+        // Boolean operations always return bool
         if (op == T_AND || op == T_OR) {
-            if (left.type == TYPE_BOOL && right.type == TYPE_BOOL) {
-                return TypeInfo(TYPE_BOOL);
-            } else {
-                addError(AttemptedBoolOpOnNonBools, "logical operation", -1, -1);
-                return TypeInfo(TYPE_ERROR);
-            }
+            return T_BOOL;
         }
         
-        // Handle arithmetic operators
-        if (op == T_PLUS || op == T_MINUS || op == T_MULTIPLY || op == T_DIVIDE) {
-            if (isNumericType(left.type) && isNumericType(right.type)) {
-                // Return the "larger" numeric type
-                if (left.type == TYPE_DOUBLE || right.type == TYPE_DOUBLE) {
-                    return TypeInfo(TYPE_DOUBLE);
-                } else if (left.type == TYPE_FLOAT || right.type == TYPE_FLOAT) {
-                    return TypeInfo(TYPE_FLOAT);
-                } else {
-                    return TypeInfo(TYPE_INT);
-                }
-            } else {
-                addError(AttemptedAddOpOnNonNumeric, "arithmetic operation", -1, -1);
-                return TypeInfo(TYPE_ERROR);
-            }
+        // Comparison operations return bool
+        if (op == T_EQUALOP || op == T_NE || op == T_LT || 
+            op == T_GT || op == T_LE || op == T_GE) {
+            return T_BOOL;
         }
         
-        // Handle modulo operator
-        if (op == T_MODULO) {
-            if (isIntegerType(left.type) && isIntegerType(right.type)) {
-                return TypeInfo(TYPE_INT);
-            } else {
-                addError(AttemptedBitOpOnNonInt, "modulo operation", -1, -1);
-                return TypeInfo(TYPE_ERROR);
-            }
+        // For arithmetic operations, use the wider type
+        if (left == T_DOUBLE || right == T_DOUBLE) {
+            return T_DOUBLE;
+        }
+        if (left == T_FLOAT || right == T_FLOAT) {
+            return T_FLOAT;
         }
         
-        // Handle bitwise operators
-        if (op == T_BITAND || op == T_BITOR || op == T_BITXOR) {
-            if (isIntegerType(left.type) && isIntegerType(right.type)) {
-                return TypeInfo(TYPE_INT);
-            } else {
-                addError(AttemptedBitOpOnNonInt, "bitwise operation", -1, -1);
-                return TypeInfo(TYPE_ERROR);
-            }
-        }
-        
-        // Handle shift operators
-        if (op == T_BITLSHIFT || op == T_BITRSHIFT) {
-            if (isIntegerType(left.type) && isIntegerType(right.type)) {
-                return TypeInfo(TYPE_INT);
-            } else {
-                addError(AttemptedShiftOnNonInt, "shift operation", -1, -1);
-                return TypeInfo(TYPE_ERROR);
-            }
-        }
-        
-        // Handle assignment
-        if (op == T_ASSIGNOP) {
-            if (areTypesCompatible(left.type, right.type)) {
-                return right; // Result type is the assigned value's type
-            } else {
-                addError(ExpressionTypeMismatch, "assignment", -1, -1);
-                return TypeInfo(TYPE_ERROR);
-            }
-        }
-        
-        return TypeInfo(TYPE_ERROR);
+        return T_INT;
     }
+
+    // ===== SYMBOL TABLE BUILDING =====
     
-    // Get the type of a unary operation
-    TypeInfo getUnaryOpResultType(TokenType op, const TypeInfo& operand) {
-        if (operand.type == TYPE_ERROR) {
-            return TypeInfo(TYPE_ERROR);
+    // Collect all declarations to build symbol table
+    void collectDeclarations(const ASTNodeVariant& node) {
+        // Variable declaration
+        if (holds_alternative<VarDecl>(node)) {
+            const VarDecl& varDecl = get<VarDecl>(node);
+            currentScope->addSymbol(SymbolInfo(varDecl.type, varDecl.name, 
+                                              varDecl.line, varDecl.column, false));
+            allDeclaredSymbols[varDecl.name].push_back(
+                SymbolInfo(varDecl.type, varDecl.name, varDecl.line, varDecl.column, false)
+            );
+            return;
         }
         
-        if (op == T_MINUS) {
-            if (isNumericType(operand.type)) {
-                return operand;
-            } else {
-                addError(AttemptedAddOpOnNonNumeric, "unary minus", -1, -1);
-                return TypeInfo(TYPE_ERROR);
-            }
-        }
-        
-        if (op == T_NOT) {
-            if (operand.type == TYPE_BOOL) {
-                return TypeInfo(TYPE_BOOL);
-            } else {
-                addError(AttemptedBoolOpOnNonBools, "logical not", -1, -1);
-                return TypeInfo(TYPE_ERROR);
-            }
-        }
-        
-        return TypeInfo(TYPE_ERROR);
-    }
-    
-    // Get type of an expression
-    TypeInfo getTypeOfExpression(const ASTNodeVariant& expr) {
-        return visit([this](const auto& node) -> TypeInfo {
-            using T = decay_t<decltype(node)>;
+        // Function definition
+        if (holds_alternative<FunctionDecl>(node)) {
+            const FunctionDecl& funcDecl = get<FunctionDecl>(node);
+            currentScope->addSymbol(SymbolInfo(funcDecl.returnType, funcDecl.name, 
+                                              funcDecl.line, funcDecl.column, 
+                                              true, false, false, false, funcDecl.params));
+            allDeclaredSymbols[funcDecl.name].push_back(
+                SymbolInfo(funcDecl.returnType, funcDecl.name, funcDecl.line, 
+                          funcDecl.column, true, false, false, false, funcDecl.params)
+            );
             
-            if constexpr (is_same_v<T, IntLiteral>) {
-                return TypeInfo(TYPE_INT);
-            } else if constexpr (is_same_v<T, FloatLiteral>) {
-                return TypeInfo(TYPE_FLOAT);
-            } else if constexpr (is_same_v<T, StringLiteral>) {
-                return TypeInfo(TYPE_STRING);
-            } else if constexpr (is_same_v<T, CharLiteral>) {
-                return TypeInfo(TYPE_CHAR);
-            } else if constexpr (is_same_v<T, BoolLiteral>) {
-                return TypeInfo(TYPE_BOOL);
-            } else if constexpr (is_same_v<T, Identifier>) {
-                // Check if it's an enum value first
-                DataType* enumType = currentScope->findEnumValue(node.name);
-                if (enumType) {
-                    return TypeInfo(*enumType);
-                }
-                
-                // Then check for variable
-                TypeInfo* varType = currentScope->findVariable(node.name);
-                if (varType) {
-                    return *varType;
-                }
-                
-                // Check if it's a function (for function pointers/calls)
-                FunctionSignature* funcSig = currentScope->findFunction(node.name);
-                if (funcSig) {
-                    // For now, treat function as a special case
-                    // In a real system, you'd have function types
-                    return TypeInfo(TYPE_ERROR); // Functions should be called, not used as values
-                }
-                
-                // If not found, it's an error
-                addError(ErroneousVarDecl, node.name, -1, -1);
-                return TypeInfo(TYPE_ERROR);
-            } else if constexpr (is_same_v<T, BinaryExpr>) {
-                TypeInfo leftType = getTypeOfExpression(node.left->node);
-                TypeInfo rightType = getTypeOfExpression(node.right->node);
-                return getBinaryOpResultType(node.op, leftType, rightType);
-            } else if constexpr (is_same_v<T, UnaryExpr>) {
-                TypeInfo operandType = getTypeOfExpression(node.operand->node);
-                return getUnaryOpResultType(node.op, operandType);
-            } else if constexpr (is_same_v<T, CallExpr>) {
-                if (holds_alternative<Identifier>(node.callee->node)) {
-                    const auto& calleeIdent = get<Identifier>(node.callee->node);
-                    
-                    FunctionSignature* funcSig = currentScope->findFunction(calleeIdent.name);
-                    if (!funcSig) {
-                        return TypeInfo(TYPE_ERROR);
-                    }
-                    
-                    // Check parameter count
-                    if (node.args.size() != funcSig->paramTypes.size()) {
-                        addError(FnCallParamCount, calleeIdent.name, -1, -1);
-                        return TypeInfo(TYPE_ERROR);
-                    }
-                    
-                    // Check parameter types
-                    for (size_t i = 0; i < node.args.size(); i++) {
-                        TypeInfo argType = getTypeOfExpression(node.args[i]->node);
-                        if (argType.type != funcSig->paramTypes[i] && 
-                            !(isNumericType(argType.type) && isNumericType(funcSig->paramTypes[i]))) {
-                            addError(FnCallParamType, calleeIdent.name, -1, -1);
-                        }
-                    }
-                    
-                    return TypeInfo(funcSig->returnType);
-                }
-                return TypeInfo(TYPE_ERROR);
+            // Enter function scope and add parameters
+            enterScope();
+            for (const auto& param : funcDecl.params) {
+                currentScope->addSymbol(SymbolInfo(param.first, param.second, 
+                                                  funcDecl.line, funcDecl.column, false));
             }
             
-            return TypeInfo(TYPE_ERROR);
-        }, expr);
+            // Collect declarations in function body
+            for (const auto& stmt : funcDecl.body) {
+                collectDeclarations(stmt->node);
+            }
+            exitScope();
+            return;
+        }
+        
+        // Function prototype
+        if (holds_alternative<FunctionProto>(node)) {
+            const FunctionProto& protoDecl = get<FunctionProto>(node);
+            currentScope->addSymbol(SymbolInfo(protoDecl.returnType, protoDecl.name, 
+                                              protoDecl.line, protoDecl.column, 
+                                              true, false, false, true, protoDecl.params));
+            allDeclaredSymbols[protoDecl.name].push_back(
+                SymbolInfo(protoDecl.returnType, protoDecl.name, protoDecl.line, 
+                          protoDecl.column, true, false, false, true, protoDecl.params)
+            );
+            return;
+        }
+        
+        // Enum declaration
+        if (holds_alternative<EnumDecl>(node)) {
+            const EnumDecl& enumDecl = get<EnumDecl>(node);
+            currentScope->addSymbol(SymbolInfo(T_ENUM, enumDecl.name, 
+                                              enumDecl.line, enumDecl.column, 
+                                              false, true, false, false, {}));
+            allDeclaredSymbols[enumDecl.name].push_back(
+                SymbolInfo(T_ENUM, enumDecl.name, enumDecl.line, 
+                          enumDecl.column, false, true, false, false, {})
+            );
+            
+            // Add enum values
+            if (holds_alternative<EnumValueList>(enumDecl.values->node)) {
+                const EnumValueList& valueList = get<EnumValueList>(enumDecl.values->node);
+                for (const string& value : valueList.values) {
+                    currentScope->addSymbol(SymbolInfo(T_INT, value, 
+                                                      enumDecl.line, enumDecl.column, 
+                                                      false, false, true, false, {}));
+                    allDeclaredSymbols[value].push_back(
+                        SymbolInfo(T_INT, value, enumDecl.line, 
+                                  enumDecl.column, false, false, true, false, {})
+                    );
+                }
+            }
+            return;
+        }
+        
+        // Main function
+        if (holds_alternative<MainDecl>(node)) {
+            const MainDecl& mainDecl = get<MainDecl>(node);
+            enterScope();
+            for (const auto& stmt : mainDecl.body) {
+                collectDeclarations(stmt->node);
+            }
+            exitScope();
+            return;
+        }
+        
+        // If statement - check both branches
+        if (holds_alternative<IfStmt>(node)) {
+            const IfStmt& ifStmt = get<IfStmt>(node);
+            
+            enterScope();
+            for (const auto& stmt : ifStmt.ifBody) {
+                collectDeclarations(stmt->node);
+            }
+            exitScope();
+            
+            enterScope();
+            for (const auto& stmt : ifStmt.elseBody) {
+                collectDeclarations(stmt->node);
+            }
+            exitScope();
+            return;
+        }
+        
+        // While loop
+        if (holds_alternative<WhileStmt>(node)) {
+            const WhileStmt& whileStmt = get<WhileStmt>(node);
+            enterScope();
+            for (const auto& stmt : whileStmt.body) {
+                collectDeclarations(stmt->node);
+            }
+            exitScope();
+            return;
+        }
+        
+        // Do-while loop
+        if (holds_alternative<DoWhileStmt>(node)) {
+            const DoWhileStmt& doWhileStmt = get<DoWhileStmt>(node);
+            enterScope();
+            if (doWhileStmt.body) {
+                collectDeclarations(doWhileStmt.body->node);
+            }
+            exitScope();
+            return;
+        }
+        
+        // For loop
+        if (holds_alternative<ForStmt>(node)) {
+            const ForStmt& forStmt = get<ForStmt>(node);
+            enterScope();
+            if (forStmt.init) {
+                collectDeclarations(forStmt.init->node);
+            }
+            if (forStmt.body) {
+                collectDeclarations(forStmt.body->node);
+            }
+            exitScope();
+            return;
+        }
+        
+        // Switch statement
+        if (holds_alternative<SwitchStmt>(node)) {
+            const SwitchStmt& switchStmt = get<SwitchStmt>(node);
+            
+            for (const auto& caseStmt : switchStmt.cases) {
+                if (caseStmt) {
+                    enterScope();
+                    collectDeclarations(caseStmt->node);
+                    exitScope();
+                }
+            }
+            
+            enterScope();
+            for (const auto& stmt : switchStmt.defaultBody) {
+                collectDeclarations(stmt->node);
+            }
+            exitScope();
+            return;
+        }
+        
+        // Block statement
+        if (holds_alternative<BlockStmt>(node)) {
+            const BlockStmt& block = get<BlockStmt>(node);
+            enterScope();
+            for (const auto& stmt : block.body) {
+                collectDeclarations(stmt->node);
+            }
+            exitScope();
+            return;
+        }
+    }
+
+    // ===== EXPRESSION TYPE CHECKING =====
+    
+    // Get the type of an expression
+    TokenType getExpressionType(const ASTNodeVariant& expr) {
+        // Integer literal
+        if (holds_alternative<IntLiteral>(expr)) {
+            return T_INT;
+        }
+        
+        // Float literal
+        if (holds_alternative<FloatLiteral>(expr)) {
+            return T_FLOAT;
+        }
+        
+        // String literal
+        if (holds_alternative<StringLiteral>(expr)) {
+            return T_STRING;
+        }
+        
+        // Char literal
+        if (holds_alternative<CharLiteral>(expr)) {
+            return T_CHAR;
+        }
+        
+        // Bool literal
+        if (holds_alternative<BoolLiteral>(expr)) {
+            return T_BOOL;
+        }
+        
+        // Identifier - look up its type
+        if (holds_alternative<Identifier>(expr)) {
+            const Identifier& ident = get<Identifier>(expr);
+            SymbolInfo* sym = lookupSymbol(ident.name);
+            if (sym != nullptr) {
+                return sym->type;
+            }
+            return T_ERROR;
+        }
+        
+        // Binary expression
+        if (holds_alternative<BinaryExpr>(expr)) {
+            return checkBinaryExpr(get<BinaryExpr>(expr));
+        }
+        
+        // Unary expression
+        if (holds_alternative<UnaryExpr>(expr)) {
+            return checkUnaryExpr(get<UnaryExpr>(expr));
+        }
+        
+        // Function call
+        if (holds_alternative<CallExpr>(expr)) {
+            return checkCallExpr(get<CallExpr>(expr));
+        }
+        
+        return T_ERROR;
     }
     
-    void checkVariableDeclaration(const VarDecl& decl, int line, int col) {
-        DataType varType = tokenTypeToDataType(decl.type);
+    // Check binary expression and return its type
+    TokenType checkBinaryExpr(const BinaryExpr& expr) {
+        if (!expr.left || !expr.right) {
+            return T_ERROR;
+        }
         
-        // Check if this is an enum type usage
-        if (decl.type == T_ENUM) {
-            DataType* enumType = currentScope->findEnumType(decl.name);
-            if (enumType) {
-                // This is using an enum type
-                currentScope->addVariable(decl.name, TypeInfo(*enumType, true, decl.name));
-            } else {
-                addError(ErroneousVarDecl, decl.name, line, col);
+        TokenType leftType = getExpressionType(expr.left->node);
+        TokenType rightType = getExpressionType(expr.right->node);
+        
+        // Boolean operators (&&, ||)
+        if (expr.op == T_AND || expr.op == T_OR) {
+            if (!isBooleanType(leftType) || !isBooleanType(rightType)) {
+                addError(AttemptedBoolOpOnNonBools, expr.line, expr.column);
+                return T_ERROR;
             }
-        } else {
-            // Regular variable declaration
-            currentScope->addVariable(decl.name, TypeInfo(varType));
+            return T_BOOL;
+        }
+        
+        // Bitwise operators (&, |, ^)
+        if (expr.op == T_BITAND || expr.op == T_BITOR || expr.op == T_BITXOR) {
+            if (!isIntegerType(leftType) || !isIntegerType(rightType)) {
+                addError(AttemptedBitOpOnNonInt, expr.line, expr.column);
+                return T_ERROR;
+            }
+            return T_INT;
+        }
+        
+        // Shift operators (<<, >>)
+        if (expr.op == T_BITLSHIFT || expr.op == T_BITRSHIFT) {
+            if (!isIntegerType(leftType) || !isIntegerType(rightType)) {
+                addError(AttemptedShiftOnNonInt, expr.line, expr.column);
+                return T_ERROR;
+            }
+            return T_INT;
+        }
+        
+        // Comparison operators (==, !=, <, >, <=, >=)
+        if (expr.op == T_EQUALOP || expr.op == T_NE || 
+            expr.op == T_LT || expr.op == T_GT || 
+            expr.op == T_LE || expr.op == T_GE) {
             
-            if (decl.initializer) {
-                TypeInfo initType = getTypeOfExpression(decl.initializer->node);
-                if (!areTypesCompatible(varType, initType.type)) {
-                    addError(ExpressionTypeMismatch, decl.name, line, col);
-                }
+            if (!areTypesCompatible(leftType, rightType)) {
+                addError(ExpressionTypeMismatch, expr.line, expr.column);
+                return T_ERROR;
+            }
+            return T_BOOL;
+        }
+        
+        // Arithmetic operators (+, -, *, /, %)
+        if (expr.op == T_PLUS || expr.op == T_MINUS || 
+            expr.op == T_MULTIPLY || expr.op == T_DIVIDE || expr.op == T_MODULO) {
+            
+            if (!isNumericType(leftType) || !isNumericType(rightType)) {
+                addError(AttemptedAddOpOnNonNumeric, expr.line, expr.column);
+                return T_ERROR;
+            }
+            return getResultType(leftType, rightType, expr.op);
+        }
+        
+        // Assignment operator (=)
+        if (expr.op == T_ASSIGNOP) {
+            if (!areTypesCompatible(leftType, rightType)) {
+                addError(ExpressionTypeMismatch, expr.line, expr.column);
+                return T_ERROR;
+            }
+            return leftType;
+        }
+        
+        return T_ERROR;
+    }
+    
+    // Check unary expression and return its type
+    TokenType checkUnaryExpr(const UnaryExpr& expr) {
+        if (!expr.operand) {
+            return T_ERROR;
+        }
+        
+        TokenType operandType = getExpressionType(expr.operand->node);
+        
+        // Logical NOT (!)
+        if (expr.op == T_NOT) {
+            if (!isBooleanType(operandType)) {
+                addError(AttemptedBoolOpOnNonBools, expr.line, expr.column);
+                return T_ERROR;
+            }
+            return T_BOOL;
+        }
+        
+        // Unary minus/plus (-, +)
+        if (expr.op == T_MINUS || expr.op == T_PLUS) {
+            if (!isNumericType(operandType)) {
+                addError(AttemptedAddOpOnNonNumeric, expr.line, expr.column);
+                return T_ERROR;
+            }
+            return operandType;
+        }
+        
+        // Increment/Decrement (++, --)
+        if (expr.op == T_INCREMENT || expr.op == T_DECREMENT) {
+            if (!isNumericType(operandType)) {
+                addError(AttemptedAddOpOnNonNumeric, expr.line, expr.column);
+                return T_ERROR;
+            }
+            return operandType;
+        }
+        
+        return operandType;
+    }
+    
+    // Check function call and return its type
+    TokenType checkCallExpr(const CallExpr& call) {
+        // Get function name
+        if (!holds_alternative<Identifier>(call.callee->node)) {
+            return T_ERROR;
+        }
+        
+        const Identifier& funcIdent = get<Identifier>(call.callee->node);
+        SymbolInfo* funcSym = lookupSymbol(funcIdent.name);
+        
+        if (funcSym == nullptr || !funcSym->isFunction) {
+            return T_ERROR;
+        }
+        
+        // Check parameter count
+        if (call.args.size() != funcSym->params.size()) {
+            addError(FnCallParamCount, call.line, call.column, funcIdent.name);
+            return funcSym->type;
+        }
+        
+        // Check parameter types
+        for (size_t i = 0; i < call.args.size(); i++) {
+            TokenType argType = getExpressionType(call.args[i]->node);
+            TokenType paramType = funcSym->params[i].first;
+            
+            if (!areTypesCompatible(paramType, argType)) {
+                addError(FnCallParamType, call.line, call.column, funcIdent.name);
+            }
+        }
+        
+        return funcSym->type;
+    }
+
+    // ===== STATEMENT TYPE CHECKING =====
+    
+    // Check variable declaration
+    void checkVarDecl(const VarDecl& decl) {
+        // Check if type is valid
+        if (decl.type == T_VOID) {
+            addError(ErroneousVarDecl, decl.line, decl.column, decl.name);
+            return;
+        }
+        
+        // Check initializer if present
+        if (decl.initializer) {
+            TokenType initType = getExpressionType(decl.initializer->node);
+            
+            if (!areTypesCompatible(decl.type, initType)) {
+                addError(ExpressionTypeMismatch, decl.line, decl.column, decl.name);
             }
         }
     }
     
-    void checkFunctionDeclaration(const FunctionDecl& func) {
-        DataType returnType = tokenTypeToDataType(func.returnType);
-        vector<DataType> paramTypes;
+    // Check function declaration
+    void checkFunctionDecl(const FunctionDecl& func) {
+        // Set current function context
+        currentFunctionReturnType = func.returnType;
+        insideFunction = true;
         
+        enterScope();
+        
+        // Add parameters to scope
         for (const auto& param : func.params) {
-            paramTypes.push_back(tokenTypeToDataType(param.first));
-        }
-        
-        FunctionSignature sig(returnType, paramTypes);
-        currentScope->addFunction(func.name, sig);
-        functionReturnTypes[func.name] = returnType;
-        
-        // Enter function scope
-        auto funcScope = make_unique<TypeScopeFrame>(currentScope);
-        TypeScopeFrame* oldScope = currentScope;
-        currentScope = funcScope.get();
-        
-        // Add parameters to function scope
-        for (const auto& param : func.params) {
-            DataType paramType = tokenTypeToDataType(param.first);
-            currentScope->addVariable(param.second, TypeInfo(paramType));
+            currentScope->addSymbol(SymbolInfo(param.first, param.second, 
+                                              func.line, func.column, false));
         }
         
         // Check function body
-        bool hasReturn = false;
         for (const auto& stmt : func.body) {
-            if (holds_alternative<ReturnStmt>(stmt->node)) {
-                hasReturn = true;
-            }
             checkNode(stmt->node);
         }
         
-        // Check if function needs return statement
-        if (returnType != TYPE_VOID && !hasReturn) {
-            addError(ReturnStmtNotFound, func.name, -1, -1);
-        }
+        exitScope();
         
-        // Update function signature with return info
-        FunctionSignature* updatedSig = currentScope->findFunction(func.name);
-        if (updatedSig) {
-            updatedSig->hasReturnStmt = hasReturn;
-        }
-        
-        currentScope = oldScope;
+        insideFunction = false;
     }
     
-    void checkMainDeclaration(const MainDecl& main) {
-        auto mainScope = make_unique<TypeScopeFrame>(currentScope);
-        TypeScopeFrame* oldScope = currentScope;
-        currentScope = mainScope.get();
+    // Check main function
+    void checkMainDecl(const MainDecl& main) {
+        enterScope();
         
         for (const auto& stmt : main.body) {
             checkNode(stmt->node);
         }
         
-        currentScope = oldScope;
+        exitScope();
     }
     
-    void checkIfStatement(const IfStmt& stmt) {
-        // Check condition type
-        TypeInfo condType = getTypeOfExpression(stmt.condition->node);
-        if (condType.type != TYPE_BOOL) {
-            addError(NonBooleanCondStmt, "if condition", -1, -1);
+    // Check if statement
+    void checkIfStmt(const IfStmt& stmt) {
+        // Check condition is boolean
+        if (stmt.condition) {
+            TokenType condType = getExpressionType(stmt.condition->node);
+            if (!isBooleanType(condType)) {
+                addError(NonBooleanCondStmt, stmt.line, stmt.column);
+            }
         }
         
         // Check if body
-        auto ifScope = make_unique<TypeScopeFrame>(currentScope);
-        TypeScopeFrame* oldScope = currentScope;
-        currentScope = ifScope.get();
-        
+        enterScope();
         for (const auto& ifStmt : stmt.ifBody) {
             checkNode(ifStmt->node);
         }
+        exitScope();
         
-        currentScope = oldScope;
-        
-        // Check else body if exists
-        if (!stmt.elseBody.empty()) {
-            auto elseScope = make_unique<TypeScopeFrame>(currentScope);
-            currentScope = elseScope.get();
-            
-            for (const auto& elseStmt : stmt.elseBody) {
-                checkNode(elseStmt->node);
-            }
-            
-            currentScope = oldScope;
+        // Check else body
+        enterScope();
+        for (const auto& elseStmt : stmt.elseBody) {
+            checkNode(elseStmt->node);
         }
+        exitScope();
     }
     
-    void checkWhileStatement(const WhileStmt& stmt) {
-        // Check condition type
-        TypeInfo condType = getTypeOfExpression(stmt.condition->node);
-        if (condType.type != TYPE_BOOL) {
-            addError(NonBooleanCondStmt, "while condition", -1, -1);
+    // Check while loop
+    void checkWhileStmt(const WhileStmt& stmt) {
+        // Check condition is boolean
+        if (stmt.condition) {
+            TokenType condType = getExpressionType(stmt.condition->node);
+            if (!isBooleanType(condType)) {
+                addError(NonBooleanCondStmt, stmt.line, stmt.column);
+            }
         }
         
-        // Enter loop scope
-        inLoop.push(true);
+        // Enter loop context
+        loopDepth++;
         
-        auto loopScope = make_unique<TypeScopeFrame>(currentScope);
-        TypeScopeFrame* oldScope = currentScope;
-        currentScope = loopScope.get();
-        
+        enterScope();
         for (const auto& bodyStmt : stmt.body) {
             checkNode(bodyStmt->node);
         }
+        exitScope();
         
-        currentScope = oldScope;
-        inLoop.pop();
+        loopDepth--;
     }
     
-    void checkDoWhileStatement(const DoWhileStmt& stmt) {
-        // Enter loop scope
-        inLoop.push(true);
+    // Check do-while loop
+    void checkDoWhileStmt(const DoWhileStmt& stmt) {
+        // Enter loop context
+        loopDepth++;
         
-        auto loopScope = make_unique<TypeScopeFrame>(currentScope);
-        TypeScopeFrame* oldScope = currentScope;
-        currentScope = loopScope.get();
+        enterScope();
+        if (stmt.body) {
+            checkNode(stmt.body->node);
+        }
+        exitScope();
         
-        if (stmt.body && holds_alternative<BlockStmt>(stmt.body->node)) {
-            const auto& block = get<BlockStmt>(stmt.body->node);
-            for (const auto& bodyStmt : block.body) {
-                checkNode(bodyStmt->node);
+        loopDepth--;
+        
+        // Check condition is boolean
+        if (stmt.condition) {
+            TokenType condType = getExpressionType(stmt.condition->node);
+            if (!isBooleanType(condType)) {
+                addError(NonBooleanCondStmt, stmt.line, stmt.column);
             }
         }
-        
-        // Check condition type
-        TypeInfo condType = getTypeOfExpression(stmt.condition->node);
-        if (condType.type != TYPE_BOOL) {
-            addError(NonBooleanCondStmt, "do-while condition", -1, -1);
-        }
-        
-        currentScope = oldScope;
-        inLoop.pop();
     }
     
-    void checkForStatement(const ForStmt& stmt) {
-        auto forScope = make_unique<TypeScopeFrame>(currentScope);
-        TypeScopeFrame* oldScope = currentScope;
-        currentScope = forScope.get();
+    // Check for loop
+    void checkForStmt(const ForStmt& stmt) {
+        enterScope();
         
         // Check initialization
         if (stmt.init) {
-            if (holds_alternative<VarDecl>(stmt.init->node)) {
-                const auto& varDecl = get<VarDecl>(stmt.init->node);
-                checkVariableDeclaration(varDecl, -1, -1);
-            } else {
-                getTypeOfExpression(stmt.init->node);
-            }
+            checkNode(stmt.init->node);
         }
         
-        // Check condition
+        // Check condition is boolean
         if (stmt.condition) {
-            TypeInfo condType = getTypeOfExpression(stmt.condition->node);
-            if (condType.type != TYPE_BOOL) {
-                addError(NonBooleanCondStmt, "for condition", -1, -1);
+            TokenType condType = getExpressionType(stmt.condition->node);
+            if (!isBooleanType(condType)) {
+                addError(NonBooleanCondStmt, stmt.line, stmt.column);
             }
         }
         
-        // Check update
-        if (stmt.update) {
-            getTypeOfExpression(stmt.update->node);
+        // Enter loop context
+        loopDepth++;
+        
+        // Check body
+        if (stmt.body) {
+            checkNode(stmt.body->node);
         }
         
-        // Enter loop scope
-        inLoop.push(true);
+        loopDepth--;
         
-        if (stmt.body && holds_alternative<BlockStmt>(stmt.body->node)) {
-            const auto& block = get<BlockStmt>(stmt.body->node);
-            for (const auto& bodyStmt : block.body) {
-                checkNode(bodyStmt->node);
-            }
-        }
-        
-        inLoop.pop();
-        currentScope = oldScope;
+        exitScope();
     }
     
-    void checkSwitchStatement(const SwitchStmt& stmt) {
-        TypeInfo exprType = getTypeOfExpression(stmt.expression->node);
-        if (!isNumericType(exprType.type) && exprType.type != TYPE_CHAR) {
-            addError(ExpressionTypeMismatch, "switch expression", -1, -1);
+    // Check switch statement
+    void checkSwitchStmt(const SwitchStmt& stmt) {
+        // Check switch expression
+        if (stmt.expression) {
+            getExpressionType(stmt.expression->node);
         }
         
-        inSwitch.push(true);
+        // Enter switch context
+        switchDepth++;
         
-        // Check cases
+        // Check each case
         for (const auto& caseStmt : stmt.cases) {
-            if (caseStmt && holds_alternative<CaseBlock>(caseStmt->node)) {
-                const auto& caseBlock = get<CaseBlock>(caseStmt->node);
-                
-                auto caseScope = make_unique<TypeScopeFrame>(currentScope);
-                TypeScopeFrame* oldScope = currentScope;
-                currentScope = caseScope.get();
-                
-                for (const auto& stmtInCase : caseBlock.body) {
-                    checkNode(stmtInCase->node);
-                }
-                
-                currentScope = oldScope;
+            if (caseStmt) {
+                enterScope();
+                checkNode(caseStmt->node);
+                exitScope();
             }
         }
         
         // Check default case
-        if (!stmt.defaultBody.empty()) {
-            auto defaultScope = make_unique<TypeScopeFrame>(currentScope);
-            TypeScopeFrame* oldScope = currentScope;
-            currentScope = defaultScope.get();
-            
-            for (const auto& defaultStmt : stmt.defaultBody) {
-                checkNode(defaultStmt->node);
-            }
-            
-            currentScope = oldScope;
+        enterScope();
+        for (const auto& defaultStmt : stmt.defaultBody) {
+            checkNode(defaultStmt->node);
         }
+        exitScope();
         
-        inSwitch.pop();
+        switchDepth--;
     }
     
-    void checkReturnStatement(const ReturnStmt& stmt, const string& currentFunctionName) {
-        DataType expectedReturnType = functionReturnTypes[currentFunctionName];
+    // Check return statement
+    void checkReturnStmt(const ReturnStmt& stmt) {
+        if (!insideFunction) {
+            return;
+        }
         
-        if (expectedReturnType == TYPE_VOID) {
-            if (stmt.value) {
-                addError(ErroneousReturnType, currentFunctionName, -1, -1);
+        // Check if function expects a return value
+        if (currentFunctionReturnType == T_VOID) {
+            if (stmt.value != nullptr) {
+                addError(ErroneousReturnType, stmt.line, stmt.column);
             }
         } else {
-            if (!stmt.value) {
-                addError(ReturnStmtNotFound, currentFunctionName, -1, -1);
+            if (stmt.value == nullptr) {
+                addError(ErroneousReturnType, stmt.line, stmt.column);
             } else {
-                TypeInfo returnType = getTypeOfExpression(stmt.value->node);
-                if (!areTypesCompatible(expectedReturnType, returnType.type)) {
-                    addError(ErroneousReturnType, currentFunctionName, -1, -1);
+                TokenType returnType = getExpressionType(stmt.value->node);
+                if (!areTypesCompatible(currentFunctionReturnType, returnType)) {
+                    addError(ErroneousReturnType, stmt.line, stmt.column);
                 }
             }
         }
     }
     
-    void checkBreakStatement() {
-        if (inLoop.empty() && inSwitch.empty()) {
-            addError(ErroneousBreak, "break", -1, -1);
-        } else if (!inLoop.empty() && !inLoop.top() && !inSwitch.empty() && !inSwitch.top()) {
-            addError(ErroneousBreak, "break", -1, -1);
+    // Check break statement
+    void checkBreakStmt(const BreakStmt& stmt) {
+        if (loopDepth == 0 && switchDepth == 0) {
+            addError(ErroneousBreak, stmt.line, stmt.column);
         }
     }
     
+    // Check print statement
+    void checkPrintStmt(const PrintStmt& stmt) {
+        for (const auto& arg : stmt.args) {
+            getExpressionType(arg->node);
+        }
+    }
+    
+    // Check expression statement
+    void checkExpressionStmt(const ExpressionStmt& stmt) {
+        getExpressionType(stmt.expr->node);
+    }
+    
+    // Check block statement
+    void checkBlockStmt(const BlockStmt& block) {
+        enterScope();
+        for (const auto& stmt : block.body) {
+            checkNode(stmt->node);
+        }
+        exitScope();
+    }
+    
+    // Check case block
+    void checkCaseBlock(const CaseBlock& caseBlock) {
+        if (caseBlock.value) {
+            getExpressionType(caseBlock.value->node);
+        }
+        
+        for (const auto& stmt : caseBlock.body) {
+            checkNode(stmt->node);
+        }
+    }
+
+    // ===== MAIN NODE DISPATCHER =====
+    
+    // Main dispatcher for type checking
     void checkNode(const ASTNodeVariant& node) {
-        visit([this, &node](const auto& n) {  // Capture node by reference
-            using T = decay_t<decltype(n)>;
-            
-            if constexpr (is_same_v<T, VarDecl>) {
-                checkVariableDeclaration(n, -1, -1);
-            } else if constexpr (is_same_v<T, FunctionDecl>) {
-                checkFunctionDeclaration(n);
-            } else if constexpr (is_same_v<T, MainDecl>) {
-                checkMainDeclaration(n);
-            } else if constexpr (is_same_v<T, IfStmt>) {
-                checkIfStatement(n);
-            } else if constexpr (is_same_v<T, WhileStmt>) {
-                checkWhileStatement(n);
-            } else if constexpr (is_same_v<T, DoWhileStmt>) {
-                checkDoWhileStatement(n);
-            } else if constexpr (is_same_v<T, ForStmt>) {
-                checkForStatement(n);
-            } else if constexpr (is_same_v<T, SwitchStmt>) {
-                checkSwitchStatement(n);
-            } else if constexpr (is_same_v<T, ReturnStmt>) {
-                // We need to know the current function name for return checking
-                // For now, we'll assume we're in a function and check the return type
-                checkReturnStatement(n, "current_function"); // This would need context in a real implementation
-            } else if constexpr (is_same_v<T, BreakStmt>) {
-                checkBreakStatement();
-            } else if constexpr (is_same_v<T, CallExpr>) {
-                getTypeOfExpression(node);
-            } else if constexpr (is_same_v<T, ExpressionStmt>) {
-                getTypeOfExpression(n.expr->node);
-            } else if constexpr (is_same_v<T, BlockStmt>) {
-                auto blockScope = make_unique<TypeScopeFrame>(currentScope);
-                TypeScopeFrame* oldScope = currentScope;
-                currentScope = blockScope.get();
-                
-                for (const auto& stmt : n.body) {
-                    checkNode(stmt->node);
-                }
-                
-                currentScope = oldScope;
-            } 
-            else if constexpr (is_same_v<T, PrintStmt>) {
-                for (const auto& arg : n.args) {
-                    getTypeOfExpression(arg->node);
-                }
-            }
-        }, node);
+        // Variable declaration
+        if (holds_alternative<VarDecl>(node)) {
+            checkVarDecl(get<VarDecl>(node));
+            return;
+        }
+        
+        // Function declaration
+        if (holds_alternative<FunctionDecl>(node)) {
+            checkFunctionDecl(get<FunctionDecl>(node));
+            return;
+        }
+        
+        // Function prototype - no type checking needed
+        if (holds_alternative<FunctionProto>(node)) {
+            return;
+        }
+        
+        // Enum declaration - no type checking needed
+        if (holds_alternative<EnumDecl>(node)) {
+            return;
+        }
+        
+        // Main function
+        if (holds_alternative<MainDecl>(node)) {
+            checkMainDecl(get<MainDecl>(node));
+            return;
+        }
+        
+        // If statement
+        if (holds_alternative<IfStmt>(node)) {
+            checkIfStmt(get<IfStmt>(node));
+            return;
+        }
+        
+        // While loop
+        if (holds_alternative<WhileStmt>(node)) {
+            checkWhileStmt(get<WhileStmt>(node));
+            return;
+        }
+        
+        // Do-while loop
+        if (holds_alternative<DoWhileStmt>(node)) {
+            checkDoWhileStmt(get<DoWhileStmt>(node));
+            return;
+        }
+        
+        // For loop
+        if (holds_alternative<ForStmt>(node)) {
+            checkForStmt(get<ForStmt>(node));
+            return;
+        }
+        
+        // Switch statement
+        if (holds_alternative<SwitchStmt>(node)) {
+            checkSwitchStmt(get<SwitchStmt>(node));
+            return;
+        }
+        
+        // Return statement
+        if (holds_alternative<ReturnStmt>(node)) {
+            checkReturnStmt(get<ReturnStmt>(node));
+            return;
+        }
+        
+        // Break statement
+        if (holds_alternative<BreakStmt>(node)) {
+            checkBreakStmt(get<BreakStmt>(node));
+            return;
+        }
+        
+        // Print statement
+        if (holds_alternative<PrintStmt>(node)) {
+            checkPrintStmt(get<PrintStmt>(node));
+            return;
+        }
+        
+        // Expression statement
+        if (holds_alternative<ExpressionStmt>(node)) {
+            checkExpressionStmt(get<ExpressionStmt>(node));
+            return;
+        }
+        
+        // Block statement
+        if (holds_alternative<BlockStmt>(node)) {
+            checkBlockStmt(get<BlockStmt>(node));
+            return;
+        }
+        
+        // Case block
+        if (holds_alternative<CaseBlock>(node)) {
+            checkCaseBlock(get<CaseBlock>(node));
+            return;
+        }
     }
 
 public:
+    // ===== PUBLIC INTERFACE =====
+    
+    // Constructor
     TypeChecker() {
-        globalScope = make_unique<TypeScopeFrame>(nullptr);
+        globalScope = make_unique<ScopeFrame>(nullptr, 0);
         currentScope = globalScope.get();
+        currentFunctionReturnType = T_VOID;
+        insideFunction = false;
+        loopDepth = 0;
+        switchDepth = 0;
     }
 
-    vector<TypeChkErrorStruct> check(const vector<ASTPtr>& ast, const vector<Token>& tokenList) {
+    // Main type checking function
+    vector<TypeCheckError> check(const vector<ASTPtr>& ast, const vector<Token>& tokenList) {
         tokens = tokenList;
         errors.clear();
+        allDeclaredSymbols.clear();
         
-        // Add built-in types and functions if needed
-        // For now, process the AST
+        // First pass: build symbol table
         for (const auto& node : ast) {
-            if (holds_alternative<EnumDecl>(node->node)) {
-                const auto& enumDecl = get<EnumDecl>(node->node);
-                currentScope->addEnumType(enumDecl.name, TYPE_INT);
-                
-                if (holds_alternative<EnumValueList>(enumDecl.values->node)) {
-                    const auto& valueList = get<EnumValueList>(enumDecl.values->node);
-                    for (const string& value : valueList.values) {
-                        currentScope->addEnumValue(value, TYPE_INT);
-                    }
-                }
-            } else if (holds_alternative<FunctionDecl>(node->node)) {
-                const auto& func = get<FunctionDecl>(node->node);
-                DataType returnType = tokenTypeToDataType(func.returnType);
-                vector<DataType> paramTypes;
-                for (const auto& param : func.params) {
-                    paramTypes.push_back(tokenTypeToDataType(param.first));
-                }
-                FunctionSignature sig(returnType, paramTypes);
-                currentScope->addFunction(func.name, sig);
-                functionReturnTypes[func.name] = returnType;
-            }
+            collectDeclarations(node->node);
         }
         
-        // Process all nodes
+        // Reset to global scope
+        currentScope = globalScope.get();
+        
+        // Second pass: perform type checking
         for (const auto& node : ast) {
             checkNode(node->node);
         }
@@ -705,19 +868,36 @@ public:
     }
 };
 
-void performTypeChecking(const vector<ASTPtr>& ast, const vector<Token>& tokens) {
-    TypeChecker checker;
-    vector<TypeChkErrorStruct> errors = checker.check(ast, tokens);
+// ===== MAIN ENTRY POINT =====
 
-    if (!errors.empty()) {
-        cout << "\n=== Type Checking Errors ===\n";
-        for (const auto& error : errors) {
-            cout << "[Type Error] " << error.message << ")\n";
+// Perform type checking on the entire program
+void performTypeChecking(const vector<ASTPtr>& ast, const vector<Token>& tokens) {
+    try {
+        // Create type checker instance
+        TypeChecker checker;
+        
+        // Run type checking and get errors
+        vector<TypeCheckError> errors = checker.check(ast, tokens);
+
+        // Check if there were any errors
+        if (!errors.empty()) {
+            cerr << "\n=== Type Checking Errors ===\n";
+            
+            // Print each error
+            for (const auto& error : errors) {
+                cerr << "[Type Error] " << error.message << "\n";
+            }
+            
+            cerr << "Type checking failed with " << errors.size() << " error(s)\n";
+            exit(EXIT_FAILURE);
         }
-        cout << "Type checking failed with " << errors.size() << " error(s)\n";
+
+        // Success message
+        cout << "\n=== Type Checking Successful ===\n";
+        cout << "No type errors found.\n";
+    }
+    catch (const exception& e) {
+        cerr << "[Type Checking Exception] " << e.what() << "\n";
         exit(EXIT_FAILURE);
     }
-
-    cout << "\n=== Type Checking Successful ===\n";
-    cout << "No type errors found.\n";
 }

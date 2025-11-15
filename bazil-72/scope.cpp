@@ -1,53 +1,5 @@
 #include "compiler.h"
-
-struct SymbolInfo {
-    TokenType type;
-    string name;
-    int line;
-    int column;
-    bool isFunction;
-    bool isEnum;
-    bool isEnumValue;
-    bool isPrototype; // Distinguishes prototypes from definitions
-    vector<pair<TokenType, string>> params;
-    
-    SymbolInfo(TokenType t, const string& n, int l, int c, bool isFunc = false, bool isEnumSym = false, bool isEnumVal = false, bool isProto = false, vector<pair<TokenType, string>> p = {})
-        : type(t), name(n), line(l), column(c), isFunction(isFunc), isEnum(isEnumSym), isEnumValue(isEnumVal), isPrototype(isProto), params(p) {}
-};
-
-struct ScopeFrame {
-    unordered_map<string, SymbolInfo> symbols;
-    vector<unique_ptr<ScopeFrame>> children;
-    ScopeFrame* parent;
-    int level; // For shadowing detection
-    
-    ScopeFrame(ScopeFrame* p = nullptr, int l = 0) : parent(p), level(l) {}
-    
-    bool hasSymbol(const string& name) const {
-        return symbols.find(name) != symbols.end();
-    }
-    
-    SymbolInfo* findSymbol(const string& name) {
-        auto it = symbols.find(name);
-        if (it != symbols.end()) {
-            return &(it->second);
-        }
-        return nullptr;
-    }
-    
-    const SymbolInfo* findSymbol(const string& name) const {
-        auto it = symbols.find(name);
-        if (it != symbols.end()) {
-            return &(it->second);
-        }
-        return nullptr;
-    }
-    
-    void addSymbol(const SymbolInfo& sym) {
-        symbols.insert({sym.name, sym});
-    }
-};
-
+ 
 class ScopeAnalyzer {
 private:
     unique_ptr<ScopeFrame> globalScope;
@@ -117,7 +69,10 @@ private:
         return true;
     }
 
-    void analyzeVarDecl(const VarDecl& decl, int line, int col) {
+    void analyzeVarDecl(const VarDecl& decl) {
+        int line = decl.line;
+        int col = decl.column;
+        
         // Check if enum is being used as variable type
         if (decl.type == T_ENUM) {
             SymbolInfo* enumType = lookupSymbol(decl.name);
@@ -149,7 +104,10 @@ private:
         }
     }
 
-    void analyzeFunctionDecl(const FunctionDecl& func, int line, int col) {
+    void analyzeFunctionDecl(const FunctionDecl& func) {
+        int line = func.line;
+        int col = func.column;
+        
         SymbolInfo* localSym = currentScope->findSymbol(func.name);
         
         if (localSym) {
@@ -162,7 +120,7 @@ private:
                         addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
                     }
                 } else {
-                    addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
+                    addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col); // Changed from ConflictingDeclaration
                 }
             } else {
                 addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
@@ -178,7 +136,7 @@ private:
                             addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
                         }
                     } else {
-                        addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
+                        addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col); // Changed from ConflictingDeclaration
                     }
                 } else {
                     addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
@@ -208,7 +166,10 @@ private:
         exitScope();
     }
 
-    void analyzeFunctionProto(const FunctionProto& proto, int line, int col) {
+    void analyzeFunctionProto(const FunctionProto& proto) {
+        int line = proto.line;
+        int col = proto.column;
+        
         SymbolInfo* existing = lookupSymbol(proto.name);
         
         if (existing && existing->isFunction) {
@@ -217,17 +178,20 @@ private:
                     addError(ScopeErrorType::FunctionPrototypeRedefinition, proto.name, line, col);
                 }
             } else {
-                addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
+                addError(ScopeErrorType::ConflictingFunctionDefinition, proto.name, line, col); // Changed from ConflictingDeclaration
             }
         } else if (existing) {
-            addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
+            addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col); // This handles var/fun conflicts
         } else {
             currentScope->addSymbol(SymbolInfo(proto.returnType, proto.name, line, col, true, false, false, true, proto.params));
             allDeclaredSymbols[proto.name].push_back(SymbolInfo(proto.returnType, proto.name, line, col, true, false, false, true, proto.params));
         }
     }
 
-    void analyzeEnumDecl(const EnumDecl& enm, int line, int col) {
+    void analyzeEnumDecl(const EnumDecl& enm) {
+        int line = enm.line;
+        int col = enm.column;
+        
         // Check if enum is declared in global scope (not inside function)
         if (currentScope->level > 0) { // Not global scope
             addError(ScopeErrorType::InvalidStorageClassUsage, enm.name, line, col);
@@ -276,7 +240,10 @@ private:
         exitScope();
     }
 
-    void analyzeCallExpr(const CallExpr& call, int line, int col) {
+    void analyzeCallExpr(const CallExpr& call) {
+        int line = call.line;
+        int col = call.column;
+        
         if (holds_alternative<Identifier>(call.callee->node)) {
             const auto& ident = get<Identifier>(call.callee->node);
             SymbolInfo* funcSym = lookupSymbol(ident.name);
@@ -298,7 +265,10 @@ private:
         }
     }
 
-    void analyzeIdentifier(const Identifier& ident, int line, int col) {
+    void analyzeIdentifier(const Identifier& ident) {
+        int line = ident.line;
+        int col = ident.column;
+        
         SymbolInfo* sym = lookupSymbol(ident.name);
         if (!sym) {
             // Check if this symbol exists anywhere in the program (forward reference)
@@ -322,17 +292,24 @@ private:
     void analyzeExpression(const ASTNodeVariant& expr) {
         visit([this](const auto& node) {
             using T = decay_t<decltype(node)>;
-            if constexpr (is_same_v<T, IntLiteral> || is_same_v<T, FloatLiteral> || 
-                         is_same_v<T, StringLiteral> || is_same_v<T, CharLiteral> || 
-                         is_same_v<T, BoolLiteral>) {
+            if constexpr (is_same_v<T, IntLiteral>) {
+                // Literals don't need scope analysis - they are values, not identifiers
+            } else if constexpr (is_same_v<T, FloatLiteral>) {
+                // Literals don't need scope analysis - they are values, not identifiers
+            } else if constexpr (is_same_v<T, StringLiteral>) {
+                // Literals don't need scope analysis - they are values, not identifiers
+            } else if constexpr (is_same_v<T, CharLiteral>) {
+                // Literals don't need scope analysis - they are values, not identifiers
+            } else if constexpr (is_same_v<T, BoolLiteral>) {
+                // Literals don't need scope analysis - they are values, not identifiers
             } else if constexpr (is_same_v<T, Identifier>) {
-                analyzeIdentifier(node, -1, -1);
+                analyzeIdentifier(node);
             } else if constexpr (is_same_v<T, BinaryExpr>) {
                 analyzeBinaryExpr(node);
             } else if constexpr (is_same_v<T, UnaryExpr>) {
                 analyzeUnaryExpr(node);
             } else if constexpr (is_same_v<T, CallExpr>) {
-                analyzeCallExpr(node, -1, -1);
+                analyzeCallExpr(node);
             }
         }, expr);
     }
@@ -434,19 +411,19 @@ private:
             using T = decay_t<decltype(n)>;
             
             if constexpr (is_same_v<T, VarDecl>) {
-                analyzeVarDecl(n, -1, -1);
+                analyzeVarDecl(n);
             } else if constexpr (is_same_v<T, FunctionDecl>) {
-                analyzeFunctionDecl(n, -1, -1);
+                analyzeFunctionDecl(n);
             } else if constexpr (is_same_v<T, FunctionProto>) {
-                analyzeFunctionProto(n, -1, -1);
+                analyzeFunctionProto(n);
             } else if constexpr (is_same_v<T, EnumDecl>) {
-                analyzeEnumDecl(n, -1, -1);
+                analyzeEnumDecl(n);
             } else if constexpr (is_same_v<T, MainDecl>) {
                 analyzeMainDecl(n);
             } else if constexpr (is_same_v<T, CallExpr>) {
-                analyzeCallExpr(n, -1, -1);
+                analyzeCallExpr(n);
             } else if constexpr (is_same_v<T, Identifier>) {
-                analyzeIdentifier(n, -1, -1);
+                analyzeIdentifier(n);
             } else if constexpr (is_same_v<T, BinaryExpr>) {
                 analyzeBinaryExpr(n);
             } else if constexpr (is_same_v<T, UnaryExpr>) {
@@ -479,6 +456,11 @@ public:
         currentScope = globalScope.get();
     }
 
+    // Add this method to transfer ownership of the symbol table
+    unique_ptr<ScopeFrame> transferSymbolTable() {
+        return move(globalScope);
+    }
+
     vector<ScopeError> analyze(const vector<ASTPtr>& ast, const vector<Token>& tokenList) {
         tokens = tokenList;
         errors.clear();
@@ -497,38 +479,157 @@ public:
         return errors;
     }
     
-private:
+    const char* tokenTypeToString(TokenType type)  const {
+        switch (type) {
+            case T_INCLUDE: return "T_INCLUDE";
+            case T_INT: return "T_INT";
+            case T_FLOAT: return "T_FLOAT";
+            case T_DOUBLE: return "T_DOUBLE";
+            case T_CHAR: return "T_CHAR";
+            case T_VOID: return "T_VOID";
+            case T_BOOL: return "T_BOOL";
+            case T_ENUM: return "T_ENUM";
+            case T_IDENTIFIER: return "T_IDENTIFIER";
+            case T_INTLIT: return "T_INTLIT";
+            case T_FLOATLIT: return "T_FLOATLIT";
+            case T_STRINGLIT: return "T_STRINGLIT";
+            case T_CHARLIT: return "T_CHARLIT";
+            case T_BOOLLIT: return "T_BOOLLIT";
+            case T_STRING: return "T_STRING";
+            case T_DO: return "T_DO";
+            case T_SWITCH: return "T_SWITCH";
+            case T_BREAK: return "T_BREAK";
+            case T_FOR: return "T_FOR";
+            case T_DEFAULT: return "T_DEFAULT";
+            case T_CASE: return "T_CASE";
+            case T_COLON: return "T_COLON";
+            case T_LPAREN: return "T_LPAREN";
+            case T_RPAREN: return "T_RPAREN";
+            case T_LBRACE: return "T_LBRACE";
+            case T_RBRACE: return "T_RBRACE";
+            case T_LBRACKET: return "T_LBRACKET";
+            case T_RBRACKET: return "T_RBRACKET";
+            case T_SEMICOLON: return "T_SEMICOLON";
+            case T_COMMA: return "T_COMMA";
+            case T_DOT: return "T_DOT";
+            case T_ASSIGNOP: return "T_ASSIGNOP";
+            case T_EQUALOP: return "T_EQUALOP";
+            case T_NE: return "T_NE";
+            case T_LT: return "T_LT";
+            case T_GT: return "T_GT";
+            case T_LE: return "T_LE";
+            case T_GE: return "T_GE";
+            case T_BITAND: return "T_BITAND";      // Added
+            case T_BITOR: return "T_BITOR";        // Added
+            case T_BITXOR: return "T_BITXOR";      // Added
+            case T_BITLSHIFT: return "T_BITLSHIFT"; // Added
+            case T_BITRSHIFT: return "T_BITRSHIFT"; // Added
+            case T_PLUS: return "T_PLUS";
+            case T_MINUS: return "T_MINUS";
+            case T_MULTIPLY: return "T_MULTIPLY";
+            case T_DIVIDE: return "T_DIVIDE";
+            case T_MODULO: return "T_MODULO";
+            case T_INCREMENT: return "T_INCREMENT";
+            case T_DECREMENT: return "T_DECREMENT";
+            case T_AND: return "T_AND";
+            case T_OR: return "T_OR";
+            case T_NOT: return "T_NOT";
+            case T_IF: return "T_IF";
+            case T_ELSE: return "T_ELSE";
+            case T_WHILE: return "T_WHILE";
+            case T_RETURN: return "T_RETURN";
+            case T_PRINT: return "T_PRINT";
+            case T_MAIN: return "T_MAIN";
+            case T_SINGLE_COMMENT: return "T_SINGLE_COMMENT";
+            case T_MULTI_COMMENT: return "T_MULTI_COMMENT";
+            case T_ERROR: return "T_ERROR";
+            case T_EOF: return "T_EOF";
+            default: return "T_UNKNOWN";
+        }
+    }
+
+        // Add the print method here
+    void printSymbolTable(const ScopeFrame* frame, int indent = 0) const {
+        if (!frame) return; // Safety check
+
+        string indentStr(indent, ' ');
+
+        cout << indentStr << "Scope Level " << frame->level << ":\n";
+        
+        if (frame->symbols.empty()) {
+            cout << indentStr << "  (No symbols)\n";
+        } else {
+            cout << indentStr << "  Symbols:\n";
+            for (const auto& [name, sym] : frame->symbols) {
+                cout << indentStr << "    Name: '" << name << "', Type: " << this->tokenTypeToString(sym.type) // Use your switch function
+                    << ", IsFunction: " << (sym.isFunction ? "Yes" : "No")
+                    << ", IsEnum: " << (sym.isEnum ? "Yes" : "No")
+                    << ", IsEnumValue: " << (sym.isEnumValue ? "Yes" : "No")
+                    << ", IsPrototype: " << (sym.isPrototype ? "Yes" : "No");
+                
+                if (!sym.params.empty()) {
+                    cout << ", Params: (";
+                    for (size_t i = 0; i < sym.params.size(); ++i) {
+                        cout << this->tokenTypeToString(sym.params[i].first) << " " << sym.params[i].second; // Use your switch function
+                        if (i < sym.params.size() - 1) cout << ", ";
+                    }
+                    cout << ")";
+                }
+                cout << "\n";
+            }
+        }
+
+        cout << indentStr << "  Children:\n";
+        for (const auto& child : frame->children) {
+            printSymbolTable(child.get(), indent + 4); // Increase indent for children
+        }
+    }
+    
+
+    private:
     // Helper function to collect all declarations for forward reference checking
     void collectDeclarations(const ASTNodeVariant& node) {
         visit([this](const auto& n) {
             using T = decay_t<decltype(n)>;
             
             if constexpr (is_same_v<T, VarDecl>) {
-                allDeclaredSymbols[n.name].push_back(SymbolInfo(n.type, n.name, -1, -1, false));
+                allDeclaredSymbols[n.name].push_back(SymbolInfo(n.type, n.name, n.line, n.column, false));
             } else if constexpr (is_same_v<T, FunctionDecl>) {
-                allDeclaredSymbols[n.name].push_back(SymbolInfo(n.returnType, n.name, -1, -1, true, false, false, false, n.params));
+                allDeclaredSymbols[n.name].push_back(SymbolInfo(n.returnType, n.name, n.line, n.column, true, false, false, false, n.params));
             } else if constexpr (is_same_v<T, FunctionProto>) {
-                allDeclaredSymbols[n.name].push_back(SymbolInfo(n.returnType, n.name, -1, -1, true, false, false, true, n.params));
+                allDeclaredSymbols[n.name].push_back(SymbolInfo(n.returnType, n.name, n.line, n.column, true, false, false, true, n.params));
             } else if constexpr (is_same_v<T, EnumDecl>) {
-                allDeclaredSymbols[n.name].push_back(SymbolInfo(T_ENUM, n.name, -1, -1, false, true, false, false, {}));
+                allDeclaredSymbols[n.name].push_back(SymbolInfo(T_ENUM, n.name, n.line, n.column, false, true, false, false, {}));
             }
         }, node);
     }
+
+
+    // Add a getter to access the global scope from outside without transferring ownership
+    const ScopeFrame* getGlobalScope() const { return globalScope.get(); }
 };
 
 void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens) {
-    ScopeAnalyzer analyzer;
-    vector<ScopeError> errors = analyzer.analyze(ast, tokens);
+    try {
+        ScopeAnalyzer analyzer;
+        vector<ScopeError> errors = analyzer.analyze(ast, tokens);
 
-    if (!errors.empty()) {
-        cout << "\n=== Scope Analysis Errors ===\n";
-        for (const auto& error : errors) {
-            cout << "[Scope Error] " << error.message << ")\n";
+        if (!errors.empty()) {
+            cerr << "\n=== Scope Analysis Errors ===\n";
+            for (const auto& error : errors) {
+                cerr << "[Scope Error] " << error.message << ")\n";
+            }
+            cerr << "Scope analysis failed with " << errors.size() << " error(s)\n";
+            exit(EXIT_FAILURE);
         }
-        cout << "Scope analysis failed with " << errors.size() << " error(s)\n";
+
+        cout << "\n=== Scope Analysis Successful ===\n";
+        cout << "No scope errors found.\n";
+
+        //analyzer.printSymbolTable(analyzer.transferSymbolTable());
+    }
+    catch (const exception& e) {
+        cerr << "[Scope Analysis Exception] " << e.what() << "\n";
         exit(EXIT_FAILURE);
     }
-
-    cout << "\n=== Scope Analysis Successful ===\n";
-    cout << "No scope errors found.\n";
 }

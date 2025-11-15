@@ -6,19 +6,20 @@ enum MEOW { YELLOW, BLUE };
 
 int add(int m);
 int add(int m){
-    add1();
+    //add1();
     return m+2;
 }
 int add1(int m);
 
 
-int add1(int m){
-    int ans  = m;
-    return m+2;
+int add1(int ma){
+    int ans  = ma;
+    char m = 'c';
+    return m;
 }
 
 main {
-    enum ma{a};
+    //enum ma{a};
     int x = 42 + 5 / 8 * 10; 
     float ❤️ = 3.14159;
     int ans = add(2);

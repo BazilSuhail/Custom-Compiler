@@ -1,123 +1,9 @@
 #include "compiler.h"
-#include <stack>
-#include <set>
-
-// === Scope Analysis Errors ===
-enum class ScopeErrorType {
-    UndeclaredVariableAccessed,
-    UndefinedFunctionCalled,
-    VariableRedefinition,
-    FunctionPrototypeRedefinition,
-    ConflictingFunctionDefinition,
-    ConflictingDeclaration,
-    ParameterRedefinition,
-    InvalidForwardReference,
-    InvalidStorageClassUsage,
-    EnumRedefinition,
-    EnumVariantRedefinition,
-};
-
-struct ScopeError {
-    ScopeErrorType type;
-    string name;
-    int line;
-    int column;
-    string message;
-
-    ScopeError(ScopeErrorType t, const string& n, int l, int c) 
-        : type(t), name(n), line(l), column(c) {
-        switch (t) {
-            case ScopeErrorType::UndeclaredVariableAccessed:
-                message = "Undeclared variable accessed: '" + n + "'";
-                break;
-            case ScopeErrorType::UndefinedFunctionCalled:
-                message = "Undefined function called: '" + n + "'";
-                break;
-            case ScopeErrorType::VariableRedefinition:
-                message = "Variable redefinition: '" + n + "'";
-                break;
-            case ScopeErrorType::FunctionPrototypeRedefinition:
-                message = "Function prototype redefinition: '" + n + "'";
-                break;
-            case ScopeErrorType::ConflictingFunctionDefinition:
-                message = "Conflicting function definition: '" + n + "'";
-                break;
-            case ScopeErrorType::ConflictingDeclaration:
-                message = "Conflicting declaration: '" + n + "'";
-                break;
-            case ScopeErrorType::ParameterRedefinition:
-                message = "Parameter redefinition: '" + n + "'";
-                break;
-            case ScopeErrorType::InvalidForwardReference:
-                message = "Invalid forward reference: '" + n + "'";
-                break;
-            case ScopeErrorType::InvalidStorageClassUsage:
-                message = "Invalid storage class usage for: '" + n + "'";
-                break;
-            case ScopeErrorType::EnumRedefinition:
-                message = "Enum redefinition: '" + n + "'";
-                break;
-            case ScopeErrorType::EnumVariantRedefinition:
-                message = "Enum variant redefinition: '" + n + "'";
-                break;
-        }
-    }
-};
-
-struct SymbolInfo {
-    TokenType type;
-    string name;
-    int line;
-    int column;
-    bool isFunction;
-    bool isEnum;
-    bool isEnumValue;
-    bool isPrototype; // Distinguishes prototypes from definitions
-    vector<pair<TokenType, string>> params;
-    int scopeLevel; // Added to track scope level
-    
-    SymbolInfo(TokenType t, const string& n, int l, int c, bool isFunc = false, bool isEnumSym = false, bool isEnumVal = false, bool isProto = false, vector<pair<TokenType, string>> p = {}, int scopeLvl = 0)
-        : type(t), name(n), line(l), column(c), isFunction(isFunc), isEnum(isEnumSym), isEnumValue(isEnumVal), isPrototype(isProto), params(p), scopeLevel(scopeLvl) {}
-};
-
-// Structure to represent a scope frame in the symbol table
-struct ScopeInfo {
-    int level;
-    ScopeInfo* parent;
-    unordered_map<string, SymbolInfo> symbols;
-    vector<unique_ptr<ScopeInfo>> children;
-    
-    ScopeInfo(int l = 0, ScopeInfo* p = nullptr) : level(l), parent(p) {}
-    
-    void addSymbol(const SymbolInfo& sym) {
-        symbols.insert({sym.name, sym});
-    }
-    
-    SymbolInfo* findSymbol(const string& name) {
-        auto it = symbols.find(name);
-        if (it != symbols.end()) {
-            return &(it->second);
-        }
-        return nullptr;
-    }
-    
-    const SymbolInfo* findSymbol(const string& name) const {
-        auto it = symbols.find(name);
-        if (it != symbols.end()) {
-            return &(it->second);
-        }
-        return nullptr;
-    }
-    
-    bool hasSymbol(const string& name) const {
-        return symbols.find(name) != symbols.end();
-    }
-};
 
 class ScopeAnalyzer {
 private:
-    unique_ptr<ScopeInfo> globalScope;
-    ScopeInfo* currentScope;
+    unique_ptr<ScopeFrame> globalScope;
+    ScopeFrame* currentScope;
     vector<ScopeError> errors;
     vector<Token> tokens;
     size_t currentTokenIndex;
@@ -125,9 +11,13 @@ private:
     // Store all declared symbols for forward reference checking
     unordered_map<string, vector<SymbolInfo>> allDeclaredSymbols;
 
-    // Walks up scope chain to find symbol
+    // ===== SCOPE MANAGEMENT FUNCTIONS =====
+    
+    // Search for a symbol by walking up the scope chain from current to global
     SymbolInfo* lookupSymbol(const string& name) {
-        ScopeInfo* frame = currentScope;
+        ScopeFrame* frame = currentScope;
+        
+        // Keep searching parent scopes until we find the symbol or reach the end
         while (frame != nullptr) {
             SymbolInfo* sym = frame->findSymbol(name);
             if (sym != nullptr) {
@@ -135,245 +25,344 @@ private:
             }
             frame = frame->parent;
         }
-        return nullptr;
+        
+        return nullptr;  // Symbol not found
     }
 
+    // Create a new nested scope and enter it
     void enterScope() {
-        auto newScope = make_unique<ScopeInfo>(currentScope->level + 1, currentScope);
-        ScopeInfo* newScopePtr = newScope.get();
+        auto newScope = make_unique<ScopeFrame>(currentScope, currentScope->level + 1);
+        ScopeFrame* newScopePtr = newScope.get();
         currentScope->children.push_back(move(newScope));
         currentScope = newScopePtr;
     }
 
+    // Exit current scope and return to parent scope
     void exitScope() {
         if (currentScope->parent != nullptr) {
             currentScope = currentScope->parent;
         }
     }
 
+    // Record a scope error with location information
     void addError(ScopeErrorType type, const string& name, int line, int col) {
         errors.push_back(ScopeError(type, name, line, col));
     }
 
-    // Check if a symbol exists anywhere in the program (for forward reference)
+    // ===== FORWARD REFERENCE CHECKING =====
+    
+    // Check if a symbol exists anywhere in the entire program
     bool isSymbolDeclaredAnywhere(const string& name) {
         return allDeclaredSymbols.find(name) != allDeclaredSymbols.end();
     }
 
-    // Check if function exists with matching signature anywhere
+    // Check if function with matching signature exists anywhere in program
     bool isFunctionDeclaredAnywhere(const string& name, const vector<pair<TokenType, string>>& params) {
         auto it = allDeclaredSymbols.find(name);
-        if (it != allDeclaredSymbols.end()) {
-            for (const auto& sym : it->second) {
-                if (sym.isFunction && areFunctionSignaturesEqual(sym.params, params)) {
-                    return true;
-                }
+        if (it == allDeclaredSymbols.end()) {
+            return false;
+        }
+        
+        // Check each symbol with this name
+        for (const auto& sym : it->second) {
+            if (sym.isFunction && areFunctionSignaturesEqual(sym.params, params)) {
+                return true;
             }
         }
+        
         return false;
     }
 
-    // C-style: compare parameter types only, not names
+    // ===== SIGNATURE COMPARISON =====
+    
+    // Compare function signatures (C-style: only parameter types matter, not names)
     bool areFunctionSignaturesEqual(const vector<pair<TokenType, string>>& params1, 
                                    const vector<pair<TokenType, string>>& params2) {
-        if (params1.size() != params2.size()) return false;
-        for (size_t i = 0; i < params1.size(); i++) {
-            if (params1[i].first != params2[i].first) return false;
+        // Different number of parameters means different signatures
+        if (params1.size() != params2.size()) {
+            return false;
         }
+        
+        // Check if each parameter type matches
+        for (size_t i = 0; i < params1.size(); i++) {
+            if (params1[i].first != params2[i].first) {
+                return false;
+            }
+        }
+        
         return true;
     }
 
-    void analyzeVarDecl(const VarDecl& decl, int line, int col) {
-        // Check if enum is being used as variable type
-        if (decl.type == T_ENUM) {
-            SymbolInfo* enumType = lookupSymbol(decl.name);
-            if (enumType && enumType->isEnum) {
-                // This is actually an enum declaration, not a variable with enum type
-            } else {
-                // If trying to declare variable with enum type, check if enum exists
-                SymbolInfo* enumSym = lookupSymbol(decl.name);
-                if (!enumSym || !enumSym->isEnum) {
-                    addError(ScopeErrorType::UndeclaredVariableAccessed, decl.name, line, col);
-                }
-            }
-        }
+    // ===== VARIABLE DECLARATION ANALYSIS =====
+    
+    // Analyze a variable declaration
+    void analyzeVarDecl(const VarDecl& decl) {
+        int line = decl.line;
+        int col = decl.column;
         
+        // Check for redefinition in current scope
         if (currentScope->hasSymbol(decl.name)) {
             addError(ScopeErrorType::VariableRedefinition, decl.name, line, col);
-        } else {
-            SymbolInfo* existing = lookupSymbol(decl.name);
-            if (existing && (existing->isFunction || existing->isEnum || existing->isEnumValue)) {
+            return;
+        }
+        
+        // Check for conflicts with functions, enums, or enum values
+        SymbolInfo* existing = lookupSymbol(decl.name);
+        if (existing != nullptr) {
+            if (existing->isFunction || existing->isEnum || existing->isEnumValue) {
                 addError(ScopeErrorType::ConflictingDeclaration, decl.name, line, col);
-            } else {
-                SymbolInfo newSym(decl.type, decl.name, line, col, false, false, false, false, {}, currentScope->level);
-                currentScope->addSymbol(newSym);
-                allDeclaredSymbols[decl.name].push_back(newSym);
+                return;
             }
         }
         
+        // Add variable to current scope
+        currentScope->addSymbol(SymbolInfo(decl.type, decl.name, line, col, false));
+        allDeclaredSymbols[decl.name].push_back(SymbolInfo(decl.type, decl.name, line, col, false));
+        
+        // Analyze initializer if present
         if (decl.initializer) {
-            analyzeExpression(decl.initializer->node);
+            analyzeExpressionNode(decl.initializer->node);
         }
     }
 
-    void analyzeFunctionDecl(const FunctionDecl& func, int line, int col) {
+    // ===== FUNCTION DECLARATION ANALYSIS =====
+    
+    // Analyze a function definition
+    void analyzeFunctionDecl(const FunctionDecl& func) {
+        int line = func.line;
+        int col = func.column;
+        
+        // Check for conflicts in current scope
         SymbolInfo* localSym = currentScope->findSymbol(func.name);
         
-        if (localSym) {
-            if (localSym->isFunction) {
-                if (areFunctionSignaturesEqual(localSym->params, func.params)) {
-                    if (localSym->isPrototype) {
-                        // Replace prototype with definition
-                        localSym->isPrototype = false;
-                    } else {
-                        addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
-                    }
-                } else {
-                    addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
-                }
-            } else {
-                addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
-            }
+        if (localSym != nullptr) {
+            handleLocalFunctionConflict(localSym, func, line, col);
         } else {
-            SymbolInfo* existing = lookupSymbol(func.name);
-            
-            if (existing) {
-                if (existing->isFunction) {
-                    if (areFunctionSignaturesEqual(existing->params, func.params)) {
-                        if (!existing->isPrototype) {
-                            // In C, can't redefine function even from parent scope
-                            addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
-                        }
-                    } else {
-                        addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
-                    }
-                } else {
-                    addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
-                }
-            }
-            
-            SymbolInfo newSym(func.returnType, func.name, line, col, true, false, false, false, func.params, currentScope->level);
-            currentScope->addSymbol(newSym);
-            allDeclaredSymbols[func.name].push_back(newSym);
+            handleParentScopeFunctionConflict(func, line, col);
         }
         
+        // Add function to symbol table
+        currentScope->addSymbol(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
+        allDeclaredSymbols[func.name].push_back(SymbolInfo(func.returnType, func.name, line, col, true, false, false, false, func.params));
+        
+        // Enter function scope and analyze parameters and body
+        analyzeFunctionBody(func);
+    }
+    
+    // Handle conflicts when function exists in current scope
+    void handleLocalFunctionConflict(SymbolInfo* localSym, const FunctionDecl& func, int line, int col) {
+        if (localSym->isFunction) {
+            if (areFunctionSignaturesEqual(localSym->params, func.params)) {
+                // Check if this is a prototype being replaced by definition
+                if (localSym->isPrototype) {
+                    localSym->isPrototype = false;  // Replace prototype
+                } else {
+                    addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
+                }
+            } else {
+                addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
+            }
+        } else {
+            addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
+        }
+    }
+    
+    // Handle conflicts when function exists in parent scope
+    void handleParentScopeFunctionConflict(const FunctionDecl& func, int line, int col) {
+        SymbolInfo* existing = lookupSymbol(func.name);
+        
+        if (existing == nullptr) {
+            return;  // No conflict
+        }
+        
+        if (existing->isFunction) {
+            if (areFunctionSignaturesEqual(existing->params, func.params)) {
+                if (!existing->isPrototype) {
+                    // Cannot redefine function from parent scope
+                    addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
+                }
+            } else {
+                addError(ScopeErrorType::ConflictingFunctionDefinition, func.name, line, col);
+            }
+        } else {
+            addError(ScopeErrorType::ConflictingDeclaration, func.name, line, col);
+        }
+    }
+    
+    // Analyze function parameters and body
+    void analyzeFunctionBody(const FunctionDecl& func) {
         enterScope();
         
+        // Check for duplicate parameter names
         set<string> paramNames;
         for (const auto& param : func.params) {
             if (paramNames.count(param.second) > 0) {
-                addError(ScopeErrorType::ParameterRedefinition, param.second, line, col);
+                addError(ScopeErrorType::ParameterRedefinition, param.second, func.line, func.column);
             } else {
                 paramNames.insert(param.second);
-                SymbolInfo paramSym(param.first, param.second, line, col, false, false, false, false, {}, currentScope->level);
-                currentScope->addSymbol(paramSym);
+                currentScope->addSymbol(SymbolInfo(param.first, param.second, func.line, func.column, false));
             }
         }
         
+        // Analyze each statement in function body
         for (const auto& stmt : func.body) {
-            analyzeNode(stmt->node);
+            analyzeASTNode(stmt->node);
         }
         
         exitScope();
     }
 
-    void analyzeFunctionProto(const FunctionProto& proto, int line, int col) {
+    // ===== FUNCTION PROTOTYPE ANALYSIS =====
+    
+    // Analyze a function prototype (forward declaration)
+    void analyzeFunctionProto(const FunctionProto& proto) {
+        int line = proto.line;
+        int col = proto.column;
+        
         SymbolInfo* existing = lookupSymbol(proto.name);
         
-        if (existing && existing->isFunction) {
-            if (areFunctionSignaturesEqual(existing->params, proto.params)) {
-                if (existing->isPrototype) {
-                    addError(ScopeErrorType::FunctionPrototypeRedefinition, proto.name, line, col);
-                }
-            } else {
-                addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
-            }
-        } else if (existing) {
+        if (existing != nullptr && existing->isFunction) {
+            handlePrototypeConflict(existing, proto, line, col);
+        } else if (existing != nullptr) {
             addError(ScopeErrorType::ConflictingDeclaration, proto.name, line, col);
         } else {
-            SymbolInfo newSym(proto.returnType, proto.name, line, col, true, false, false, true, proto.params, currentScope->level);
-            currentScope->addSymbol(newSym);
-            allDeclaredSymbols[proto.name].push_back(newSym);
+            // Add prototype to symbol table
+            currentScope->addSymbol(SymbolInfo(proto.returnType, proto.name, line, col, true, false, false, true, proto.params));
+            allDeclaredSymbols[proto.name].push_back(SymbolInfo(proto.returnType, proto.name, line, col, true, false, false, true, proto.params));
+        }
+    }
+    
+    // Handle conflicts when prototype already exists
+    void handlePrototypeConflict(SymbolInfo* existing, const FunctionProto& proto, int line, int col) {
+        if (areFunctionSignaturesEqual(existing->params, proto.params)) {
+            if (existing->isPrototype) {
+                addError(ScopeErrorType::FunctionPrototypeRedefinition, proto.name, line, col);
+            }
+        } else {
+            addError(ScopeErrorType::ConflictingFunctionDefinition, proto.name, line, col);
         }
     }
 
-    void analyzeEnumDecl(const EnumDecl& enm, int line, int col) {
-        // Check if enum is declared in global scope (not inside function)
-        if (currentScope->level > 0) { // Not global scope
+    // ===== ENUM DECLARATION ANALYSIS =====
+    
+    // Analyze an enum declaration
+    void analyzeEnumDecl(const EnumDecl& enm) {
+        int line = enm.line;
+        int col = enm.column;
+        
+        // Enums must be declared in global scope only
+        if (currentScope->level > 0) {
             addError(ScopeErrorType::InvalidStorageClassUsage, enm.name, line, col);
+            return;
         }
         
+        // Check for enum redefinition
         if (currentScope->hasSymbol(enm.name)) {
             addError(ScopeErrorType::EnumRedefinition, enm.name, line, col);
-        } else {
-            SymbolInfo* existing = lookupSymbol(enm.name);
-            if (existing) {
-                addError(ScopeErrorType::ConflictingDeclaration, enm.name, line, col);
-            } else {
-                SymbolInfo newSym(T_ENUM, enm.name, line, col, false, true, false, false, {}, currentScope->level);
-                currentScope->addSymbol(newSym);
-                allDeclaredSymbols[enm.name].push_back(newSym);
-            }
+            return;
         }
         
-        if (holds_alternative<EnumValueList>(enm.values->node)) {
-            const auto& valueList = get<EnumValueList>(enm.values->node);
-            set<string> enumValues;
+        // Check for conflicts with other symbols
+        SymbolInfo* existing = lookupSymbol(enm.name);
+        if (existing != nullptr) {
+            addError(ScopeErrorType::ConflictingDeclaration, enm.name, line, col);
+            return;
+        }
+        
+        // Add enum to symbol table
+        currentScope->addSymbol(SymbolInfo(T_ENUM, enm.name, line, col, false, true, false, false, {}));
+        allDeclaredSymbols[enm.name].push_back(SymbolInfo(T_ENUM, enm.name, line, col, false, true, false, false, {}));
+        
+        // Analyze enum values
+        analyzeEnumValues(enm, line, col);
+    }
+    
+    // Analyze enum value list
+    void analyzeEnumValues(const EnumDecl& enm, int line, int col) {
+        if (!holds_alternative<EnumValueList>(enm.values->node)) {
+            return;
+        }
+        
+        const EnumValueList& valueList = get<EnumValueList>(enm.values->node);
+        set<string> enumValues;
+        
+        for (const string& value : valueList.values) {
+            // Check for duplicate enum values
+            if (enumValues.count(value) > 0) {
+                addError(ScopeErrorType::EnumVariantRedefinition, value, line, col);
+                continue;
+            }
             
-            for (const string& value : valueList.values) {
-                if (enumValues.count(value) > 0) {
-                    addError(ScopeErrorType::EnumVariantRedefinition, value, line, col);
-                } else {
-                    enumValues.insert(value);
-                    SymbolInfo* existing = lookupSymbol(value);
-                    if (existing) {
-                        addError(ScopeErrorType::ConflictingDeclaration, value, line, col);
-                    } else {
-                        SymbolInfo newSym(T_INT, value, line, col, false, false, true, false, {}, currentScope->level);
-                        currentScope->addSymbol(newSym);
-                        allDeclaredSymbols[value].push_back(newSym);
-                    }
-                }
+            enumValues.insert(value);
+            
+            // Check for conflicts with other symbols
+            SymbolInfo* existing = lookupSymbol(value);
+            if (existing != nullptr) {
+                addError(ScopeErrorType::ConflictingDeclaration, value, line, col);
+            } else {
+                currentScope->addSymbol(SymbolInfo(T_INT, value, line, col, false, false, true, false, {}));
+                allDeclaredSymbols[value].push_back(SymbolInfo(T_INT, value, line, col, false, false, true, false, {}));
             }
         }
     }
 
+    // ===== MAIN FUNCTION ANALYSIS =====
+    
+    // Analyze the main function
     void analyzeMainDecl(const MainDecl& main) {
         enterScope();
         
         for (const auto& stmt : main.body) {
-            analyzeNode(stmt->node);
+            analyzeASTNode(stmt->node);
         }
         
         exitScope();
     }
 
-    void analyzeCallExpr(const CallExpr& call, int line, int col) {
+    // ===== EXPRESSION ANALYSIS =====
+    
+    // Analyze a function call expression
+    void analyzeCallExpr(const CallExpr& call) {
+        int line = call.line;
+        int col = call.column;
+        
+        // Check if callee is an identifier (function name)
         if (holds_alternative<Identifier>(call.callee->node)) {
-            const auto& ident = get<Identifier>(call.callee->node);
-            SymbolInfo* funcSym = lookupSymbol(ident.name);
-            
-            if (!funcSym || !funcSym->isFunction) {
-                // Check if function exists anywhere in the program (forward reference)
-                if (isSymbolDeclaredAnywhere(ident.name)) {
-                    addError(ScopeErrorType::InvalidForwardReference, ident.name, line, col);
-                } else {
-                    addError(ScopeErrorType::UndefinedFunctionCalled, ident.name, line, col);
-                }
-            }
+            const Identifier& ident = get<Identifier>(call.callee->node);
+            checkFunctionCall(ident.name, line, col);
         } else {
-            analyzeExpression(call.callee->node);
+            analyzeExpressionNode(call.callee->node);
         }
         
+        // Analyze all arguments
         for (const auto& arg : call.args) {
-            analyzeExpression(arg->node);
+            analyzeExpressionNode(arg->node);
+        }
+    }
+    
+    // Check if function being called exists
+    void checkFunctionCall(const string& funcName, int line, int col) {
+        SymbolInfo* funcSym = lookupSymbol(funcName);
+        
+        if (funcSym == nullptr || !funcSym->isFunction) {
+            // Check for forward reference
+            if (isSymbolDeclaredAnywhere(funcName)) {
+                addError(ScopeErrorType::InvalidForwardReference, funcName, line, col);
+            } else {
+                addError(ScopeErrorType::UndefinedFunctionCalled, funcName, line, col);
+            }
         }
     }
 
-    void analyzeIdentifier(const Identifier& ident, int line, int col) {
+    // Analyze an identifier (variable reference)
+    void analyzeIdentifier(const Identifier& ident) {
+        int line = ident.line;
+        int col = ident.column;
+        
         SymbolInfo* sym = lookupSymbol(ident.name);
-        if (!sym) {
-            // Check if this symbol exists anywhere in the program (forward reference)
+        
+        if (sym == nullptr) {
+            // Check for forward reference
             if (isSymbolDeclaredAnywhere(ident.name)) {
                 addError(ScopeErrorType::InvalidForwardReference, ident.name, line, col);
             } else {
@@ -382,214 +371,423 @@ private:
         }
     }
 
+    // Analyze a binary expression (e.g., a + b)
     void analyzeBinaryExpr(const BinaryExpr& expr) {
-        if (expr.left) analyzeExpression(expr.left->node);
-        if (expr.right) analyzeExpression(expr.right->node);
+        if (expr.left) {
+            analyzeExpressionNode(expr.left->node);
+        }
+        if (expr.right) {
+            analyzeExpressionNode(expr.right->node);
+        }
     }
 
+    // Analyze a unary expression (e.g., -x, !flag)
     void analyzeUnaryExpr(const UnaryExpr& expr) {
-        if (expr.operand) analyzeExpression(expr.operand->node);
+        if (expr.operand) {
+            analyzeExpressionNode(expr.operand->node);
+        }
     }
 
-    void analyzeExpression(const ASTNodeVariant& expr) {
-        visit([this](const auto& node) {
-            using T = decay_t<decltype(node)>;
-            if constexpr (is_same_v<T, IntLiteral> || is_same_v<T, FloatLiteral> || 
-                         is_same_v<T, StringLiteral> || is_same_v<T, CharLiteral> || 
-                         is_same_v<T, BoolLiteral>) {
-            } else if constexpr (is_same_v<T, Identifier>) {
-                analyzeIdentifier(node, -1, -1);
-            } else if constexpr (is_same_v<T, BinaryExpr>) {
-                analyzeBinaryExpr(node);
-            } else if constexpr (is_same_v<T, UnaryExpr>) {
-                analyzeUnaryExpr(node);
-            } else if constexpr (is_same_v<T, CallExpr>) {
-                analyzeCallExpr(node, -1, -1);
-            }
-        }, expr);
-    }
-
-    void analyzeIfStmt(const IfStmt& stmt) {
-        if (stmt.condition) analyzeExpression(stmt.condition->node);
+    // Main expression analyzer - dispatches to appropriate handler
+    void analyzeExpressionNode(const ASTNodeVariant& expr) {
+        // Handle integer literals
+        if (holds_alternative<IntLiteral>(expr)) {
+            return;  // Literals don't need scope analysis
+        }
         
+        // Handle float literals
+        if (holds_alternative<FloatLiteral>(expr)) {
+            return;
+        }
+        
+        // Handle string literals
+        if (holds_alternative<StringLiteral>(expr)) {
+            return;
+        }
+        
+        // Handle char literals
+        if (holds_alternative<CharLiteral>(expr)) {
+            return;
+        }
+        
+        // Handle bool literals
+        if (holds_alternative<BoolLiteral>(expr)) {
+            return;
+        }
+        
+        // Handle identifiers
+        if (holds_alternative<Identifier>(expr)) {
+            analyzeIdentifier(get<Identifier>(expr));
+            return;
+        }
+        
+        // Handle binary expressions
+        if (holds_alternative<BinaryExpr>(expr)) {
+            analyzeBinaryExpr(get<BinaryExpr>(expr));
+            return;
+        }
+        
+        // Handle unary expressions
+        if (holds_alternative<UnaryExpr>(expr)) {
+            analyzeUnaryExpr(get<UnaryExpr>(expr));
+            return;
+        }
+        
+        // Handle function calls
+        if (holds_alternative<CallExpr>(expr)) {
+            analyzeCallExpr(get<CallExpr>(expr));
+            return;
+        }
+    }
+
+    // ===== STATEMENT ANALYSIS =====
+    
+    // Analyze an if statement
+    void analyzeIfStmt(const IfStmt& stmt) {
+        // Check condition
+        if (stmt.condition) {
+            analyzeExpressionNode(stmt.condition->node);
+        }
+        
+        // Analyze if body in new scope
         enterScope();
         for (const auto& ifStmt : stmt.ifBody) {
-            analyzeNode(ifStmt->node);
+            analyzeASTNode(ifStmt->node);
         }
         exitScope();
         
+        // Analyze else body in new scope
         enterScope();
         for (const auto& elseStmt : stmt.elseBody) {
-            analyzeNode(elseStmt->node);
+            analyzeASTNode(elseStmt->node);
         }
         exitScope();
     }
 
+    // Analyze a while loop
     void analyzeWhileStmt(const WhileStmt& stmt) {
-        if (stmt.condition) analyzeExpression(stmt.condition->node);
+        // Check condition
+        if (stmt.condition) {
+            analyzeExpressionNode(stmt.condition->node);
+        }
         
+        // Analyze body in new scope
         enterScope();
         for (const auto& bodyStmt : stmt.body) {
-            analyzeNode(bodyStmt->node);
+            analyzeASTNode(bodyStmt->node);
         }
         exitScope();
     }
 
+    // Analyze a do-while loop
     void analyzeDoWhileStmt(const DoWhileStmt& stmt) {
+        // Analyze body in new scope
         enterScope();
         if (stmt.body) {
-            analyzeNode(stmt.body->node);
+            analyzeASTNode(stmt.body->node);
         }
         exitScope();
         
-        if (stmt.condition) analyzeExpression(stmt.condition->node);
+        // Check condition
+        if (stmt.condition) {
+            analyzeExpressionNode(stmt.condition->node);
+        }
     }
 
+    // Analyze a for loop
     void analyzeForStmt(const ForStmt& stmt) {
         enterScope();
         
-        if (stmt.init) analyzeNode(stmt.init->node);
-        if (stmt.condition) analyzeExpression(stmt.condition->node);
-        if (stmt.update) analyzeExpression(stmt.update->node);
+        // Analyze initialization
+        if (stmt.init) {
+            analyzeASTNode(stmt.init->node);
+        }
         
+        // Check condition
+        if (stmt.condition) {
+            analyzeExpressionNode(stmt.condition->node);
+        }
+        
+        // Analyze update expression
+        if (stmt.update) {
+            analyzeExpressionNode(stmt.update->node);
+        }
+        
+        // Analyze body
         if (stmt.body) {
-            analyzeNode(stmt.body->node);
+            analyzeASTNode(stmt.body->node);
         }
         
         exitScope();
     }
 
+    // Analyze a switch statement
     void analyzeSwitchStmt(const SwitchStmt& stmt) {
-        if (stmt.expression) analyzeExpression(stmt.expression->node);
+        // Check switch expression
+        if (stmt.expression) {
+            analyzeExpressionNode(stmt.expression->node);
+        }
         
+        // Analyze each case in its own scope
         for (const auto& caseStmt : stmt.cases) {
             if (caseStmt) {
                 enterScope();
-                analyzeNode(caseStmt->node);
+                analyzeASTNode(caseStmt->node);
                 exitScope();
             }
         }
         
+        // Analyze default case in its own scope
         enterScope();
         for (const auto& defaultStmt : stmt.defaultBody) {
-            analyzeNode(defaultStmt->node);
+            analyzeASTNode(defaultStmt->node);
         }
         exitScope();
     }
 
+    // Analyze a return statement
     void analyzeReturnStmt(const ReturnStmt& stmt) {
         if (stmt.value) {
-            analyzeExpression(stmt.value->node);
+            analyzeExpressionNode(stmt.value->node);
         }
     }
 
+    // Analyze a print statement
     void analyzePrintStmt(const PrintStmt& stmt) {
         for (const auto& arg : stmt.args) {
-            analyzeExpression(arg->node);
+            analyzeExpressionNode(arg->node);
         }
     }
 
+    // Analyze an expression statement
     void analyzeExpressionStmt(const ExpressionStmt& stmt) {
-        analyzeExpression(stmt.expr->node);
+        analyzeExpressionNode(stmt.expr->node);
     }
 
+    // Analyze a block statement
     void analyzeBlockStmt(const BlockStmt& block) {
         enterScope();
         for (const auto& stmt : block.body) {
-            analyzeNode(stmt->node);
+            analyzeASTNode(stmt->node);
         }
         exitScope();
     }
 
-    void analyzeNode(const ASTNodeVariant& node) {
-        visit([this](const auto& n) {
-            using T = decay_t<decltype(n)>;
-            
-            if constexpr (is_same_v<T, VarDecl>) {
-                analyzeVarDecl(n, -1, -1);
-            } else if constexpr (is_same_v<T, FunctionDecl>) {
-                analyzeFunctionDecl(n, -1, -1);
-            } else if constexpr (is_same_v<T, FunctionProto>) {
-                analyzeFunctionProto(n, -1, -1);
-            } else if constexpr (is_same_v<T, EnumDecl>) {
-                analyzeEnumDecl(n, -1, -1);
-            } else if constexpr (is_same_v<T, MainDecl>) {
-                analyzeMainDecl(n);
-            } else if constexpr (is_same_v<T, CallExpr>) {
-                analyzeCallExpr(n, -1, -1);
-            } else if constexpr (is_same_v<T, Identifier>) {
-                analyzeIdentifier(n, -1, -1);
-            } else if constexpr (is_same_v<T, BinaryExpr>) {
-                analyzeBinaryExpr(n);
-            } else if constexpr (is_same_v<T, UnaryExpr>) {
-                analyzeUnaryExpr(n);
-            } else if constexpr (is_same_v<T, IfStmt>) {
-                analyzeIfStmt(n);
-            } else if constexpr (is_same_v<T, WhileStmt>) {
-                analyzeWhileStmt(n);
-            } else if constexpr (is_same_v<T, DoWhileStmt>) {
-                analyzeDoWhileStmt(n);
-            } else if constexpr (is_same_v<T, ForStmt>) {
-                analyzeForStmt(n);
-            } else if constexpr (is_same_v<T, SwitchStmt>) {
-                analyzeSwitchStmt(n);
-            } else if constexpr (is_same_v<T, ReturnStmt>) {
-                analyzeReturnStmt(n);
-            } else if constexpr (is_same_v<T, PrintStmt>) {
-                analyzePrintStmt(n);
-            } else if constexpr (is_same_v<T, ExpressionStmt>) {
-                analyzeExpressionStmt(n);
-            } else if constexpr (is_same_v<T, BlockStmt>) {
-                analyzeBlockStmt(n);
-            }
-        }, node);
+    // ===== MAIN NODE DISPATCHER =====
+    
+    // Main dispatcher - routes AST nodes to appropriate analyzer
+    void analyzeASTNode(const ASTNodeVariant& node) {
+        // Variable declaration
+        if (holds_alternative<VarDecl>(node)) {
+            analyzeVarDecl(get<VarDecl>(node));
+            return;
+        }
+        
+        // Function definition
+        if (holds_alternative<FunctionDecl>(node)) {
+            analyzeFunctionDecl(get<FunctionDecl>(node));
+            return;
+        }
+        
+        // Function prototype
+        if (holds_alternative<FunctionProto>(node)) {
+            analyzeFunctionProto(get<FunctionProto>(node));
+            return;
+        }
+        
+        // Enum declaration
+        if (holds_alternative<EnumDecl>(node)) {
+            analyzeEnumDecl(get<EnumDecl>(node));
+            return;
+        }
+        
+        // Main function
+        if (holds_alternative<MainDecl>(node)) {
+            analyzeMainDecl(get<MainDecl>(node));
+            return;
+        }
+        
+        // Function call
+        if (holds_alternative<CallExpr>(node)) {
+            analyzeCallExpr(get<CallExpr>(node));
+            return;
+        }
+        
+        // Identifier
+        if (holds_alternative<Identifier>(node)) {
+            analyzeIdentifier(get<Identifier>(node));
+            return;
+        }
+        
+        // Binary expression
+        if (holds_alternative<BinaryExpr>(node)) {
+            analyzeBinaryExpr(get<BinaryExpr>(node));
+            return;
+        }
+        
+        // Unary expression
+        if (holds_alternative<UnaryExpr>(node)) {
+            analyzeUnaryExpr(get<UnaryExpr>(node));
+            return;
+        }
+        
+        // If statement
+        if (holds_alternative<IfStmt>(node)) {
+            analyzeIfStmt(get<IfStmt>(node));
+            return;
+        }
+        
+        // While loop
+        if (holds_alternative<WhileStmt>(node)) {
+            analyzeWhileStmt(get<WhileStmt>(node));
+            return;
+        }
+        
+        // Do-while loop
+        if (holds_alternative<DoWhileStmt>(node)) {
+            analyzeDoWhileStmt(get<DoWhileStmt>(node));
+            return;
+        }
+        
+        // For loop
+        if (holds_alternative<ForStmt>(node)) {
+            analyzeForStmt(get<ForStmt>(node));
+            return;
+        }
+        
+        // Switch statement
+        if (holds_alternative<SwitchStmt>(node)) {
+            analyzeSwitchStmt(get<SwitchStmt>(node));
+            return;
+        }
+        
+        // Return statement
+        if (holds_alternative<ReturnStmt>(node)) {
+            analyzeReturnStmt(get<ReturnStmt>(node));
+            return;
+        }
+        
+        // Print statement
+        if (holds_alternative<PrintStmt>(node)) {
+            analyzePrintStmt(get<PrintStmt>(node));
+            return;
+        }
+        
+        // Expression statement
+        if (holds_alternative<ExpressionStmt>(node)) {
+            analyzeExpressionStmt(get<ExpressionStmt>(node));
+            return;
+        }
+        
+        // Block statement
+        if (holds_alternative<BlockStmt>(node)) {
+            analyzeBlockStmt(get<BlockStmt>(node));
+            return;
+        }
+    }
+
+    // ===== DECLARATION COLLECTOR =====
+    
+    // First pass: collect all declarations for forward reference checking
+    void collectDeclarations(const ASTNodeVariant& node) {
+        // Variable declaration
+        if (holds_alternative<VarDecl>(node)) {
+            const VarDecl& varDecl = get<VarDecl>(node);
+            allDeclaredSymbols[varDecl.name].push_back(
+                SymbolInfo(varDecl.type, varDecl.name, varDecl.line, varDecl.column, false)
+            );
+            return;
+        }
+        
+        // Function definition
+        if (holds_alternative<FunctionDecl>(node)) {
+            const FunctionDecl& funcDecl = get<FunctionDecl>(node);
+            allDeclaredSymbols[funcDecl.name].push_back(
+                SymbolInfo(funcDecl.returnType, funcDecl.name, funcDecl.line, funcDecl.column, 
+                          true, false, false, false, funcDecl.params)
+            );
+            return;
+        }
+        
+        // Function prototype
+        if (holds_alternative<FunctionProto>(node)) {
+            const FunctionProto& protoDecl = get<FunctionProto>(node);
+            allDeclaredSymbols[protoDecl.name].push_back(
+                SymbolInfo(protoDecl.returnType, protoDecl.name, protoDecl.line, protoDecl.column, 
+                          true, false, false, true, protoDecl.params)
+            );
+            return;
+        }
+        
+        // Enum declaration
+        if (holds_alternative<EnumDecl>(node)) {
+            const EnumDecl& enumDecl = get<EnumDecl>(node);
+            allDeclaredSymbols[enumDecl.name].push_back(
+                SymbolInfo(T_ENUM, enumDecl.name, enumDecl.line, enumDecl.column, 
+                          false, true, false, false, {})
+            );
+            return;
+        }
     }
 
 public:
+    // Constructor - initializes global scope
     ScopeAnalyzer() {
-        globalScope = make_unique<ScopeInfo>(nullptr, 0);
+        globalScope = make_unique<ScopeFrame>(nullptr, 0);
         currentScope = globalScope.get();
     }
 
-    pair<vector<ScopeError>, unique_ptr<ScopeInfo>> analyze(const vector<ASTPtr>& ast, const vector<Token>& tokenList) {
+    // Transfer ownership of the symbol table to caller
+    unique_ptr<ScopeFrame> transferSymbolTable() {
+        return move(globalScope);
+    }
+    
+    // Get read-only access to global scope
+    const ScopeFrame* getGlobalScope() const { 
+        return globalScope.get(); 
+    }
+
+    // Main analysis function - performs two-pass analysis
+    vector<ScopeError> analyze(const vector<ASTPtr>& ast, const vector<Token>& tokenList) {
         tokens = tokenList;
         errors.clear();
-        allDeclaredSymbols.clear(); // Clear for fresh analysis
+        allDeclaredSymbols.clear();
         
-        // First pass: collect all declared symbols
+        // First pass: collect all declarations
         for (const auto& node : ast) {
             collectDeclarations(node->node);
         }
         
-        // Second pass: perform actual analysis
+        // Second pass: perform actual scope analysis
         for (const auto& node : ast) {
-            analyzeNode(node->node);
+            analyzeASTNode(node->node);
         }
         
-        // Return both errors and the symbol table
-        return make_pair(errors, move(globalScope));
+        return errors;
     }
     
-private:
-    // Helper function to collect all declarations for forward reference checking
-    void collectDeclarations(const ASTNodeVariant& node) {
-        visit([this](const auto& n) {
-            using T = decay_t<decltype(n)>;
-            
-            if constexpr (is_same_v<T, VarDecl>) {
-                allDeclaredSymbols[n.name].push_back(SymbolInfo(n.type, n.name, -1, -1, false));
-            } else if constexpr (is_same_v<T, FunctionDecl>) {
-                allDeclaredSymbols[n.name].push_back(SymbolInfo(n.returnType, n.name, -1, -1, true, false, false, false, n.params));
-            } else if constexpr (is_same_v<T, FunctionProto>) {
-                allDeclaredSymbols[n.name].push_back(SymbolInfo(n.returnType, n.name, -1, -1, true, false, false, true, n.params));
-            } else if constexpr (is_same_v<T, EnumDecl>) {
-                allDeclaredSymbols[n.name].push_back(SymbolInfo(T_ENUM, n.name, -1, -1, false, true, false, false, {}));
-            }
-        }, node);
-    }
 };
 
-pair<vector<ScopeError>, unique_ptr<ScopeInfo>> performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens) {
-    ScopeAnalyzer analyzer;
-    return analyzer.analyze(ast, tokens);
+void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens) {
+    try {
+        ScopeAnalyzer analyzer;
+        vector<ScopeError> errors = analyzer.analyze(ast, tokens);
+
+        if (!errors.empty()) {
+            cerr << "\n=== Scope Analysis Errors ===\n";
+            for (const auto& error : errors) {
+                cerr << "[Scope Error] " << error.message << ")\n";
+            }
+            cerr << "Scope analysis failed with " << errors.size() << " error(s)\n";
+            exit(EXIT_FAILURE);
+        }
+
+        cout << "\n=== Scope Analysis Successful ===\n";
+        cout << "No scope errors found.\n";
+
+    }
+    catch (const exception& e) {
+        cerr << "[Scope Analysis Exception] " << e.what() << "\n";
+        exit(EXIT_FAILURE);
+    }
 }

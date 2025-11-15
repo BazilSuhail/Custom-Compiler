@@ -4,6 +4,8 @@
 .gitignore
 # Ignore everything in tester/
 tester/*
+bazil-72/tester/*
 
 # But keep specific files (like sample.txt)
 !tester/sample.txt
+!make.bat
