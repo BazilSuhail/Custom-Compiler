@@ -1,134 +1,534 @@
-# Scope Analyzer Module
+# Type Checker Module
 
-This module performs scope analysis on the parsed AST of a C‑style language. It validates symbol declarations, detects conflicting or duplicate definitions, resolves function prototypes vs. definitions, and verifies identifier usage across nested scopes.
+## Overview
+
+The type checker validates semantic correctness of programs after parsing. It ensures variables have correct types, functions are called with matching arguments, and operations are performed on compatible types. This phase catches errors that the parser cannot detect.
 
 ## What It Does
-* Builds a tree of scope frames (global + nested) while walking the AST.
-* Tracks variables, functions, enums, and enum values via a `SymbolInfo` record.
-* Distinguishes function prototypes (`isPrototype`) from full definitions.
-* Enforces C‑style rules: matching signatures, no duplicate definitions, prototypes must not repeat.
-* Reports scope errors with line/column + human readable messages.
 
-## Core Data Structures
-### SymbolInfo
-Fields include: type, name, position, flags (`isFunction`, `isEnum`, `isEnumValue`, `isPrototype`), and parameter list (vector of `(TokenType, name)`). Only parameter types are used for signature comparison.
+The type checker performs three main tasks:
 
-### ScopeFrame
-Represents one lexical scope. Holds: symbol map, children, parent pointer, and a `level` (used for potential shadowing logic). New blocks / control structures / function bodies create child scopes.
+**Symbol Table Construction**
+- Collects all variable declarations
+- Records function signatures with parameter types
+- Tracks enum declarations and their values
+- Maintains scope hierarchy for nested blocks
 
-### Lookup Strategy
-Identifier resolution walks upward from the current scope to the global scope. First hit wins. This allows shadowing but currently does not emit a warning for it.
+**Type Validation**
+- Verifies expression types match their usage
+- Checks function calls have correct argument count and types
+- Ensures return statements match function return types
+- Validates operators are applied to compatible types
 
-## Error Types
-Defined in `compiler.h` (`ScopeErrorType`):
-* UndeclaredVariableAccessed
-* UndefinedFunctionCalled
-* VariableRedefinition
-* FunctionPrototypeRedefinition
-* ConflictingFunctionDefinition
-* ConflictingDeclaration (name used for different kinds/signatures)
-* ParameterRedefinition (duplicate parameter name in same function)
-* InvalidForwardReference (reserved for future use)
-* InvalidStorageClassUsage (reserved for future use)
-* EnumRedefinition
-* EnumVariantRedefinition
+**Control Flow Validation**
+- Confirms loop and conditional statements have boolean conditions
+- Ensures break statements only appear inside loops or switch blocks
+- Validates return statements appear in appropriate contexts
 
-Each becomes a `ScopeError` with a formatted `message` string.
+## Data Structures
 
-## Analysis Flow
-1. Start at global scope.
-2. For each top‑level AST node:
-   * Variable declarations: ensure not already declared in current scope and not conflicting with function/enum names.
-   * Function prototypes: add or error if a prototype with same signature exists; allow if a later definition matches.
-   * Function definitions: check for existing symbol: 
-      - If matching prototype in same scope: upgrade prototype to definition.
-      - If definition already exists (same scope or parent): error.
-      - If signature differs: error.
-   * Enum declarations: ensure unique enum name; add each enum value as its own symbol (prevent conflicts).
-3. Statement / block constructs (`if`, `while`, `for`, `switch`, `do‑while`, blocks) push a new scope before processing their bodies.
-4. Identifier and call expressions resolve symbols and emit errors if undefined or not a function.
-
-## Function Signature Matching
-Only parameter types are compared (names ignored) for equality. Return type is currently not part of the signature comparison in this module.
-
-## Public Entry Point
+**SymbolInfo**
+Stores information about each declared identifier:
+- Type of the symbol
+- Name and source location
+- Flags for functions, enums, enum values, and prototypes
+- Parameter list for functions
 ```cpp
-void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens);
+struct SymbolInfo {
+    TokenType type;
+    string name;
+    int line;
+    int column;
+    bool isFunction;
+    bool isEnum;
+    bool isEnumValue;
+    bool isPrototype;
+    vector<pair<TokenType, string>> params;
+};
 ```
-This builds a `ScopeAnalyzer`, runs analysis, prints all scope errors (if any), and terminates on failure (`exit(EXIT_FAILURE)`).
 
-## Usage Example
+**ScopeFrame**
+Represents one scope level in the program:
+- Maps symbol names to their information
+- Links to parent scope for lookup
+- Contains child scopes for nested blocks
+- Tracks scope depth for shadowing detection
 ```cpp
-// After lexing and parsing:
-auto tokens = lexAndDumpToFile("tester/sample.txt", "tester/tokens.txt");
-auto ast = parseFromFile(tokens);
-performScopeAnalysis(ast, tokens); // exits on error, prints success message otherwise
+struct ScopeFrame {
+    unordered_map<string, SymbolInfo> symbols;
+    vector<unique_ptr<ScopeFrame>> children;
+    ScopeFrame* parent;
+    int level;
+};
 ```
 
-### Sample Source Illustrating Errors
+**TypeCheckError**
+Records each type violation found:
+- Error category from enumeration
+- Line and column numbers
+- Optional identifier name
+- Human readable error message
+```cpp
+struct TypeCheckError {
+    TypeChkError type;
+    string name;
+    int line;
+    int column;
+    string message;
+};
+```
+
+## Error Categories
+
+```cpp
+ErroneousVarDecl // Variable declared with void type or another invalid type
+FnCallParamCount // Function called with the wrong number of arguments
+FnCallParamType // Function called with an argument of incompatible type
+ErroneousReturnType // Return statement provides a value of the wrong type or misses a required value
+ExpressionTypeMismatch // Assignment or operation uses incompatible types
+ExpectedBooleanExpression // Expression should evaluate to boolean but does not
+ErroneousBreak // Break statement outside loop or switch
+NonBooleanCondStmt // Condition in if, while, or for is not boolean
+AttemptedBoolOpOnNonBools // Logical AND or OR applied to non-boolean operands
+AttemptedBitOpOnNonInt // Bitwise operator applied to non-integer types
+AttemptedShiftOnNonInt // Shift operator applied to non-integer types
+AttemptedAddOpOnNonNumeric // Arithmetic operator applied to non-numeric types
+```
+
+## Type System Rules
+
+**Numeric Types**
+- int, float, double are numeric
+- Numeric types can be mixed in arithmetic
+- Result type promotes to wider type (int → float → double)
+
+**Boolean Type**
+- Only bool type is boolean
+- Comparison operators return bool
+- Logical operators require bool operands
+
+**Integer Type**
+- Only int is considered integer for bitwise operations
+- Shift operators require integer operands on both sides
+- Bitwise operators require integer operands
+
+**Type Compatibility**
+- Exact type match is always compatible
+- Numeric types are compatible with each other
+- No implicit conversion between bool and numeric types
+- No implicit conversion between char and numeric types
+
+
+## Workflow
+
+**First Pass: Symbol Collection**
+1. Traverse entire AST
+2. Create scope for each block, function, loop
+3. Add declarations to appropriate scope
+4. Enter and exit scopes matching program structure
+5. Build complete symbol table
+
+**Second Pass: Type Checking**
+1. Reset to global scope
+2. Traverse AST again
+3. Look up symbols in current scope chain
+4. Validate each expression and statement
+5. Record all errors found
+
+**Error Reporting**
+1. Collect all errors during checking
+2. Print each error with location
+3. Exit with failure if any errors exist
+4. Print success message if no errors
+
+## Integration
+
+**Input**
+Receives two items from previous phases:
+- AST produced by parser
+- Token list with location information
+
+**Output**
+Produces one of two outcomes:
+- Exits program with error messages if type errors found
+- Returns successfully allowing compilation to continue
+
+**Pipeline Position**
+Runs after parsing and before code generation:
+```
+Source Code → Lexer → Parser → Type Checker → Code Generator
+```
+
+
+## Usage
+
+The type checker is invoked through the main entry point:
+```cpp
+void performTypeChecking(const vector<ASTPtr>& ast, const vector<Token>& tokens);
+```
+
+This function:
+- Creates a TypeChecker instance
+- Runs both symbol collection and type checking passes
+- Prints errors if any are found
+- Exits with failure on errors
+- Prints success message if no errors
+
+## Extension Points
+
+**Adding New Types**
+1. Update type checking predicates (isNumericType, etc)
+2. Add compatibility rules in areTypesCompatible
+3. Update getResultType for new type combinations
+
+**Adding New Operators**
+1. Add operator handling in checkBinaryExpr or checkUnaryExpr
+2. Define valid operand types
+3. Specify result type
+
+**Adding New Error Categories**
+1. Add entry to TypeChkError enumeration
+2. Add message text in TypeCheckError constructor
+3. Call addError where validation occurs
+
+**Control Flow Analysis**
+The module tracks loop and switch depth but does not perform full control flow analysis. Missing return statements are detected only at function end, not through all paths. This can be extended by analyzing all control flow paths.
+
+## Test Cases and Examples
+
+### Valid Code Example
+
+This program demonstrates correct type usage:
 ```c
-int foo(int x);        // prototype
-int foo(int y) {       // OK: matches prototype
-    return y;          
+include<main>
+
+int calculateSum(int a, int b) {
+    int result = a + b;
+    return result;
 }
-int foo(int z) {       // Error: conflicting function definition (duplicate definition)
-    return z;          
+
+float computeAverage(int total, int count) {
+    float avg = total / count;
+    return avg;
 }
 
-int foo(float z);      // Error: conflicting declaration (different signature)
-
-int a = 1;
-int a = 2;             // Error: variable redefinition
-
-enum Color { RED, GREEN, RED }; // Error: enum variant redefinition (RED twice)
+main {
+    int x = 10;
+    int y = 20;
+    int sum = calculateSum(x, y);
+    
+    float average = computeAverage(sum, 2);
+    
+    bool isPositive = sum > 0;
+    
+    if (isPositive) {
+        print("Sum is positive: ", sum);
+    }
+    
+    return 0;
+}
 ```
 
-### Example Identifier Resolution
+Output:
+```
+=== Type Checking Successful ===
+No type errors found.
+```
+
+### Type Mismatch Errors
+
+**Assignment Type Mismatch**
 ```c
-int a = 10;
-void f() {
-    int a = 3;   // shadows outer a (allowed – no warning yet)
-    int b = a;   // resolves to inner a
+int calculateValue(int param) {
+    int number = "hello";        // Error: string assigned to int
+    bool flag = 42;              // Error: int assigned to bool
+    return number;
 }
-int b = a;       // resolves to global a
 ```
 
-## Integration Order
-1. Lexing (`lexer.cpp`)
-2. Parsing (`parser.cpp` → AST)
-3. Scope analysis (`scope.cpp`)
-4. (Future) Type checking / semantic passes
-
-Run sequence in `main.cpp` already follows this order.
-
-## Performance Notes
-Complexity is roughly O(N * D) where N = number of AST nodes and D = maximum scope depth; typical code keeps D small. Symbol lookups are O(1) per scope via `unordered_map`.
-
-## Limitations / Future Work
-* No warnings for shadowing yet (level field could enable this).
-* `InvalidForwardReference` and `InvalidStorageClassUsage` are placeholders.
-* Does not verify return type consistency with call sites.
-* No type compatibility checking for assignments or expressions.
-* Function overloading by parameter type beyond exact match isn't supported (first conflicting signature wins an error).
-
-## Extending The Analyzer
-Add new checks by:
-1. Introducing a new `ScopeErrorType` value.
-2. Adding handling logic inside `ScopeAnalyzer::analyzeNode` or specific helpers.
-3. Emitting errors through `addError(...)`.
-
-## Building
-```bash
-g++ -std=c++11 -o compiler main.cpp lexer.cpp parser.cpp scope.cpp
+Errors produced:
 ```
-(Adjust flags and file list as needed.)
-
-## Output Behavior
-On success:
+[Type Error] Expression type mismatch: 'number' (line: 2, col: 5)
+[Type Error] Expression type mismatch: 'flag' (line: 3, col: 5)
 ```
-=== Scope Analysis Successful ===
-No scope errors found.
-```
-On failure each error line begins with `[Scope Error]` followed by the message.
 
----
+**Return Type Mismatch**
+```c
+string getMessage() {
+    return 100;                  // Error: int returned instead of string
+}
+
+int computeValue() {
+    return "text";               // Error: string returned instead of int
+}
+```
+
+Errors produced:
+```
+[Type Error] Function return type mismatch (line: 2, col: 5)
+[Type Error] Function return type mismatch (line: 6, col: 5)
+```
+
+### Function Call Errors
+
+**Parameter Count Mismatch**
+```c
+int add(int a, int b) {
+    return a + b;
+}
+
+main {
+    int result = add(5, 10, 15);     // Error: 3 arguments given, 2 expected
+    int value = add(5);              // Error: 1 argument given, 2 expected
+    return 0;
+}
+```
+
+Errors produced:
+```
+[Type Error] Function call parameter count mismatch: 'add' (line: 6, col: 18)
+[Type Error] Function call parameter count mismatch: 'add' (line: 7, col: 17)
+```
+
+**Parameter Type Mismatch**
+```c
+int multiply(int x, int y) {
+    return x * y;
+}
+
+main {
+    int result = multiply(5, true);      // Error: bool instead of int
+    int value = multiply("text", 10);    // Error: string instead of int
+    return 0;
+}
+```
+
+Errors produced:
+```
+[Type Error] Function call parameter type mismatch: 'multiply' (line: 6, col: 18)
+[Type Error] Function call parameter type mismatch: 'multiply' (line: 7, col: 17)
+```
+
+### Boolean Operation Errors
+
+**Non-Boolean Logical Operations**
+```c
+main {
+    int x = 5;
+    float y = 3.14;
+    bool result = x && y;            // Error: int && float
+    bool value = x || true;          // Error: int || bool
+    return 0;
+}
+```
+
+Errors produced:
+```
+[Type Error] Attempted boolean operation on non-boolean types (line: 4, col: 19)
+[Type Error] Expression type mismatch: 'result' (line: 4, col: 5)
+[Type Error] Attempted boolean operation on non-boolean types (line: 5, col: 18)
+[Type Error] Expression type mismatch: 'value' (line: 5, col: 5)
+```
+
+**Non-Boolean Conditions**
+```c
+main {
+    int x = 10;
+    
+    if (x) {                         // Error: int condition instead of bool
+        print("This is wrong");
+    }
+    
+    while (x) {                      // Error: int condition instead of bool
+        x = x - 1;
+    }
+    
+    return 0;
+}
+```
+
+Errors produced:
+```
+[Type Error] Non-boolean condition in statement (line: 4, col: 5)
+[Type Error] Non-boolean condition in statement (line: 8, col: 5)
+```
+
+### Bitwise Operation Errors
+
+**Bitwise Operations on Non-Integers**
+```c
+main {
+    char ch = 'A';
+    float num = 3.14;
+    
+    int result1 = ch & 5;            // Error: char & int
+    int result2 = num | 10;          // Error: float | int
+    int result3 = ch ^ num;          // Error: char ^ float
+    
+    return 0;
+}
+```
+
+Errors produced:
+```
+[Type Error] Attempted bitwise operation on non-integer type (line: 5, col: 19)
+[Type Error] Expression type mismatch: 'result1' (line: 5, col: 5)
+[Type Error] Attempted bitwise operation on non-integer type (line: 6, col: 19)
+[Type Error] Expression type mismatch: 'result2' (line: 6, col: 5)
+[Type Error] Attempted bitwise operation on non-integer type (line: 7, col: 19)
+[Type Error] Expression type mismatch: 'result3' (line: 7, col: 5)
+```
+
+**Shift Operations on Non-Integers**
+```c
+main {
+    int x = 8;
+    float y = 2.0;
+    char ch = 'B';
+    
+    int shifted1 = x << y;           // Error: shift by float
+    int shifted2 = ch >> 2;          // Error: shift char value
+    
+    return 0;
+}
+```
+
+Errors produced:
+```
+[Type Error] Attempted shift operation on non-integer type (line: 6, col: 20)
+[Type Error] Expression type mismatch: 'shifted1' (line: 6, col: 5)
+[Type Error] Attempted shift operation on non-integer type (line: 7, col: 20)
+[Type Error] Expression type mismatch: 'shifted2' (line: 7, col: 5)
+```
+
+### Arithmetic Operation Errors
+
+**Arithmetic on Non-Numeric Types**
+```c
+main {
+    string text = "hello";
+    bool flag = true;
+    
+    int result1 = text + 5;          // Error: string + int
+    int result2 = flag - 10;         // Error: bool - int
+    int result3 = text * 2;          // Error: string * int
+    
+    return 0;
+}
+```
+
+Errors produced:
+```
+[Type Error] Attempted addition/subtraction on non-numeric type (line: 5, col: 19)
+[Type Error] Expression type mismatch: 'result1' (line: 5, col: 5)
+[Type Error] Attempted addition/subtraction on non-numeric type (line: 6, col: 19)
+[Type Error] Expression type mismatch: 'result2' (line: 6, col: 5)
+[Type Error] Attempted addition/subtraction on non-numeric type (line: 7, col: 19)
+[Type Error] Expression type mismatch: 'result3' (line: 7, col: 5)
+```
+
+### Control Flow Errors
+
+**Break Outside Loop or Switch**
+```c
+main {
+    int x = 5;
+    
+    if (x > 0) {
+        break;                       // Error: break outside loop/switch
+    }
+    
+    break;                           // Error: break outside loop/switch
+    
+    return 0;
+}
+```
+
+Errors produced:
+```
+[Type Error] Break statement outside loop or switch (line: 5, col: 9)
+[Type Error] Break statement outside loop or switch (line: 8, col: 5)
+```
+
+**Valid Break Usage**
+```c
+main {
+    int i = 0;
+    
+    while (i < 10) {
+        if (i == 5) {
+            break;                   // Valid: inside loop
+        }
+        i = i + 1;
+    }
+    
+    return 0;
+}
+```
+
+Output:
+```
+=== Type Checking Successful ===
+No type errors found.
+```
+
+### Comprehensive Test Program
+
+The following program combines multiple error categories:
+```c
+include<main>
+
+int processData(int value, bool flag) {
+    int result = value * 2;
+    return result;
+}
+
+string formatMessage(string prefix) {
+    string message = prefix + " complete";
+    return message;
+}
+
+main {
+    int number = 100;
+    float decimal = 3.14;
+    bool status = true;
+    char letter = 'X';
+    
+    // Type mismatch errors
+    bool incorrect = number;                    // Error: int assigned to bool
+    int mixed = letter & decimal;               // Error: bitwise on non-int
+    
+    // Function call errors
+    int output = processData(5, 10, 15);        // Error: wrong parameter count
+    int value = processData(true, status);      // Error: wrong parameter type
+    
+    // Condition errors
+    if (number) {                               // Error: int condition
+        print("Invalid condition");
+    }
+    
+    // Control flow errors
+    break;                                      // Error: break outside loop
+    
+    // Arithmetic errors
+    string text = "result";
+    int calculation = text + number;            // Error: string + int
+    
+    return 0;
+}
+```
+
+Complete error output:
+```
+=== Type Checking Errors ===
+[Type Error] Expression type mismatch: 'incorrect' (line: 19, col: 5)
+[Type Error] Attempted bitwise operation on non-integer type (line: 20, col: 17)
+[Type Error] Expression type mismatch: 'mixed' (line: 20, col: 5)
+[Type Error] Function call parameter count mismatch: 'processData' (line: 23, col: 18)
+[Type Error] Function call parameter type mismatch: 'processData' (line: 24, col: 17)
+[Type Error] Non-boolean condition in statement (line: 27, col: 5)
+[Type Error] Break statement outside loop or switch (line: 32, col: 5)
+[Type Error] Attempted addition/subtraction on non-numeric type (line: 36, col: 23)
+[Type Error] Expression type mismatch: 'calculation' (line: 36, col: 5)
+Type checking failed with 9 error(s)
+```
