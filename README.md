@@ -93,6 +93,11 @@ AttemptedBoolOpOnNonBools // Logical AND or OR applied to non-boolean operands
 AttemptedBitOpOnNonInt // Bitwise operator applied to non-integer types
 AttemptedShiftOnNonInt // Shift operator applied to non-integer types
 AttemptedAddOpOnNonNumeric // Arithmetic operator applied to non-numeric types
+ReturnStmtInVoid // Return statement with value in void function
+NonBooleanSwitchExpression // Switch expression does not have integer or char type
+InvalidCaseValueType // Case value type doesn't match switch expression type
+IncrementDecrementOnNonInt // Increment or decrement operator applied to non-integer type
+NotOnNonBool // Logical NOT operator applied to non-boolean type
 ```
 
 ## Type System Rules
@@ -472,6 +477,136 @@ Output:
 No type errors found.
 ```
 
+### Unary Operator Errors
+
+**Increment/Decrement on Non-Integer**
+```c
+main {
+    float value = 3.14;
+    char ch = 'A';
+    bool flag = true;
+    
+    value++;                         // Error: ++ on float
+    ch--;                            // Error: -- on char
+    flag++;                          // Error: ++ on bool
+    
+    return 0;
+}
+```
+
+Errors produced:
+```
+[Type Error] Increment/decrement applied to non-integer type (line: 6, col: 5)
+[Type Error] Increment/decrement applied to non-integer type (line: 7, col: 5)
+[Type Error] Increment/decrement applied to non-integer type (line: 8, col: 5)
+```
+
+**Logical NOT on Non-Boolean**
+```c
+main {
+    int number = 42;
+    string text = "hello";
+    
+    bool result1 = !number;          // Error: ! on int
+    bool result2 = !text;            // Error: ! on string
+    
+    return 0;
+}
+```
+
+Errors produced:
+```
+[Type Error] Logical NOT applied to non-boolean type (line: 5, col: 20)
+[Type Error] Expression type mismatch: 'result1' (line: 5, col: 5)
+[Type Error] Logical NOT applied to non-boolean type (line: 6, col: 20)
+[Type Error] Expression type mismatch: 'result2' (line: 6, col: 5)
+```
+
+### Return Statement Errors
+
+**Return Value in Void Function**
+```c
+void printMessage(string msg) {
+    print(msg);
+    return 100;                      // Error: returning value in void function
+}
+
+void doSomething() {
+    int x = 5;
+    return x;                        // Error: returning value in void function
+}
+```
+
+Errors produced:
+```
+[Type Error] Return statement with value in void function: 'printMessage' (line: 3, col: 5)
+[Type Error] Return statement with value in void function: 'doSomething' (line: 8, col: 5)
+```
+
+### Switch Statement Errors
+
+**Non-Integer/Char Switch Expression**
+```c
+main {
+    bool flag = true;
+    float value = 3.14;
+    
+    switch (flag) {                  // Error: switch on bool
+        case true:
+            print("True");
+            break;
+    }
+    
+    switch (value) {                 // Error: switch on float
+        case 3.14:
+            print("Pi");
+            break;
+    }
+    
+    return 0;
+}
+```
+
+Errors produced:
+```
+[Type Error] Switch expression must be integer or char type (line: 5, col: 5)
+[Type Error] Switch expression must be integer or char type (line: 11, col: 5)
+```
+
+**Case Value Type Mismatch**
+```c
+main {
+    int number = 5;
+    char ch = 'A';
+    
+    switch (number) {
+        case 1:
+            print("One");
+            break;
+        case 'A':                    // Error: char in int switch
+            print("Letter A");
+            break;
+    }
+    
+    switch (ch) {
+        case 'A':
+            print("A");
+            break;
+        case 100:                    // Error: int in char switch
+            print("Number");
+            break;
+    }
+    
+    return 0;
+}
+```
+
+Errors produced:
+```
+[Type Error] Case value type doesn't match switch expression (line: 9, col: 9)
+[Type Error] Case value type doesn't match switch expression (line: 18, col: 9)
+```
+
 ### Comprehensive Test Program
 
 The following program combines multiple error categories:
@@ -514,6 +649,10 @@ main {
     string text = "result";
     int calculation = text + number;            // Error: string + int
     
+    // Unary operator errors
+    decimal++;                                  // Error: ++ on float
+    bool notInt = !number;                      // Error: ! on int
+    
     return 0;
 }
 ```
@@ -530,5 +669,8 @@ Complete error output:
 [Type Error] Break statement outside loop or switch (line: 32, col: 5)
 [Type Error] Attempted addition/subtraction on non-numeric type (line: 36, col: 23)
 [Type Error] Expression type mismatch: 'calculation' (line: 36, col: 5)
-Type checking failed with 9 error(s)
+[Type Error] Increment/decrement applied to non-integer type (line: 39, col: 5)
+[Type Error] Logical NOT applied to non-boolean type (line: 40, col: 19)
+[Type Error] Expression type mismatch: 'notInt' (line: 40, col: 5)
+Type checking failed with 12 error(s)
 ```

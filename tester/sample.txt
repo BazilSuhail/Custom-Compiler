@@ -45,6 +45,7 @@ main {
     
     while (y) {                             // Error: float condition
         y = y - 1.0;
+        break;                                  // Error: break outside loop
     }
     
     // Control flow errors
