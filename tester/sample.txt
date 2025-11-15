@@ -1,31 +1,52 @@
 include<main>
-include"main.h"
 
-enum MEOW { YELLOW, BLUE };
-
-
-int add(int m);
-int add(int m){
-    //add1();
-    return m+2;
+// Function with type mismatches
+int calculate(int a, int b) {
+    string result = 100;                    // Error: int to string
+    bool flag = 42;                         // Error: int to bool
+    return "text";                          // Error: string return
 }
-int add1(int m);
 
-
-int add1(int ma){
-    int ans  = ma;
-    char m = 'c';
-    return m;
+// Function call errors
+float process(float x, bool y) {
+    return x;
 }
 
 main {
-    //enum ma{a};
-    int x = 42 + 5 / 8 * 10; 
-    float ❤️ = 3.14159;
-    int ans = add(2);
-
-    print("Hello World! 🌍");
-    int m = ans;
+    // Assignment type mismatches
+    int num = "hello";                      // Error: string to int
+    bool status = 3.14;                     // Error: float to bool
     
-    return 0;
+    // Function call errors
+    int val1 = calculate(5);                // Error: missing parameter
+    float val2 = process(10, true, "extra"); // Error: extra parameter
+    int val3 = calculate(5, "text");        // Error: wrong parameter type
+    
+    // Boolean operation errors
+    int x = 10;
+    float y = 5.5;
+    bool result1 = x && y;                  // Error: non-boolean operands
+    bool result2 = x || true;               // Error: int in boolean op
+    
+    // Bitwise operation errors
+    char ch = 'A';
+    float f = 2.0;
+    int bitwise = ch & f;                   // Error: float in bitwise
+    
+    // Condition errors
+    if (x) {                                // Error: int condition
+        print("Wrong condition");
+    }
+    
+    while (y) {                             // Error: float condition
+        y = y - 1.0;
+    }
+    
+    // Control flow errors
+    break;                                  // Error: break outside loop
+    
+    // Arithmetic errors
+    string text = "error";
+    int calculation = text + 5;             // Error: string arithmetic
+    
 }

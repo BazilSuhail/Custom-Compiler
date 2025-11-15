@@ -123,6 +123,11 @@ struct BinaryExpr {
             case T_AND: cout << "&&"; break;
             case T_OR: cout << "||"; break;
             case T_ASSIGNOP: cout << "="; break;
+            case T_BITAND: cout << "&"; break;
+            case T_BITOR: cout << "|"; break;
+            case T_BITXOR: cout << "^"; break;
+            case T_BITLSHIFT: cout << "<<"; break;
+            case T_BITRSHIFT: cout << ">>"; break;
             default: cout << "op_" << (int)t; break;
         }
     }
@@ -475,7 +480,8 @@ enum TypeChkError {
     AttemptedShiftOnNonInt,      // Shift operator used on non-integer type
     AttemptedAddOpOnNonNumeric,  // Addition/subtraction used on non-numeric types
     AttemptedExponentiationOfNonNumeric, // Exponentiation used on non-numeric types (Not in grammar, handled as Mismatch)
-    ReturnStmtNotFound           // Function missing a return statement where required (Not implemented, requires control flow analysis)
+    ReturnStmtNotFound         // Function missing a return statement where required (Not implemented, requires control flow analysis)
+
 };
 
 struct TypeCheckError {
@@ -500,7 +506,7 @@ struct TypeCheckError {
             { AttemptedBitOpOnNonInt, "Attempted bitwise operation on non-integer type" },
             { AttemptedShiftOnNonInt, "Attempted shift operation on non-integer type" },
             { AttemptedAddOpOnNonNumeric, "Attempted addition/subtraction on non-numeric type" },
-            { AttemptedExponentiationOfNonNumeric, "Attempted exponentiation on non-numeric type" },
+            { AttemptedExponentiationOfNonNumeric, "Attempted exponentiation on non-numeric type" }, 
             { ReturnStmtNotFound, "Return statement not found where required" }
         };
 

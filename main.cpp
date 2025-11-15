@@ -2,9 +2,8 @@
 #include <string>
 
 int main(int argc, char* argv[]) {
-    // Determine input file
     string fileName = (argc > 1) ? argv[1] : "sample"; // user-provided or default
-    string inputFile = "tester/" + fileName + ".txt";               // prepend tester/
+    string inputFile = "tester/" + fileName + ".txt";
     string tokenFile = "tester/tokens.txt";
 
     // Run lexer and save tokens
@@ -12,12 +11,10 @@ int main(int argc, char* argv[]) {
 
     // Parse tokens into AST
     auto ast = parseFromFile(tokens); 
+    // Scope Analysis
     performScopeAnalysis(ast, tokens);
+    // Type Checking
     performTypeChecking(ast, tokens);
     
-     cout << "\n\nmeow\n\n";
-
- 
     return 0;
 }
-

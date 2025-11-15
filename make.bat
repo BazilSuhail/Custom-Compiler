@@ -23,13 +23,11 @@ if /i "%1"=="run" (
         g++ "%lexer%" "%parser%" "%scope%" "%type%" "%main%" -o "%output%"
         if errorlevel 1 (
             echo Compilation failed.
-            pause
             exit /b 1
         )
     )
     echo Running %output% with input file tester\%inputFile%.txt...
     "%output%" "%inputFile%"
-    pause
     exit /b 0
 )
 
@@ -38,10 +36,8 @@ echo Compiling lexer, parser and scope analysis ...
 g++ "%lexer%" "%parser%" "%scope%" "%type%" "%main%" -o "%output%"
 if errorlevel 1 (
     echo Compilation failed.
-    pause
     exit /b 1
 )
 
 echo Running %output% with input file tester\%inputFile%.txt...
-"%output%" "%inputFile%"
-pause
+"%output%" "%inputFile%
