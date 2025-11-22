@@ -11,12 +11,14 @@ private:
     ofstream outputFile;
     int tempCounter;
     int labelCounter;
+    int indentLevel;  // Track indentation level
     string currentFunction;
     unordered_map<string, string> enumValues;
     stack<string> breakLabels;
     
 public:
-    TACGenerator(const string& filename) : outputFile(filename), tempCounter(0), labelCounter(0) {
+    TACGenerator(const string& filename) 
+        : outputFile(filename), tempCounter(0), labelCounter(0), indentLevel(0) {
         if (!outputFile.is_open()) {
             throw runtime_error("Cannot open output file for TAC");
         }
@@ -29,7 +31,6 @@ public:
     }
     
     void generate(const vector<ASTPtr>& ast) {
-        // Process all declarations
         for (const auto& node : ast) {
             if (node) {
                 processNode(node->node);
@@ -47,12 +48,17 @@ private:
     }
     
     void emit(const string& code) {
-        outputFile << code << endl;
+        // Add indentation before emitting code
+        outputFile << string(indentLevel * 2, ' ') << code << endl;
     }
     
     void emitLabel(const string& label) {
+        // Labels are not indented (or minimally indented)
         outputFile << label << ":" << endl;
     }
+    
+    void increaseIndent() { indentLevel++; }
+    void decreaseIndent() { if (indentLevel > 0) indentLevel--; }
     
     string processNode(const ASTNodeVariant& node) {
         return visit([this](const auto& n) -> string {
@@ -79,7 +85,6 @@ private:
             else if constexpr (is_same_v<T, WhileStmt>) { processWhileStmt(n); return ""; }
             else if constexpr (is_same_v<T, DoWhileStmt>) { processDoWhileStmt(n); return ""; }
             else if constexpr (is_same_v<T, ForStmt>) { processForStmt(n); return ""; }
-            else if constexpr (is_same_v<T, CaseBlock>) { processCaseBlock(n); return ""; }
             else if constexpr (is_same_v<T, SwitchStmt>) { processSwitchStmt(n); return ""; }
             else if constexpr (is_same_v<T, ReturnStmt>) { processReturnStmt(n); return ""; }
             else if constexpr (is_same_v<T, PrintStmt>) { processPrintStmt(n); return ""; }
@@ -92,63 +97,59 @@ private:
     string processBinaryExpr(const BinaryExpr& expr) {
         string left = processNode(expr.left->node);
         string right = processNode(expr.right->node);
+        
+        // Handle assignment separately (no temp variable needed)
+        if (expr.op == T_ASSIGNOP) {
+            emit(left + " = " + right);
+            return left;
+        }
+        
         string result = newTemp();
-        
-        string op;
-        switch (expr.op) {
-            case T_PLUS: op = "+"; break;
-            case T_MINUS: op = "-"; break;
-            case T_MULTIPLY: op = "*"; break;
-            case T_DIVIDE: op = "/"; break;
-            case T_MODULO: op = "%"; break;
-            case T_EQUALOP: op = "=="; break;
-            case T_NE: op = "!="; break;
-            case T_LT: op = "<"; break;
-            case T_GT: op = ">"; break;
-            case T_LE: op = "<="; break;
-            case T_GE: op = ">="; break;
-            case T_AND: op = "&&"; break;
-            case T_OR: op = "||"; break;
-            case T_BITAND: op = "&"; break;
-            case T_BITOR: op = "|"; break;
-            case T_BITXOR: op = "^"; break;
-            case T_BITLSHIFT: op = "<<"; break;
-            case T_BITRSHIFT: op = ">>"; break;
-            case T_ASSIGNOP: 
-                emit(left + " = " + right);
-                return left;
-            default: op = "?"; break;
-        }
-        
-        if (expr.op != T_ASSIGNOP) {
-            emit(result + " = " + left + " " + op + " " + right);
-        }
+        string op = getOperatorString(expr.op);
+        emit(result + " = " + left + " " + op + " " + right);
         
         return result;
+    }
+    
+    string getOperatorString(TokenType op) {
+        switch (op) {
+            case T_PLUS: return "+";
+            case T_MINUS: return "-";
+            case T_MULTIPLY: return "*";
+            case T_DIVIDE: return "/";
+            case T_MODULO: return "%";
+            case T_EQUALOP: return "==";
+            case T_NE: return "!=";
+            case T_LT: return "<";
+            case T_GT: return ">";
+            case T_LE: return "<=";
+            case T_GE: return ">=";
+            case T_AND: return "&&";
+            case T_OR: return "||";
+            case T_BITAND: return "&";
+            case T_BITOR: return "|";
+            case T_BITXOR: return "^";
+            case T_BITLSHIFT: return "<<";
+            case T_BITRSHIFT: return ">>";
+            default: return "?";
+        }
     }
     
     string processUnaryExpr(const UnaryExpr& expr) {
         string operand = processNode(expr.operand->node);
         string result = newTemp();
         
-        string op;
-        switch (expr.op) {
-            case T_MINUS: op = "-"; break;
-            case T_NOT: op = "!"; break;
-            default: op = "?"; break;
-        }
-        
+        string op = (expr.op == T_MINUS) ? "-" : (expr.op == T_NOT) ? "!" : "?";
         emit(result + " = " + op + operand);
+        
         return result;
     }
     
     void processIncludeStmt(const IncludeStmt& stmt) {
-        // Include statements don't generate TAC
         emit("// include " + stmt.header);
     }
     
     void processEnumValueList(const EnumValueList& list) {
-        // Store enum values for later use
         int value = 0;
         for (const auto& val : list.values) {
             enumValues[val] = to_string(value++);
@@ -162,28 +163,22 @@ private:
     
     string processCallExpr(const CallExpr& expr) {
         string callee = processNode(expr.callee->node);
-        string result = newTemp();
         
-        // Push arguments
-        vector<string> args;
-        for (const auto& arg : expr.args) {
-            args.push_back(processNode(arg->node));
-        }
-        
-        // Emit call
+        // Build arguments string
         string argsStr;
-        for (size_t i = 0; i < args.size(); ++i) {
+        for (size_t i = 0; i < expr.args.size(); ++i) {
             if (i > 0) argsStr += ", ";
-            argsStr += args[i];
+            argsStr += processNode(expr.args[i]->node);
         }
         
-        if (callee != "print") {  // Only store result for non-void functions
-            emit(result + " = call " + callee + "(" + argsStr + ")");
-        } else {
+        // For void functions like print, don't create temp variable
+        if (callee == "print") {
             emit("call " + callee + "(" + argsStr + ")");
-            result = "";
+            return "";
         }
         
+        string result = newTemp();
+        emit(result + " = call " + callee + "(" + argsStr + ")");
         return result;
     }
     
@@ -192,7 +187,6 @@ private:
             string initVal = processNode(decl.initializer->node);
             emit(decl.name + " = " + initVal);
         } else {
-            // Initialize with default value
             emit(decl.name + " = 0");
         }
     }
@@ -204,7 +198,6 @@ private:
     }
     
     void processFunctionProto(const FunctionProto& proto) {
-        // Function prototypes don't generate TAC code
         emit("// function prototype: " + proto.name);
     }
     
@@ -213,22 +206,24 @@ private:
         currentFunction = func.name;
         
         emit("\nfunction " + func.name + " begin");
+        increaseIndent();
         
-        // Parameters are treated as local variables
+        // Parameters
         for (const auto& param : func.params) {
             emit(param.second + " = param");
         }
         
-        // Process function body
+        // Function body
         for (const auto& stmt : func.body) {
             if (stmt) processNode(stmt->node);
         }
         
-        // Implicit return if none provided
+        // Implicit return for non-void functions
         if (func.returnType != T_VOID) {
             emit("return 0");
         }
         
+        decreaseIndent();
         emit("function " + func.name + " end");
         currentFunction = oldFunction;
     }
@@ -236,12 +231,15 @@ private:
     void processMainDecl(const MainDecl& main) {
         currentFunction = "main";
         emit("\nfunction main begin");
+        increaseIndent();
         
         for (const auto& stmt : main.body) {
             if (stmt) processNode(stmt->node);
         }
         
-        emit("return 0");
+        // emit("return 0");
+
+        decreaseIndent();
         emit("function main end");
         currentFunction = "";
     }
@@ -253,19 +251,21 @@ private:
         
         emit("if " + cond + " == 0 goto " + elseLabel);
         
-        // Then branch
+        increaseIndent();
         for (const auto& s : stmt.ifBody) {
             if (s) processNode(s->node);
         }
+        decreaseIndent();
         
         if (!stmt.elseBody.empty()) {
             emit("goto " + endLabel);
             emitLabel(elseLabel);
             
-            // Else branch
+            increaseIndent();
             for (const auto& s : stmt.elseBody) {
                 if (s) processNode(s->node);
             }
+            decreaseIndent();
             
             emitLabel(endLabel);
         } else {
@@ -275,22 +275,19 @@ private:
     
     void processWhileStmt(const WhileStmt& stmt) {
         string startLabel = newLabel();
-        string condLabel = newLabel();
         string endLabel = newLabel();
         
         breakLabels.push(endLabel);
         
         emitLabel(startLabel);
-        emit("goto " + condLabel);
-        emitLabel(condLabel);
-        
         string cond = processNode(stmt.condition->node);
         emit("if " + cond + " == 0 goto " + endLabel);
         
-        // Loop body
+        increaseIndent();
         for (const auto& s : stmt.body) {
             if (s) processNode(s->node);
         }
+        decreaseIndent();
         
         emit("goto " + startLabel);
         emitLabel(endLabel);
@@ -300,17 +297,15 @@ private:
     
     void processDoWhileStmt(const DoWhileStmt& stmt) {
         string startLabel = newLabel();
-        string condLabel = newLabel();
         string endLabel = newLabel();
         
         breakLabels.push(endLabel);
         
         emitLabel(startLabel);
-        
-        // Loop body
+        increaseIndent();
         processNode(stmt.body->node);
+        decreaseIndent();
         
-        emitLabel(condLabel);
         string cond = processNode(stmt.condition->node);
         emit("if " + cond + " != 0 goto " + startLabel);
         
@@ -320,7 +315,6 @@ private:
     
     void processForStmt(const ForStmt& stmt) {
         string startLabel = newLabel();
-        string condLabel = newLabel();
         string endLabel = newLabel();
         
         breakLabels.push(endLabel);
@@ -331,8 +325,6 @@ private:
         }
         
         emitLabel(startLabel);
-        emit("goto " + condLabel);
-        emitLabel(condLabel);
         
         // Condition
         if (stmt.condition) {
@@ -341,7 +333,9 @@ private:
         }
         
         // Loop body
+        increaseIndent();
         processNode(stmt.body->node);
+        decreaseIndent();
         
         // Update
         if (stmt.update) {
@@ -354,65 +348,55 @@ private:
         breakLabels.pop();
     }
     
-    void processCaseBlock(const CaseBlock& block) {
-        // Case blocks are handled within switch statements
-        string caseValue = processNode(block.value->node);
-        string caseLabel = newLabel();
-        
-        emitLabel(caseLabel);
-        
-        for (const auto& stmt : block.body) {
-            if (stmt) processNode(stmt->node);
-        }
-    }
-    
     void processSwitchStmt(const SwitchStmt& stmt) {
         string expr = processNode(stmt.expression->node);
         string endLabel = newLabel();
         
         breakLabels.push(endLabel);
         
-        vector<string> caseLabels;
+        // Generate case labels and conditions
+        vector<pair<string, const CaseBlock*>> caseLabelPairs;
         string defaultLabel = !stmt.defaultBody.empty() ? newLabel() : endLabel;
         
-        // First pass: generate all case conditions
+        // Generate all case tests
         for (const auto& caseBlock : stmt.cases) {
             if (auto caseNode = get_if<CaseBlock>(&caseBlock->node)) {
                 string caseValue = processNode(caseNode->value->node);
                 string caseLabel = newLabel();
-                caseLabels.push_back(caseLabel);
+                caseLabelPairs.push_back({caseLabel, caseNode});
                 
                 emit("if " + expr + " == " + caseValue + " goto " + caseLabel);
             }
         }
         
-        // Jump to default or end
+        // Jump to default or end if no cases match
         emit("goto " + defaultLabel);
         
-        // Second pass: emit case bodies in order
-        size_t caseIndex = 0;
-        for (const auto& caseBlock : stmt.cases) {
-            if (auto caseNode = get_if<CaseBlock>(&caseBlock->node)) {
-                emitLabel(caseLabels[caseIndex++]);
-                for (const auto& stmt : caseNode->body) {
-                    if (stmt) processNode(stmt->node);
-                }
-                emit("goto " + endLabel);
+        for (const auto& [caseLabel, caseNode] : caseLabelPairs) {
+            emitLabel(caseLabel);
+            increaseIndent();
+            
+            for (const auto& stmt : caseNode->body) {
+                if (stmt) processNode(stmt->node);
             }
+            
+            decreaseIndent();
         }
         
-        // Default body
+        // Default case
         if (!stmt.defaultBody.empty()) {
             emitLabel(defaultLabel);
+            increaseIndent();
             for (const auto& stmt : stmt.defaultBody) {
                 if (stmt) processNode(stmt->node);
             }
+            decreaseIndent();
         }
         
         emitLabel(endLabel);
         breakLabels.pop();
     }
-    
+
     void processReturnStmt(const ReturnStmt& stmt) {
         if (stmt.value) {
             string retVal = processNode(stmt.value->node);
@@ -442,7 +426,6 @@ private:
     }
 };
 
-// Entry function as specified
 void generateTAC(const vector<ASTPtr>& ast, const string& outputFilename) {
     try {
         TACGenerator generator(outputFilename);

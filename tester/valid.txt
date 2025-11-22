@@ -83,8 +83,7 @@ int factorial(int n) {
 
 // Function with for loop and break
 void findNumber(int target) {
-    int i;
-    for (i = 0; i < 100; i = i + 1) {
+    for (int i = 0; i < 100; i = i + 1) {
         if (i == target) {
             print("Found:", i);
             break;
@@ -233,7 +232,8 @@ main {
         for (int inner = 0; inner < 2; inner = inner + 1) {
             if (inner == 0) {
                 print("Inner first iteration");
-            } else {
+            } 
+            else {
                 print("Inner second iteration");
             }
             
