@@ -1,5 +1,9 @@
 include<main>
 
+void meow(){
+    print("Hellow Bazil");
+}
+
 int add(int n, int m) {
     int res = n + m;
     return res;
@@ -11,17 +15,38 @@ int mul(int n, int m) {
 }
 
 main {
-    int result = add(15,5);
-    int result1 = mul(15,10);
+    meow();
+    int result = add(25,5);
+    int result1 = mul(105,10);
     print("Factorial:");
     print(result);
     print(result1);
 
+    int a1 = 5;
+    int a2 = 3;
+
+    int andResult = a1 & a2;
+    int orResult = a1 | a2;
+    int xorResult = a1 ^ a2;
+    int shiftLeft = a1 << 2;
+    int shiftRight = a1 >> 1;
+
+    print("andResult is", andResult);
+    print("orResult is", orResult);
+    print("xorResult is", xorResult);
+    print("shiftLeft is", shiftLeft);
+    print("shiftRight is", shiftRight);
+
+
+    
     int a;
     while (a<5){
+            print("Goat is Bazil");
+
         print(a);
         a = a + 1;
     }
+    
     
     for (int i = 0; i <= 3; i=i+1) {
         if (i == 1 || i == 3) {
