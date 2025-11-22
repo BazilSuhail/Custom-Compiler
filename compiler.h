@@ -124,6 +124,7 @@ struct BinaryExpr {
             case T_OR: cout << "||"; break;
             case T_ASSIGNOP: cout << "="; break;
             default: cout << "op_" << (int)t; break;
+            //cout << "op_" << (int)t << " (" << static_cast<char>(t) << ")"; 
         }
     }
 };
@@ -522,5 +523,9 @@ vector<unique_ptr<ASTNode>> parseFromFile(const vector<Token>& tokens);
 // Updated scope analysis function that returns the symbol table
 void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens); 
 void performTypeChecking(const vector<ASTPtr>& ast, const vector<Token>& tokens);
+
+
+
+void generateTAC(const vector<unique_ptr<ASTNode>>& ast, const string& outputFilename);
 
 #endif

@@ -4,6 +4,7 @@ set "lexer=lexer.cpp"
 set "parser=parser.cpp"
 set "scope=scope.cpp" 
 set "type=type.cpp" 
+set "tac=tac.cpp" 
 set "main=main.cpp"
 
 rem === Output executable ===
@@ -20,7 +21,7 @@ rem === Check if first argument is "run" (skip compilation) ===
 if /i "%1"=="run" (
     if not exist "%output%" (
         echo Executable %output% not found, compiling first...
-        g++ "%lexer%" "%parser%" "%scope%" "%type%" "%main%" -o "%output%"
+        g++ "%lexer%" "%parser%" "%scope%" "%type%" "%tac%" "%main%" -o "%output%"
         if errorlevel 1 (
             echo Compilation failed.
             pause
@@ -35,7 +36,7 @@ if /i "%1"=="run" (
 
 rem === Otherwise, compile and run ===
 echo Compiling lexer, parser and scope analysis ...
-g++ "%lexer%" "%parser%" "%scope%" "%type%" "%main%" -o "%output%"
+g++ "%lexer%" "%parser%" "%scope%" "%type%" "%tac%" "%main%" -o "%output%"
 if errorlevel 1 (
     echo Compilation failed.
     pause

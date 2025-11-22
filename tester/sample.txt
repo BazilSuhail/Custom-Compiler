@@ -1,31 +1,20 @@
 include<main>
-include"main.h"
 
-enum MEOW { YELLOW, BLUE };
-
-
-int add(int m);
-int add(int m){
-    //add1();
-    return m+2;
-}
-int add1(int m);
-
-
-int add1(int ma){
-    int ans  = ma;
-    char m = 'c';
-    return m;
+int factorial(int n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
 }
 
 main {
-    //enum ma{a};
-    int x = 42 + 5 / 8 * 10; 
-    float ❤️ = 3.14159;
-    int ans = add(2);
-
-    print("Hello World! 🌍");
-    int m = ans;
+    int result = factorial(5);
+    print("Factorial:", result);
     
-    return 0;
+    for (int i = 0; i < 3; i=i+1) {
+        if (i == 1 && i == 3) {
+            break;
+        }
+        print(i);
+    }
 }

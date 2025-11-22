@@ -8,4 +8,5 @@ bazil-72/tester/*
 
 # But keep specific files (like sample.txt)
 !tester/sample.txt
+!tester/valid.txt
 !make.bat
