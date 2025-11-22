@@ -369,45 +369,35 @@ private:
     void processSwitchStmt(const SwitchStmt& stmt) {
         string expr = processNode(stmt.expression->node);
         string endLabel = newLabel();
-        string defaultLabel = newLabel();
         
         breakLabels.push(endLabel);
         
-        vector<pair<string, string>> cases; // (value, label)
+        vector<string> caseLabels;
+        string defaultLabel = !stmt.defaultBody.empty() ? newLabel() : endLabel;
         
-        // Generate case labels and conditions
+        // First pass: generate all case conditions
         for (const auto& caseBlock : stmt.cases) {
             if (auto caseNode = get_if<CaseBlock>(&caseBlock->node)) {
                 string caseValue = processNode(caseNode->value->node);
                 string caseLabel = newLabel();
-                cases.emplace_back(caseValue, caseLabel);
+                caseLabels.push_back(caseLabel);
                 
                 emit("if " + expr + " == " + caseValue + " goto " + caseLabel);
             }
         }
         
-        // Default case
-        if (!stmt.defaultBody.empty()) {
-            emit("goto " + defaultLabel);
-        } else {
-            emit("goto " + endLabel);
-        }
+        // Jump to default or end
+        emit("goto " + defaultLabel);
         
-        // Emit case bodies
+        // Second pass: emit case bodies in order
+        size_t caseIndex = 0;
         for (const auto& caseBlock : stmt.cases) {
             if (auto caseNode = get_if<CaseBlock>(&caseBlock->node)) {
-                // Find the label for this case
-                for (const auto& c : cases) {
-                    string caseValue = processNode(caseNode->value->node);
-                    if (c.first == caseValue) {
-                        emitLabel(c.second);
-                        for (const auto& stmt : caseNode->body) {
-                            if (stmt) processNode(stmt->node);
-                        }
-                        emit("goto " + endLabel);
-                        break;
-                    }
+                emitLabel(caseLabels[caseIndex++]);
+                for (const auto& stmt : caseNode->body) {
+                    if (stmt) processNode(stmt->node);
                 }
+                emit("goto " + endLabel);
             }
         }
         
