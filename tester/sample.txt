@@ -1,20 +1,33 @@
 include<main>
 
-int factorial(int n) {
-    if (n <= 1) {
-        return 1;
-    }
-    return n * factorial(n - 1);
+int add(int n, int m) {
+    int res = n + m;
+    return res;
+}
+
+int mul(int n, int m) {
+    int res = n * m;
+    return res;
 }
 
 main {
-    int result = factorial(5);
-    print("Factorial:", result);
+    int result = add(15,5);
+    int result1 = mul(15,10);
+    print("Factorial:");
+    print(result);
+    print(result1);
+
+    int a;
+    while (a<5){
+        print(a);
+        a = a + 1;
+    }
     
-    for (int i = 0; i < 3; i=i+1) {
-        if (i == 1 && i == 3) {
-            break;
+    for (int i = 0; i <= 3; i=i+1) {
+        if (i == 1 || i == 3) {
+            print("Meow");
+            //break;
         }
-        print(i);
+        print("Result is: ",i);
     }
 }

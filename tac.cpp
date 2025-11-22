@@ -219,9 +219,9 @@ private:
         }
         
         // Implicit return for non-void functions
-        if (func.returnType != T_VOID) {
+        /*if (func.returnType != T_VOID) {
             emit("return 0");
-        }
+        }*/
         
         decreaseIndent();
         emit("function " + func.name + " end");

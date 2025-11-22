@@ -1,0 +1,52 @@
+// include main
+
+function add begin
+  n = param
+  m = param
+  t0 = n + m
+  res = t0
+  return res
+function add end
+
+function mul begin
+  n = param
+  m = param
+  t1 = n * m
+  res = t1
+  return res
+function mul end
+
+function main begin
+  t2 = call add(15, 5)
+  result = t2
+  t3 = call mul(15, 10)
+  result1 = t3
+  call print("Factorial:")
+  call print(result)
+  call print(result1)
+  a = 0
+L0:
+  t4 = a < 5
+  if t4 == 0 goto L1
+    call print(a)
+    t5 = a + 1
+    a = t5
+  goto L0
+L1:
+  i = 0
+L2:
+  t6 = i <= 3
+  if t6 == 0 goto L3
+    t7 = i == 1
+    t8 = i == 3
+    t9 = t7 || t8
+    if t9 == 0 goto L4
+      call print("Meow")
+L4:
+    call print("Result is: ")
+    call print(i)
+  t10 = i + 1
+  i = t10
+  goto L2
+L3:
+function main end
