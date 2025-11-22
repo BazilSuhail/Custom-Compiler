@@ -1,38 +1,7 @@
-#include <iostream>
-#include <string>
-#include <vector>
-#include <memory>
-#include <map>
-#include <cstring>
-#include <fstream>
-#include <sstream>
-using namespace std;
+#include"compiler.h"
 
-// === Token Types (from your lexer) ===
-enum TokenType {
-    T_INT, T_FLOAT, T_DOUBLE, T_CHAR, T_VOID, T_BOOL,
-    T_IDENTIFIER, T_INTLIT, T_FLOATLIT, T_STRINGLIT, T_CHARLIT, T_BOOLLIT,
-    T_LPAREN, T_RPAREN, T_LBRACE, T_RBRACE, T_LBRACKET, T_RBRACKET,
-    T_SEMICOLON, T_COMMA, T_DOT,
-    T_ASSIGNOP, T_EQUALOP, T_NE, T_LT, T_GT, T_LE, T_GE,
-    T_PLUS, T_MINUS, T_MULTIPLY, T_DIVIDE, T_MODULO,
-    T_INCREMENT, T_DECREMENT,
-    T_AND, T_OR, T_NOT,
-    T_IF, T_ELSE, T_WHILE, T_RETURN, T_PRINT,
-    T_MAIN,
-    T_SINGLE_COMMENT, T_MULTI_COMMENT,
-    T_ERROR, T_EOF
-};
-
-struct Token {
-    TokenType type;
-    string value;
-    int line;
-    int column;
-};
-
-// === Parse Error Types ===
-enum class ParseError {
+// === Parse Errors ===
+enum class ParseErrorType {
     UnexpectedEOF,
     FailedToFindToken,
     ExpectedTypeToken,
@@ -43,480 +12,423 @@ enum class ParseError {
     ExpectedStringLit,
     ExpectedBoolLit,
     ExpectedExpr,
-    ExpectedSemicolon,
-    ExpectedRightParen,
-    ExpectedLeftBrace,
-    ExpectedRightBrace
+    InvalidCallTarget,
+    MissingSemicolon,
+    UnclosedBlock
 };
 
-// === AST Node Types ===
-enum class NodeType {
-    Program,
-    FunctionDecl,
-    Parameter,
-    Block,
-    VarDecl,
-    Assignment,
-    IfStmt,
-    WhileStmt,
-    ReturnStmt,
-    PrintStmt,
-    ExprStmt,
-    BinaryOp,
-    UnaryOp,
-    FunctionCall,
-    Identifier,
-    IntLiteral,
-    FloatLiteral,
-    StringLiteral,
-    CharLiteral,
-    BoolLiteral
-};
+struct ParseError {
+    ParseErrorType type;
+    Token token;
+    string message;
 
-// === AST Node Base Class ===
-class ASTNode {
-public:
-    NodeType nodeType;
-    int line, column;
-    
-    ASTNode(NodeType type, int l = 0, int c = 0) : nodeType(type), line(l), column(c) {}
-    virtual ~ASTNode() = default;
-    virtual void print(int indent = 0) const = 0;
-    
-protected:
-    void printIndent(int indent) const {
-        for (int i = 0; i < indent; i++) cout << "  ";
-    }
-};
-
-// === Specific AST Node Classes ===
-class Program : public ASTNode {
-public:
-    vector<unique_ptr<ASTNode>> declarations;
-    
-    Program() : ASTNode(NodeType::Program) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "Program [\n";
-        for (const auto& decl : declarations) {
-            decl->print(indent + 1);
+    ParseError(ParseErrorType t, const Token& tok) : type(t), token(tok) {
+        switch (t) {
+            case ParseErrorType::UnexpectedEOF:
+                message = "Unexpected end of file";
+                break;
+            case ParseErrorType::FailedToFindToken:
+                message = "Failed to find expected token: " + getTokenName(tok.type);
+                break;
+            case ParseErrorType::ExpectedTypeToken:
+                message = "Expected type token (int, float, etc.)";
+                break;
+            case ParseErrorType::ExpectedIdentifier:
+                message = "Expected identifier";
+                break;
+            case ParseErrorType::UnexpectedToken:
+                message = "Unexpected token: " + getTokenName(tok.type) + " (" + tok.value + ")";
+                break;
+            case ParseErrorType::ExpectedFloatLit:
+                message = "Expected float literal";
+                break;
+            case ParseErrorType::ExpectedIntLit:
+                message = "Expected int literal";
+                break;
+            case ParseErrorType::ExpectedStringLit:
+                message = "Expected string literal";
+                break;
+            case ParseErrorType::ExpectedBoolLit:
+                message = "Expected bool literal";
+                break;
+            case ParseErrorType::InvalidCallTarget:
+                message = "Invalid function call target: only identifiers can be called";
+                break;
+            case ParseErrorType::MissingSemicolon:
+                message = "Missing semicolon at end of statement";
+                break;
+            case ParseErrorType::UnclosedBlock:
+                message = "Unclosed block, expected '}' before end of file";
+                break;
+            case ParseErrorType::ExpectedExpr:
+                message = "Expected expression";
+                break;
         }
-        printIndent(indent);
-        cout << "]\n";
     }
-};
 
-class Parameter : public ASTNode {
-public:
-    string type;
-    string name;
-    
-    Parameter(const string& t, const string& n) : ASTNode(NodeType::Parameter), type(t), name(n) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "Param { type: " << type << ", name: \"" << name << "\" }\n";
-    }
-};
+    string getTokenName(TokenType t) const {
+        switch (t) {
+            case T_INT: return "T_INT";
+            case T_FLOAT: return "T_FLOAT";
+            case T_DOUBLE: return "T_DOUBLE";
+            case T_CHAR: return "T_CHAR";
+            case T_VOID: return "T_VOID";
+            case T_BOOL: return "T_BOOL";
+            case T_STRING: return "T_STRING";
+            case T_IDENTIFIER: return "T_IDENTIFIER";
+            case T_INTLIT: return "T_INTLIT";
+            case T_FLOATLIT: return "T_FLOATLIT";
+            case T_STRINGLIT: return "T_STRINGLIT";
+            case T_CHARLIT: return "T_CHARLIT";
+            case T_BOOLLIT: return "T_BOOLLIT";
+            case T_LPAREN: return "T_LPAREN";
+            case T_RPAREN: return "T_RPAREN";
+            case T_LBRACE: return "T_LBRACE";
+            case T_RBRACE: return "T_RBRACE";
+            case T_SEMICOLON: return "T_SEMICOLON";
+            case T_COMMA: return "T_COMMA";
+            case T_DOT: return "T_DOT";
+            case T_ASSIGNOP: return "T_ASSIGNOP";
+            case T_PLUS: return "T_PLUS";
+            case T_MINUS: return "T_MINUS";
+            case T_MULTIPLY: return "T_MULTIPLY";
+            case T_DIVIDE: return "T_DIVIDE";
+            case T_IF: return "T_IF";
+            case T_ELSE: return "T_ELSE";
+            case T_WHILE: return "T_WHILE";
+            case T_RETURN: return "T_RETURN";
+            case T_PRINT: return "T_PRINT";
+            // new tokens
+            case T_DO: return "T_DO";
+            case T_FOR: return "T_FOR";
+            case T_SWITCH: return "T_SWITCH";
+            case T_CASE: return "T_CASE";
+            case T_DEFAULT: return "T_DEFAULT";
+            case T_BREAK: return "T_BREAK";
+            case T_COLON: return "T_COLON";
+            case T_INCLUDE: return "T_INCLUDE";
+            case T_ENUM: return "T_ENUM";
+            // Bitwise operators - Add these lines
+            case T_BITAND: return "T_BITAND";
+            case T_BITOR: return "T_BITOR";
+            case T_BITXOR: return "T_BITXOR";
+            case T_BITLSHIFT: return "T_BITLSHIFT";
+            case T_BITRSHIFT: return "T_BITRSHIFT";
 
-class FunctionDecl : public ASTNode {
-public:
-    string returnType;
-    string name;
-    vector<unique_ptr<Parameter>> parameters;
-    unique_ptr<ASTNode> body;
-    
-    FunctionDecl(const string& retType, const string& funcName) 
-        : ASTNode(NodeType::FunctionDecl), returnType(retType), name(funcName) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "Fn(\n";
-        printIndent(indent + 1);
-        cout << "FnDecl {\n";
-        printIndent(indent + 2);
-        cout << "type_tok: " << returnType << ",\n";
-        printIndent(indent + 2);
-        cout << "ident: \"" << name << "\",\n";
-        printIndent(indent + 2);
-        cout << "params: [\n";
-        for (const auto& param : parameters) {
-            param->print(indent + 3);
-        }
-        printIndent(indent + 2);
-        cout << "],\n";
-        printIndent(indent + 2);
-        cout << "block: [\n";
-        if (body) body->print(indent + 3);
-        printIndent(indent + 2);
-        cout << "]\n";
-        printIndent(indent + 1);
-        cout << "}\n";
-        printIndent(indent);
-        cout << ")\n";
-    }
-};
-
-class Block : public ASTNode {
-public:
-    vector<unique_ptr<ASTNode>> statements;
-    
-    Block() : ASTNode(NodeType::Block) {}
-    
-    void print(int indent = 0) const override {
-        for (const auto& stmt : statements) {
-            stmt->print(indent);
+            case T_MAIN: return "T_MAIN";
+            case T_EOF: return "T_EOF";
+            default: return "T_UNKNOWN";
         }
     }
 };
 
-class VarDecl : public ASTNode {
-public:
-    string type;
-    string name;
-    unique_ptr<ASTNode> initializer;
-    
-    VarDecl(const string& t, const string& n) : ASTNode(NodeType::VarDecl), type(t), name(n) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "Var(\n";
-        printIndent(indent + 1);
-        cout << "VarDecl {\n";
-        printIndent(indent + 2);
-        cout << "type_tok: " << type << ",\n";
-        printIndent(indent + 2);
-        cout << "ident: \"" << name << "\",\n";
-        printIndent(indent + 2);
-        cout << "expr: ";
-        if (initializer) {
-            cout << "Some(\n";
-            initializer->print(indent + 3);
-            printIndent(indent + 2);
-            cout << ")\n";
-        } else {
-            cout << "None\n";
+// Color codes
+const string RESET = "\033[0m";
+
+// Forward declarations for print functions
+void printASTNode(const ASTNodeVariant& node, int indent = 0);
+
+void printIntLiteral(const IntLiteral& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[95m" << "IntLiteral(" << node.value << ")" << RESET << "\n";
+}
+
+void printFloatLiteral(const FloatLiteral& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[95m" << "FloatLiteral(" << node.value << ")" << RESET << "\n";
+}
+
+void printStringLiteral(const StringLiteral& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[33m" << "StringLiteral(\"" << node.value << "\")" << RESET << "\n";
+}
+
+void printCharLiteral(const CharLiteral& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[33m" << "CharLiteral('" << node.value << "')" << RESET << "\n";
+}
+
+void printBoolLiteral(const BoolLiteral& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[35m" << "BoolLiteral(" << (node.value ? "true" : "false") << ")" << RESET << "\n";
+}
+
+void printIdentifier(const Identifier& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[32m" << "Identifier(\"" << node.name << "\")" << RESET << "\n";
+}
+
+void printBinaryExpr(const BinaryExpr& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[93m" << "BinaryExpr(";
+    node.printOp(node.op);
+    cout << ")" << RESET << "\n";
+    if (node.left) printASTNode(node.left->node, indent + 2);
+    if (node.right) printASTNode(node.right->node, indent + 2);
+}
+
+void printUnaryExpr(const UnaryExpr& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[31m" << "UnaryExpr(";
+    if (node.op == T_MINUS) cout << "-";
+    else if (node.op == T_NOT) cout << "!";
+    else cout << "unary_op";
+    cout << ")" << RESET << "\n";
+    if (node.operand) printASTNode(node.operand->node, indent + 2);
+}
+
+void printIncludeStmt(const IncludeStmt& node, int indent) {
+    cout << string(indent, ' ') << "\033[34m" << "IncludeStmt(\"" << node.header << "\")" << RESET << "\n";
+}
+
+// enums
+// Add print function for EnumValueList
+void printEnumValueList(const EnumValueList& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[37m" << "EnumValueList(";
+    for (size_t i = 0; i < node.values.size(); ++i) {
+        if (i > 0) cout << ", ";
+        cout << node.values[i];
+    }
+    cout << ")" << RESET << endl;
+}
+
+// Add print function for EnumDecl
+void printEnumDecl(const EnumDecl& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[37m" << "EnumDecl(\"" << node.name << "\")" << RESET << endl;
+    if (node.values) {
+        cout << string(indent + 2, ' ') << "Values:" << endl;
+        printASTNode(node.values->node, indent + 4);
+    }
+}
+
+void printCallExpr(const CallExpr& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[34m" << "CallExpr" << RESET << "\n";
+    cout << string(indent + 2, ' ') << "Callee:\n";
+    if (node.callee) printASTNode(node.callee->node, indent + 4);
+    if (!node.args.empty()) {
+        cout << string(indent + 2, ' ') << "Args:\n";
+        for (const auto& arg : node.args) {
+            if (arg) printASTNode(arg->node, indent + 4);
         }
-        printIndent(indent + 1);
-        cout << "}\n";
-        printIndent(indent);
-        cout << ")\n";
     }
-};
+}
 
-class Assignment : public ASTNode {
-public:
-    string variable;
-    unique_ptr<ASTNode> expression;
-    
-    Assignment(const string& var) : ASTNode(NodeType::Assignment), variable(var) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "Assign(\"" << variable << "\", ";
-        if (expression) expression->print(0);
-        cout << ")\n";
-    }
-};
+void printVarDecl(const VarDecl& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[36m" << "VarDecl(";
+    node.printType(node.type);
+    cout << ", \"" << node.name << "\")" << RESET << "\n";
+    if (node.initializer) printASTNode(node.initializer->node, indent + 2);
+}
 
-class BinaryOp : public ASTNode {
-public:
-    string operator_;
-    unique_ptr<ASTNode> left;
-    unique_ptr<ASTNode> right;
-    
-    BinaryOp(const string& op) : ASTNode(NodeType::BinaryOp), operator_(op) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "::" << getOpName() << "(" << operator_ << ")\n";
-        if (left) left->print(indent + 1);
-        if (right) right->print(indent + 1);
+void printBlockStmt(const BlockStmt& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[37m" << "BlockStmt" << RESET << "\n";
+    for (const auto& stmt : node.body) {
+        if (stmt) printASTNode(stmt->node, indent + 2);
     }
-    
-private:
-    string getOpName() const {
-        if (operator_ == "+") return "Add";
-        if (operator_ == "-") return "Sub";
-        if (operator_ == "*") return "Mul";
-        if (operator_ == "/") return "Div";
-        if (operator_ == "==") return "Comp";
-        if (operator_ == "!=") return "Comp";
-        if (operator_ == "<") return "Comp";
-        if (operator_ == ">") return "Comp";
-        if (operator_ == "<=") return "Comp";
-        if (operator_ == ">=") return "Comp";
-        return "BinOp";
-    }
-};
+}
 
-class UnaryOp : public ASTNode {
-public:
-    string operator_;
-    unique_ptr<ASTNode> operand;
-    
-    UnaryOp(const string& op) : ASTNode(NodeType::UnaryOp), operator_(op) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "Unary(" << operator_ << ")\n";
-        if (operand) operand->print(indent + 1);
-    }
-};
-
-class FunctionCall : public ASTNode {
-public:
-    string functionName;
-    vector<unique_ptr<ASTNode>> arguments;
-    
-    FunctionCall(const string& name) : ASTNode(NodeType::FunctionCall), functionName(name) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "Call(FnCall {\n";
-        printIndent(indent + 1);
-        cout << "ident: \"" << functionName << "\",\n";
-        printIndent(indent + 1);
-        cout << "args: [\n";
-        for (const auto& arg : arguments) {
-            printIndent(indent + 2);
-            cout << "Some(\n";
-            arg->print(indent + 3);
-            printIndent(indent + 2);
-            cout << "),\n";
+void printFunctionDecl(const FunctionDecl& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[33m" << "FunctionDecl(";
+    node.printType(node.returnType);
+    cout << ", \"" << node.name << "\")" << RESET << "\n";
+    for (const auto& param : node.params) {
+        cout << string(indent + 2, ' ') << "Param: ";
+        switch (param.first) {
+            case T_INT: cout << "int"; break;
+            case T_FLOAT: cout << "float"; break;
+            case T_DOUBLE: cout << "double"; break;
+            case T_CHAR: cout << "char"; break;
+            case T_BOOL: cout << "bool"; break;
+            case T_VOID: cout << "void"; break;
+            default: cout << "unknown"; break;
         }
-        printIndent(indent + 1);
-        cout << "]\n";
-        printIndent(indent);
-        cout << "})\n";
+        cout << " " << param.second << "\n";
     }
-};
-
-class Identifier : public ASTNode {
-public:
-    string name;
-    
-    Identifier(const string& n) : ASTNode(NodeType::Identifier), name(n) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "\"" << name << "\"\n";
+    cout << string(indent + 2, ' ') << "Body:\n";
+    for (const auto& stmt : node.body) {
+        if (stmt) printASTNode(stmt->node, indent + 4);
     }
-};
+}
 
-class IntLiteral : public ASTNode {
-public:
-    int value;
-    
-    IntLiteral(int v) : ASTNode(NodeType::IntLiteral), value(v) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << value << "\n";
-    }
-};
-
-class FloatLiteral : public ASTNode {
-public:
-    float value;
-    
-    FloatLiteral(float v) : ASTNode(NodeType::FloatLiteral), value(v) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << value << "\n";
-    }
-};
-
-class StringLiteral : public ASTNode {
-public:
-    string value;
-    
-    StringLiteral(const string& v) : ASTNode(NodeType::StringLiteral), value(v) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "\"" << value << "\"\n";
-    }
-};
-
-class ReturnStmt : public ASTNode {
-public:
-    unique_ptr<ASTNode> expression;
-    
-    ReturnStmt() : ASTNode(NodeType::ReturnStmt) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "Ret(\n";
-        printIndent(indent + 1);
-        cout << "ExprStmt {\n";
-        printIndent(indent + 2);
-        cout << "expr: ";
-        if (expression) {
-            cout << "Some(\n";
-            expression->print(indent + 3);
-            printIndent(indent + 2);
-            cout << ")\n";
-        } else {
-            cout << "None\n";
+// Add print function for FunctionProto
+void printFunctionProto(const FunctionProto& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[33m" << "FunctionProto(";
+    node.printType(node.returnType);
+    cout << ", \"" << node.name << "\")" << RESET << "\n";
+    for (const auto& param : node.params) {
+        cout << string(indent + 2, ' ') << "Param: ";
+        switch (param.first) {
+            case T_INT: cout << "int"; break;
+            case T_FLOAT: cout << "float"; break;
+            case T_DOUBLE: cout << "double"; break;
+            case T_CHAR: cout << "char"; break;
+            case T_BOOL: cout << "bool"; break;
+            case T_VOID: cout << "void"; break;
+            default: cout << "unknown"; break;
         }
-        printIndent(indent + 1);
-        cout << "}\n";
-        printIndent(indent);
-        cout << ")\n";
+        cout << " " << param.second << "\n";
     }
-};
+}
 
-class IfStmt : public ASTNode {
-public:
-    unique_ptr<ASTNode> condition;
-    unique_ptr<ASTNode> thenBranch;
-    unique_ptr<ASTNode> elseBranch;
-    
-    IfStmt() : ASTNode(NodeType::IfStmt) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "If(\n";
-        printIndent(indent + 1);
-        cout << "IfStmt {\n";
-        printIndent(indent + 2);
-        cout << "cond: ";
-        if (condition) {
-            cout << "Some(\n";
-            condition->print(indent + 3);
-            printIndent(indent + 2);
-            cout << "),\n";
-        } else {
-            cout << "None,\n";
+void printMainDecl(const MainDecl& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[33m" << "MainDecl" << RESET << "\n";
+    for (const auto& stmt : node.body) {
+        if (stmt) printASTNode(stmt->node, indent + 2);
+    }
+}
+
+void printIfStmt(const IfStmt& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[35m" << "IfStmt" << RESET << "\n";
+    cout << string(indent + 2, ' ') << "Condition:\n";
+    if (node.condition) printASTNode(node.condition->node, indent + 4);
+    cout << string(indent + 2, ' ') << "IfBody:\n";
+    for (const auto& stmt : node.ifBody) {
+        if (stmt) printASTNode(stmt->node, indent + 4);
+    }
+    if (!node.elseBody.empty()) {
+        cout << string(indent + 2, ' ') << "ElseBody:\n";
+        for (const auto& stmt : node.elseBody) {
+            if (stmt) printASTNode(stmt->node, indent + 4);
         }
-        printIndent(indent + 2);
-        cout << "if_block: [\n";
-        if (thenBranch) thenBranch->print(indent + 3);
-        printIndent(indent + 2);
-        cout << "],\n";
-        printIndent(indent + 2);
-        cout << "else_block: [\n";
-        if (elseBranch) elseBranch->print(indent + 3);
-        printIndent(indent + 2);
-        cout << "]\n";
-        printIndent(indent + 1);
-        cout << "}\n";
-        printIndent(indent);
-        cout << ")\n";
     }
-};
+}
 
-class WhileStmt : public ASTNode {
-public:
-    unique_ptr<ASTNode> condition;
-    unique_ptr<ASTNode> body;
-    
-    WhileStmt() : ASTNode(NodeType::WhileStmt) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "While(\n";
-        printIndent(indent + 1);
-        cout << "WhileStmt {\n";
-        printIndent(indent + 2);
-        cout << "cond: ";
-        if (condition) {
-            cout << "Some(\n";
-            condition->print(indent + 3);
-            printIndent(indent + 2);
-            cout << "),\n";
+void printWhileStmt(const WhileStmt& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[31m" << "WhileStmt" << RESET << "\n";
+    cout << string(indent + 2, ' ') << "Condition:\n";
+    if (node.condition) printASTNode(node.condition->node, indent + 4);
+    cout << string(indent + 2, ' ') << "Body:\n";
+    for (const auto& stmt : node.body) {
+        if (stmt) printASTNode(stmt->node, indent + 4);
+    }
+}
+
+void printDoWhileStmt(const DoWhileStmt& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[31m" << "DoWhileStmt" << RESET << "\n";
+    cout << string(indent+2, ' ') << "Body:\n";
+    if (node.body) printASTNode(node.body->node, indent+4);
+    cout << string(indent+2, ' ') << "Condition:\n";
+    if (node.condition) printASTNode(node.condition->node, indent+4);
+}
+
+void printForStmt(const ForStmt& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[31m" << "ForStmt" << RESET << "\n";
+    if (node.init) { cout << string(indent+2, ' ') << "Init:\n"; printASTNode(node.init->node, indent+4); }
+    if (node.condition) { cout << string(indent+2, ' ') << "Condition:\n"; printASTNode(node.condition->node, indent+4); }
+    if (node.update) { cout << string(indent+2, ' ') << "Update:\n"; printASTNode(node.update->node, indent+4); }
+    cout << string(indent+2, ' ') << "Body:\n";
+    if (node.body) printASTNode(node.body->node, indent+4);
+}
+
+void printCaseBlock(const CaseBlock& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[37m" << "CaseBlock" << RESET << "\n";
+    cout << string(indent+2, ' ') << "Value:\n";
+    if (node.value) printASTNode(node.value->node, indent+4);
+    cout << string(indent+2, ' ') << "Body:\n";
+    for (auto& stmt : node.body) {
+        if (stmt) printASTNode(stmt->node, indent+4);
+    }
+}
+
+void printSwitchStmt(const SwitchStmt& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[37m" << "SwitchStmt" << RESET << "\n";
+    cout << string(indent+2, ' ') << "Expression:\n";
+    if (node.expression) printASTNode(node.expression->node, indent+4);
+    cout << string(indent+2, ' ') << "Cases:\n";
+    for (auto& c : node.cases) {
+        if (c) printASTNode(c->node, indent+4);
+    }
+    if (!node.defaultBody.empty()) {
+        cout << string(indent+2, ' ') << "Default:\n";
+        for (auto& stmt : node.defaultBody) {
+            if (stmt) printASTNode(stmt->node, indent+4);
         }
-        printIndent(indent + 2);
-        cout << "body: [\n";
-        if (body) body->print(indent + 3);
-        printIndent(indent + 2);
-        cout << "]\n";
-        printIndent(indent + 1);
-        cout << "}\n";
-        printIndent(indent);
-        cout << ")\n";
     }
-};
+}
 
-class PrintStmt : public ASTNode {
-public:
-    vector<unique_ptr<ASTNode>> arguments;
-    
-    PrintStmt() : ASTNode(NodeType::PrintStmt) {}
-    
-    void print(int indent = 0) const override {
-        printIndent(indent);
-        cout << "Print([\n";
-        for (const auto& arg : arguments) {
-            arg->print(indent + 1);
-        }
-        printIndent(indent);
-        cout << "])\n";
+void printReturnStmt(const ReturnStmt& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[34m" << "ReturnStmt" << RESET << "\n";
+    if (node.value) printASTNode(node.value->node, indent + 2);
+}
+
+void printPrintStmt(const PrintStmt& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[32m" << "PrintStmt" << RESET << "\n";
+    for (const auto& arg : node.args) {
+        if (arg) printASTNode(arg->node, indent + 2);
     }
-};
+}
+void printBreakStmt(const BreakStmt& node, int indent) {
+    cout << string(indent, ' ') << "\033[31m" << "BreakStmt" << RESET << "\n";
+}
 
-// === Parser Class ===
+void printExpressionStmt(const ExpressionStmt& node, int indent) {
+    cout << string(indent, ' ') << "\033[1m\033[37m" << "ExpressionStmt" << RESET << "\n";
+    if (node.expr) printASTNode(node.expr->node, indent + 2);
+}
+
+void printASTNode(const ASTNodeVariant& node, int indent) {
+    visit([indent](const auto& n) { 
+        using T = decay_t<decltype(n)>;
+        if constexpr (is_same_v<T, IntLiteral>) printIntLiteral(n, indent);
+        else if constexpr (is_same_v<T, FloatLiteral>) printFloatLiteral(n, indent);
+        else if constexpr (is_same_v<T, StringLiteral>) printStringLiteral(n, indent);
+        else if constexpr (is_same_v<T, CharLiteral>) printCharLiteral(n, indent);
+        else if constexpr (is_same_v<T, BoolLiteral>) printBoolLiteral(n, indent);
+        else if constexpr (is_same_v<T, Identifier>) printIdentifier(n, indent);
+        else if constexpr (is_same_v<T, BinaryExpr>) printBinaryExpr(n, indent);
+        else if constexpr (is_same_v<T, UnaryExpr>) printUnaryExpr(n, indent);
+        else if constexpr (is_same_v<T, IncludeStmt>) printIncludeStmt(n, indent);
+        else if constexpr (is_same_v<T, EnumValueList>) printEnumValueList(n, indent); 
+        else if constexpr (is_same_v<T, EnumDecl>) printEnumDecl(n, indent);// <-- enums case
+        else if constexpr (is_same_v<T, CallExpr>) printCallExpr(n, indent);
+        else if constexpr (is_same_v<T, VarDecl>) printVarDecl(n, indent);
+        else if constexpr (is_same_v<T, BlockStmt>) printBlockStmt(n, indent);
+        else if constexpr (is_same_v<T, FunctionDecl>) printFunctionDecl(n, indent);
+        else if constexpr (is_same_v<T, FunctionProto>) printFunctionProto(n, indent); // <-- Add this
+        else if constexpr (is_same_v<T, MainDecl>) printMainDecl(n, indent);
+        else if constexpr (is_same_v<T, IfStmt>) printIfStmt(n, indent);
+        else if constexpr (is_same_v<T, WhileStmt>) printWhileStmt(n, indent);
+        else if constexpr (is_same_v<T, DoWhileStmt>) printDoWhileStmt(n, indent);
+        else if constexpr (is_same_v<T, ForStmt>) printForStmt(n, indent);
+        else if constexpr (is_same_v<T, CaseBlock>) printCaseBlock(n, indent);
+        else if constexpr (is_same_v<T, SwitchStmt>) printSwitchStmt(n, indent);
+        else if constexpr (is_same_v<T, ReturnStmt>) printReturnStmt(n, indent);
+        else if constexpr (is_same_v<T, PrintStmt>) printPrintStmt(n, indent);
+        else if constexpr (is_same_v<T, BreakStmt>) printBreakStmt(n, indent); // break statment
+        else if constexpr (is_same_v<T, ExpressionStmt>) printExpressionStmt(n, indent);
+    }, node);
+}
+
+// === Parser (refactored helpers) ===
 class Parser {
 private:
     vector<Token> tokens;
     size_t current;
-    
-public:
-    Parser(const vector<Token>& tokenList) : tokens(tokenList), current(0) {}
-    
-    unique_ptr<Program> parse() {
-        auto program = make_unique<Program>();
-        
-        while (!isAtEnd()) {
-            if (peek().type == T_EOF) break;
-            
-            try {
-                auto decl = parseDeclaration();
-                if (decl) {
-                    program->declarations.push_back(move(decl));
-                }
-            } catch (const exception& e) {
-                cerr << "Parse error: " << e.what() << endl;
-                synchronize();
-            }
-        }
-        
-        return program;
+    Token currentToken;
+
+    enum Precedence {
+        LOWEST = 0,
+        ASSIGNMENT = 1,
+        LOGICAL_OR = 2,
+        LOGICAL_AND = 3,
+        EQUALITY = 4,
+        COMPARISON = 5,
+        TERM = 6,
+        FACTOR = 7,
+        UNARY = 8,
+        CALL = 9,
+    };
+
+    // Convenience helpers
+    const Token& peek(size_t offset = 0) const {
+        size_t idx = current + offset;
+        if (idx < tokens.size()) return tokens[idx];
+        static Token eofTok = {T_EOF, "EOF", -1, -1};
+        return eofTok;
     }
 
-private:
-    // === Utility Methods ===
-    bool isAtEnd() const {
-        return current >= tokens.size() || peek().type == T_EOF;
+    bool isAtEnd() const { return currentToken.type == T_EOF; }
+
+    void advance() {
+        if (current < tokens.size()) current++;
+        if (current < tokens.size()) currentToken = tokens[current];
+        else currentToken = {T_EOF, "EOF", -1, -1};
     }
-    
-    Token peek() const {
-        if (current < tokens.size()) {
-            return tokens[current];
-        }
-        return Token{T_EOF, "", 0, 0};
-    }
-    
-    Token previous() const {
-        if (current > 0 && current <= tokens.size()) {
-            return tokens[current - 1];
-        }
-        return Token{T_EOF, "", 0, 0};
-    }
-    
-    Token advance() {
-        if (!isAtEnd()) current++;
-        return previous();
-    }
-    
-    bool check(TokenType type) const {
-        if (isAtEnd()) return false;
-        return peek().type == type;
-    }
-    
+
+    bool check(TokenType type) const { return currentToken.type == type; }
+
     bool match(TokenType type) {
         if (check(type)) {
             advance();
@@ -524,545 +436,627 @@ private:
         }
         return false;
     }
-    
-    bool match(const vector<TokenType>& types) {
-        for (TokenType type : types) {
-            if (check(type)) {
-                advance();
-                return true;
+
+    Token expect(TokenType type, ParseErrorType errType = ParseErrorType::FailedToFindToken) {
+        if (currentToken.type == type) {
+            Token t = currentToken;
+            advance();
+            return t;
+        }
+        throw ParseError(errType, currentToken);
+    }
+
+    void consumeSemicolon() {
+        if (!match(T_SEMICOLON)) throw ParseError(ParseErrorType::MissingSemicolon, currentToken);
+    }
+
+    // Precedence mapping
+    int getPrecedence(TokenType type) const {
+        switch (type) {
+            case T_ASSIGNOP: return ASSIGNMENT;
+            case T_OR: return LOGICAL_OR;
+            case T_AND: return LOGICAL_AND;
+            case T_EQUALOP: case T_NE: return EQUALITY;
+            case T_LT: case T_GT: case T_LE: case T_GE: return COMPARISON;
+            case T_PLUS: case T_MINUS: return TERM;
+            case T_MULTIPLY: case T_DIVIDE: case T_MODULO: return FACTOR;
+            case T_LPAREN: return CALL;
+            // Add bitwise operators with appropriate precedence
+            case T_BITAND: case T_BITOR: case T_BITXOR: return TERM;  // Bitwise ops have same precedence as +/-
+            case T_BITLSHIFT: case T_BITRSHIFT: return TERM;  // Shift ops have same precedence as +/-
+            default: return LOWEST;
+        }
+    }
+
+    bool isTypeToken(TokenType type) const {
+        return type == T_INT || type == T_FLOAT || type == T_DOUBLE ||
+               type == T_CHAR || type == T_BOOL || type == T_VOID  || type == T_STRING;
+    }
+
+    bool isDeclarationStart(TokenType type) const {
+        return isTypeToken(type) || type == T_MAIN || type == T_PRINT;
+    }
+
+    // Small utility to check if ASTPtr is Identifier
+    bool isIdentifierNode(const ASTPtr& node) const {
+        if (!node) return false;
+        return holds_alternative<Identifier>(node->node);
+    }
+
+    // Check if current position is a function declaration vs function prototype
+    bool isFunctionDefinition() const {
+        if (current + 1 >= tokens.size()) return false;
+        size_t i = current + 1;
+        
+        // Look for identifier followed by LPAREN, then LBRACE (function definition)
+        if (i < tokens.size() && tokens[i].type == T_IDENTIFIER) {
+            i++;
+            if (i < tokens.size() && tokens[i].type == T_LPAREN) {
+                i++;
+                // Skip parameters
+                int parenCount = 1;
+                while (i < tokens.size() && parenCount > 0) {
+                    if (tokens[i].type == T_LPAREN) parenCount++;
+                    else if (tokens[i].type == T_RPAREN) parenCount--;
+                    i++;
+                }
+                
+                if (i < tokens.size() && tokens[i].type == T_LBRACE) {
+                    return true;
+                }
             }
         }
         return false;
     }
-    
-    Token consume(TokenType type, const string& message) {
-        if (check(type)) return advance();
-        throw runtime_error(message + " at line " + to_string(peek().line));
+
+    // ---- Pratt parser core ----
+    ASTPtr parseExpression(int precedence = LOWEST) {
+        ASTPtr left = parsePrefix();
+
+        while (!isAtEnd() && getPrecedence(currentToken.type) > precedence) {
+            left = parseInfix(move(left), getPrecedence(currentToken.type));
+        }
+
+        return left;
     }
-    
-    void synchronize() {
+
+    ASTPtr parsePrefix() {
+        switch (currentToken.type) {
+            case T_INTLIT:    return parseIntLiteral();
+            case T_FLOATLIT:  return parseFloatLiteral();
+            case T_STRINGLIT: return parseStringLiteral();
+            case T_CHARLIT:   return parseCharLiteral();
+            case T_BOOLLIT:   return parseBoolLiteral();
+            case T_IDENTIFIER: return parseIdentifier();
+            case T_LPAREN:    return parseGroupedExpression();
+            case T_MINUS:
+            case T_NOT:
+                return parseUnaryExpression();
+            default:
+                throw ParseError(ParseErrorType::ExpectedExpr, currentToken);
+        }
+    }
+
+    ASTPtr parseInfix(ASTPtr left, int precedence) {
+        switch (currentToken.type) {
+            case T_ASSIGNOP: case T_PLUS: case T_MINUS: case T_MULTIPLY:
+            case T_DIVIDE: case T_MODULO: case T_EQUALOP: case T_NE:
+            case T_LT: case T_GT: case T_LE: case T_GE: case T_AND: case T_OR:
+                return parseBinaryExpression(move(left), precedence);
+                
+            // Add bitwise operators here
+            case T_BITAND: case T_BITOR: case T_BITXOR: case T_BITLSHIFT: case T_BITRSHIFT:
+            return parseBinaryExpression(move(left), precedence);
+
+            case T_LPAREN:
+                if (isIdentifierNode(left)) return parseCallExpression(move(left));
+                throw ParseError(ParseErrorType::InvalidCallTarget, currentToken);
+
+            default:
+                throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
+        }
+    }
+
+    // ---- Literal parsers with position tracking ----
+    ASTPtr parseIntLiteral() {
+        Token t = currentToken;
         advance();
-        while (!isAtEnd()) {
-            if (previous().type == T_SEMICOLON) return;
-            
-            switch (peek().type) {
-                case T_IF:
-                case T_WHILE:
-                case T_RETURN:
-                case T_INT:
-                case T_FLOAT:
-                case T_DOUBLE:
-                case T_CHAR:
-                case T_VOID:
-                case T_BOOL:
-                    return;
-                default:
-                    break;
-            }
-            advance();
+        return make_unique<ASTNode>(IntLiteral(stoi(t.value), t.line, t.column));
+    }
+
+    ASTPtr parseFloatLiteral() {
+        Token t = currentToken;
+        advance();
+        return make_unique<ASTNode>(FloatLiteral(stod(t.value), t.line, t.column));
+    }
+
+    ASTPtr parseStringLiteral() {
+        Token t = currentToken;
+        advance();
+        string s = t.value;
+        if (s.length() >= 2 && s.front() == '"' && s.back() == '"') {
+            s = s.substr(1, s.length() - 2);
         }
+        return make_unique<ASTNode>(StringLiteral(s, t.line, t.column));
     }
-    
-    bool isTypeToken(TokenType type) const {
-        return type == T_INT || type == T_FLOAT || type == T_DOUBLE || 
-               type == T_CHAR || type == T_VOID || type == T_BOOL;
+
+    ASTPtr parseCharLiteral() {
+        Token t = currentToken;
+        advance();
+        char c = '\0';
+        if (t.value.size() >= 3 && t.value.front() == '\'' && t.value.back() == '\'') {
+            c = t.value[1];
+        } else if (!t.value.empty()) {
+            c = t.value[0];
+        }
+        return make_unique<ASTNode>(CharLiteral(c, t.line, t.column));
     }
-    
-    // === Parsing Methods ===
-    unique_ptr<ASTNode> parseDeclaration() {
-        if (isTypeToken(peek().type)) {
-            Token typeToken = advance();
-            
-            if (!check(T_IDENTIFIER)) {
-                throw runtime_error("Expected identifier after type");
-            }
-            
-            Token identifier = advance();
-            
-            if (match(T_LPAREN)) {
-                return parseFunctionDeclaration(typeToken.value, identifier.value);
-            } else {
-                return parseVariableDeclaration(typeToken.value, identifier.value);
+
+    ASTPtr parseBoolLiteral() {
+        Token t = currentToken;
+        advance();
+        return make_unique<ASTNode>(BoolLiteral(t.value == "true", t.line, t.column));
+    }
+
+    ASTPtr parseIdentifier() {
+        Token t = currentToken;
+        advance();
+        return make_unique<ASTNode>(Identifier(t.value, t.line, t.column));
+    }
+
+    ASTPtr parseGroupedExpression() {
+        Token startToken = currentToken;  // Capture start position
+        expect(T_LPAREN);
+        ASTPtr expr = parseExpression();
+        expect(T_RPAREN);
+        // For grouped expressions, we'll use the position of the opening parenthesis
+        return make_unique<ASTNode>(BinaryExpr(T_LPAREN, move(expr), nullptr, startToken.line, startToken.column));
+    }
+
+    ASTPtr parseUnaryExpression() {
+        Token op = currentToken;
+        advance();
+        ASTPtr right = parseExpression(UNARY);
+        return make_unique<ASTNode>(UnaryExpr(op.type, move(right), op.line, op.column));
+    }
+
+    ASTPtr parseBinaryExpression(ASTPtr left, int precedence) {
+        Token op = currentToken;
+        int nextPrecedence = getPrecedence(op.type);
+        advance();
+        ASTPtr right = parseExpression(nextPrecedence);
+
+        if (op.type == T_ASSIGNOP) {
+            if (!isIdentifierNode(left)) {
+                throw ParseError(ParseErrorType::UnexpectedToken, op);
             }
         }
-        
-        return parseStatement();
+
+        return make_unique<ASTNode>(BinaryExpr(op.type, move(left), move(right), op.line, op.column));
     }
-    
-    unique_ptr<FunctionDecl> parseFunctionDeclaration(const string& returnType, const string& name) {
-        auto func = make_unique<FunctionDecl>(returnType, name);
-        
-        // Parse parameters
+
+    // ------------------------ Parse enums with position tracking
+    ASTPtr parseEnumDeclaration() {
+        Token enumToken = currentToken;  // Position of 'enum'
+        expect(T_ENUM); // Consume 'enum'
+        Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier); // Get enum name
+        string name = nameToken.value;
+        expect(T_LBRACE); // Consume '{'
+
+        vector<string> values;
+        if (!check(T_RBRACE)) { // Check if enum body is not empty
+            do {
+                Token valueToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier); // Get enum value name
+                values.push_back(valueToken.value);
+            } while (match(T_COMMA)); // Handle comma-separated values
+        }
+        expect(T_RBRACE); // Consume '}'
+        consumeSemicolon(); // Enums end with semicolon
+
+        // Create the EnumValueList AST node with position
+        auto valueList = make_unique<ASTNode>(EnumValueList(move(values), nameToken.line, nameToken.column));
+        // Create the EnumDecl AST node with position of enum keyword
+        return make_unique<ASTNode>(EnumDecl(name, move(valueList), enumToken.line, enumToken.column));
+    }
+
+    // ---- Call expression with position tracking ----
+    ASTPtr parseCallExpression(ASTPtr callee) {
+        if (!isIdentifierNode(callee)) throw ParseError(ParseErrorType::InvalidCallTarget, currentToken);
+
+        Token callToken = currentToken;  // Position of '('
+        expect(T_LPAREN);
+        vector<ASTPtr> args;
         if (!check(T_RPAREN)) {
             do {
-                if (!isTypeToken(peek().type)) {
-                    throw runtime_error("Expected parameter type");
-                }
-                Token paramType = advance();
-                
-                if (!check(T_IDENTIFIER)) {
-                    throw runtime_error("Expected parameter name");
-                }
-                Token paramName = advance();
-                
-                func->parameters.push_back(make_unique<Parameter>(paramType.value, paramName.value));
+                args.push_back(parseExpression());
             } while (match(T_COMMA));
         }
-        
-        consume(T_RPAREN, "Expected ')' after parameters");
-        consume(T_LBRACE, "Expected '{' before function body");
-        
-        func->body = parseBlock();
-        
-        consume(T_RBRACE, "Expected '}' after function body");
-        
-        return func;
+        expect(T_RPAREN);
+        return make_unique<ASTNode>(CallExpr(move(callee), move(args), callToken.line, callToken.column));
     }
     
-    unique_ptr<VarDecl> parseVariableDeclaration(const string& type, const string& name) {
-        auto varDecl = make_unique<VarDecl>(type, name);
-        
-        if (match(T_ASSIGNOP)) {
-            varDecl->initializer = parseExpression();
+    // Modify parseStatement to recognize enum declarations and track positions
+    ASTPtr parseStatement() {
+        Token stmtToken = currentToken;  // Capture statement start position
+
+        // Check for enum declaration first
+        if (check(T_ENUM)) {
+            return parseEnumDeclaration();
         }
-        
-        consume(T_SEMICOLON, "Expected ';' after variable declaration");
-        return varDecl;
-    }
-    
-    unique_ptr<ASTNode> parseStatement() {
-        if (match(T_IF)) return parseIfStatement();
-        if (match(T_WHILE)) return parseWhileStatement();
-        if (match(T_RETURN)) return parseReturnStatement();
-        if (match(T_PRINT)) return parsePrintStatement();
-        if (match(T_LBRACE)) return parseBlock();
-        
-        return parseExpressionStatement();
-    }
-    
-    unique_ptr<Block> parseBlock() {
-        auto block = make_unique<Block>();
-        
-        while (!check(T_RBRACE) && !isAtEnd()) {
-            auto stmt = parseDeclaration();
-            if (stmt) {
-                block->statements.push_back(move(stmt));
-            }
-        }
-        
-        return block;
-    }
-    
-    unique_ptr<IfStmt> parseIfStatement() {
-        auto ifStmt = make_unique<IfStmt>();
-        
-        consume(T_LPAREN, "Expected '(' after 'if'");
-        ifStmt->condition = parseExpression();
-        consume(T_RPAREN, "Expected ')' after if condition");
-        
-        ifStmt->thenBranch = parseStatement();
-        
-        if (match(T_ELSE)) {
-            ifStmt->elseBranch = parseStatement();
-        }
-        
-        return ifStmt;
-    }
-    
-    unique_ptr<WhileStmt> parseWhileStatement() {
-        auto whileStmt = make_unique<WhileStmt>();
-        
-        consume(T_LPAREN, "Expected '(' after 'while'");
-        whileStmt->condition = parseExpression();
-        consume(T_RPAREN, "Expected ')' after while condition");
-        
-        whileStmt->body = parseStatement();
-        
-        return whileStmt;
-    }
-    
-    unique_ptr<ReturnStmt> parseReturnStatement() {
-        auto returnStmt = make_unique<ReturnStmt>();
-        
-        if (!check(T_SEMICOLON)) {
-            returnStmt->expression = parseExpression();
-        }
-        
-        consume(T_SEMICOLON, "Expected ';' after return statement");
-        return returnStmt;
-    }
-    
-    unique_ptr<PrintStmt> parsePrintStatement() {
-        auto printStmt = make_unique<PrintStmt>();
-        
-        consume(T_LPAREN, "Expected '(' after 'print'");
-        
-        if (!check(T_RPAREN)) {
-            do {
-                printStmt->arguments.push_back(parseExpression());
-            } while (match(T_COMMA));
-        }
-        
-        consume(T_RPAREN, "Expected ')' after print arguments");
-        consume(T_SEMICOLON, "Expected ';' after print statement");
-        
-        return printStmt;
-    }
-    
-    unique_ptr<ASTNode> parseExpressionStatement() {
-        auto expr = parseExpression();
-        consume(T_SEMICOLON, "Expected ';' after expression");
-        return expr;
-    }
-    
-    unique_ptr<ASTNode> parseExpression() {
-        return parseAssignment();
-    }
-    
-    unique_ptr<ASTNode> parseAssignment() {
-        auto expr = parseLogicalOr();
-        
-        if (match(T_ASSIGNOP)) {
-            if (expr->nodeType == NodeType::Identifier) {
-                auto identifier = static_cast<Identifier*>(expr.get());
-                auto assignment = make_unique<Assignment>(identifier->name);
-                assignment->expression = parseAssignment();
-                expr.release(); // Release the identifier since we're replacing it
-                return move(assignment);
-            } else {
-                throw runtime_error("Invalid assignment target");
-            }
-        }
-        
-        return expr;
-    }
-    
-    unique_ptr<ASTNode> parseLogicalOr() {
-        auto expr = parseLogicalAnd();
-        
-        while (match(T_OR)) {
-            string op = previous().value;
-            auto right = parseLogicalAnd();
-            auto binary = make_unique<BinaryOp>(op);
-            binary->left = move(expr);
-            binary->right = move(right);
-            expr = move(binary);
-        }
-        
-        return expr;
-    }
-    
-    unique_ptr<ASTNode> parseLogicalAnd() {
-        auto expr = parseEquality();
-        
-        while (match(T_AND)) {
-            string op = previous().value;
-            auto right = parseEquality();
-            auto binary = make_unique<BinaryOp>(op);
-            binary->left = move(expr);
-            binary->right = move(right);
-            expr = move(binary);
-        }
-        
-        return expr;
-    }
-    
-    unique_ptr<ASTNode> parseEquality() {
-        auto expr = parseComparison();
-        
-        while (match({T_EQUALOP, T_NE})) {
-            string op = previous().value;
-            auto right = parseComparison();
-            auto binary = make_unique<BinaryOp>(op);
-            binary->left = move(expr);
-            binary->right = move(right);
-            expr = move(binary);
-        }
-        
-        return expr;
-    }
-    
-    unique_ptr<ASTNode> parseComparison() {
-        auto expr = parseTerm();
-        
-        while (match({T_GT, T_GE, T_LT, T_LE})) {
-            string op = previous().value;
-            auto right = parseTerm();
-            auto binary = make_unique<BinaryOp>(op);
-            binary->left = move(expr);
-            binary->right = move(right);
-            expr = move(binary);
-        }
-        
-        return expr;
-    }
-    
-    unique_ptr<ASTNode> parseTerm() {
-        auto expr = parseFactor();
-        
-        while (match({T_MINUS, T_PLUS})) {
-            string op = previous().value;
-            auto right = parseFactor();
-            auto binary = make_unique<BinaryOp>(op);
-            binary->left = move(expr);
-            binary->right = move(right);
-            expr = move(binary);
-        }
-        
-        return expr;
-    }
-    
-    unique_ptr<ASTNode> parseFactor() {
-        auto expr = parseUnary();
-        
-        while (match({T_DIVIDE, T_MULTIPLY, T_MODULO})) {
-            string op = previous().value;
-            auto right = parseUnary();
-            auto binary = make_unique<BinaryOp>(op);
-            binary->left = move(expr);
-            binary->right = move(right);
-            expr = move(binary);
-        }
-        
-        return expr;
-    }
-    
-    unique_ptr<ASTNode> parseUnary() {
-        if (match({T_NOT, T_MINUS})) {
-            string op = previous().value;
-            auto right = parseUnary();
-            auto unary = make_unique<UnaryOp>(op);
-            unary->operand = move(right);
-            return move(unary);
-        }
-        
-        return parseCall();
-    }
-    
-    unique_ptr<ASTNode> parseCall() {
-        auto expr = parsePrimary();
-        
-        while (true) {
-            if (match(T_LPAREN)) {
-                if (expr->nodeType == NodeType::Identifier) {
-                    auto identifier = static_cast<Identifier*>(expr.get());
-                    auto call = make_unique<FunctionCall>(identifier->name);
-                    
-                    if (!check(T_RPAREN)) {
-                        do {
-                            call->arguments.push_back(parseExpression());
-                        } while (match(T_COMMA));
+
+        if (isTypeToken(currentToken.type)) {
+            const Token& next = peek(1);
+            if (next.type == T_IDENTIFIER) {
+                // Look ahead further to determine if it's a function or variable declaration
+                // We need to check if after the identifier there's a '(' (function) or other tokens (variable)
+                size_t i = current + 2; // After type and identifier
+                if (i < tokens.size() && tokens[i].type == T_LPAREN) {
+                    // It's a function (definition or prototype)
+                    if (isFunctionDefinition()) {
+                        return parseFunctionDeclaration();
+                    } else {
+                        return parseFunctionPrototype();
                     }
-                    
-                    consume(T_RPAREN, "Expected ')' after arguments");
-                    expr.release(); // Release the identifier
-                    expr = move(call);
                 } else {
-                    throw runtime_error("Only identifiers can be called");
+                    // It's a variable declaration
+                    return parseVariableDeclaration();
                 }
             } else {
-                break;
+                return parseVariableDeclaration();
             }
         }
+        if (check(T_PRINT)) return parsePrintStatement();
+        if (check(T_IF)) return parseIfStatement();
+        if (check(T_WHILE)) return parseWhileStatement();
+        if (match(T_DO)) return parseDoWhileStatement();
+        if (match(T_FOR)) return parseForStatement();
+        if (match(T_SWITCH)) return parseSwitchStatement();
+        if (check(T_RETURN)) return parseReturnStatement();
+        if (check(T_LBRACE)) return parseBlockStatement();
+        if (check(T_MAIN)) return parseMainDeclaration(); 
+        if (check(T_BREAK)) return parseBreakStatement();
+        // if (match(T_BREAK)) {
+        //     Token breakToken = currentToken;  // Position of 'break'
+        //     expect(T_SEMICOLON);
+        //     // Consider creating a proper BreakStmt AST node instead of Identifier
+        //     return make_unique<ASTNode>(Identifier("break", breakToken.line, breakToken.column)); // simple placeholder for BreakStmt
+        // }
         
-        return expr;
+        ASTPtr expr = parseExpression();
+        consumeSemicolon();
+        return make_unique<ASTNode>(ExpressionStmt(move(expr), stmtToken.line, stmtToken.column));
     }
+
+    ASTPtr parseVariableDeclaration() {
+        Token typeToken = currentToken;  // Capture type position
+        TokenType type = currentToken.type;
+        advance();
+
+        Token identToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+        string name = identToken.value;
+
+        ASTPtr initializer = nullptr;
+        if (match(T_ASSIGNOP)) initializer = parseExpression();
+
+        consumeSemicolon();
+        return make_unique<ASTNode>(VarDecl(type, name, move(initializer), typeToken.line, typeToken.column));
+    }
+
+    ASTPtr parseFunctionPrototype() {
+        Token returnToken = currentToken;  // Capture return type position
+        TokenType returnType = currentToken.type;
+        advance();
+
+        Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+        string name = nameToken.value;
+
+        expect(T_LPAREN);
+        vector<pair<TokenType, string>> params;
+        if (!check(T_RPAREN)) {
+            do {
+                TokenType paramType = currentToken.type;
+                advance();
+                Token paramName = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+                params.push_back({paramType, paramName.value});
+            } while (match(T_COMMA));
+        }
+        expect(T_RPAREN);
+        consumeSemicolon(); // Prototypes end with semicolon
+        
+        return make_unique<ASTNode>(FunctionProto(returnType, name, move(params), returnToken.line, returnToken.column));
+    }
+
+    ASTPtr parseFunctionDeclaration() {
+        Token returnToken = currentToken;  // Capture return type position
+        TokenType returnType = currentToken.type;
+        advance();
+
+        Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+        string name = nameToken.value;
+
+        expect(T_LPAREN);
+        vector<pair<TokenType, string>> params;
+        if (!check(T_RPAREN)) {
+            do {
+                TokenType paramType = currentToken.type;
+                advance();
+                Token paramName = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+                params.push_back({paramType, paramName.value});
+            } while (match(T_COMMA));
+        }
+        expect(T_RPAREN);
+
+        vector<ASTPtr> body = parseBlock();
+        return make_unique<ASTNode>(FunctionDecl(returnType, name, move(params), move(body), returnToken.line, returnToken.column));
+    }
+
+    ASTPtr parseBreakStatement() {
+        Token breakToken = currentToken;  // Capture 'print' position
+        expect(T_BREAK);
+        expect(T_SEMICOLON);
+        return make_unique<ASTNode>(BreakStmt(breakToken.line, breakToken.column));
+    }
+
+    ASTPtr parsePrintStatement() {
+        Token printToken = currentToken;  // Capture 'print' position
+        expect(T_PRINT);
+        expect(T_LPAREN);
+        vector<ASTPtr> args;
+        if (!check(T_RPAREN)) {
+            do {
+                args.push_back(parseExpression());
+            } while (match(T_COMMA));
+        }
+        expect(T_RPAREN);
+        consumeSemicolon();
+        return make_unique<ASTNode>(PrintStmt(move(args), printToken.line, printToken.column));
+    }
+
+    ASTPtr parseIfStatement() {
+        Token ifToken = currentToken;  // Capture 'if' position
+        expect(T_IF);
+        expect(T_LPAREN);
+        ASTPtr condition = parseExpression();
+        expect(T_RPAREN);
+
+        vector<ASTPtr> ifBody = parseBlock();
+
+        vector<ASTPtr> elseBody;
+        if (match(T_ELSE)) elseBody = parseBlock();
+
+        return make_unique<ASTNode>(IfStmt(move(condition), move(ifBody), move(elseBody), ifToken.line, ifToken.column));
+    }
+
+    ASTPtr parseWhileStatement() {
+        Token whileToken = currentToken;  // Capture 'while' position
+        expect(T_WHILE);
+        expect(T_LPAREN);
+        ASTPtr condition = parseExpression();
+        expect(T_RPAREN);
+
+        vector<ASTPtr> body = parseBlock();
+        return make_unique<ASTNode>(WhileStmt(move(condition), move(body), whileToken.line, whileToken.column));
+    }
+
+    // Replace the do-while method with position tracking
+    ASTPtr parseDoWhileStatement() {
+        Token doToken = currentToken;  // Capture 'do' position
+        vector<ASTPtr> bodyVec = parseBlock(); // Parse as vector first
+        ASTPtr body = make_unique<ASTNode>(BlockStmt(move(bodyVec), doToken.line, doToken.column)); // Wrap in BlockStmt
+        expect(T_WHILE);
+        expect(T_LPAREN);
+        ASTPtr cond = parseExpression();
+        expect(T_RPAREN);
+        expect(T_SEMICOLON);
+        return make_unique<ASTNode>(DoWhileStmt(move(body), move(cond), doToken.line, doToken.column));
+    }
+
+    // Replace the for method with position tracking
+    ASTPtr parseForStatement() {
+        Token forToken = currentToken;  // Capture 'for' position
+        expect(T_LPAREN);
+
+        // init
+        ASTPtr init = nullptr;
+        if (!check(T_SEMICOLON)) {
+            if (isTypeToken(currentToken.type)) {
+                // Parse variable declaration directly here
+                TokenType type = currentToken.type; 
+                advance();
+                Token identToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier);
+                string name = identToken.value;
+                ASTPtr initializer = nullptr;
+                if (match(T_ASSIGNOP)) initializer = parseExpression();
+                consumeSemicolon();
+                init = make_unique<ASTNode>(VarDecl(type, name, move(initializer), forToken.line, forToken.column));
+            } else {
+                init = parseExpression();
+                expect(T_SEMICOLON);
+            }
+        } else advance(); // skip ;
+
+        // condition
+        ASTPtr cond = nullptr;
+        if (!check(T_SEMICOLON)) cond = parseExpression();
+        expect(T_SEMICOLON);
+
+        // update
+        ASTPtr update = nullptr;
+        if (!check(T_RPAREN)) update = parseExpression();
+        expect(T_RPAREN);
+
+        vector<ASTPtr> bodyVec = parseBlock(); // Parse as vector first
+        ASTPtr body = make_unique<ASTNode>(BlockStmt(move(bodyVec), forToken.line, forToken.column)); // Wrap in BlockStmt
+        return make_unique<ASTNode>(ForStmt(move(init), move(cond), move(update), move(body), forToken.line, forToken.column));
+    }
+
+    ASTPtr parseSwitchStatement() {
+        Token switchToken = currentToken;  // Capture 'switch' position
+        expect(T_LPAREN);
+        ASTPtr expr = parseExpression();
+        expect(T_RPAREN);
+        expect(T_LBRACE);
+
+        vector<ASTPtr> cases;
+        vector<ASTPtr> defaultBody;
+
+        while (!check(T_RBRACE) && !check(T_EOF)) {
+            if (match(T_CASE)) {
+                ASTPtr val = parseExpression();
+                // Expect block statement directly after case value (no colon)
+                vector<ASTPtr> caseBody = parseBlock(); // This will parse the { ... } block
+                cases.push_back(make_unique<ASTNode>(CaseBlock(move(val), move(caseBody), currentToken.line, currentToken.column)));
+            } 
+            else if (match(T_DEFAULT)) {
+                // Expect block statement directly after default (no colon)
+                defaultBody = parseBlock(); // This will parse the { ... } block
+            } 
+            else {
+                advance(); // skip unknown tokens
+            }
+        }
+        expect(T_RBRACE);
+
+        return make_unique<ASTNode>(SwitchStmt(move(expr), move(cases), move(defaultBody), switchToken.line, switchToken.column));
+    }
+
+    ASTPtr parseReturnStatement() {
+        Token returnToken = currentToken;  // Capture 'return' position
+        expect(T_RETURN);
+        ASTPtr value = nullptr;
+        if (!check(T_SEMICOLON) && !check(T_RBRACE)) value = parseExpression();
+        consumeSemicolon();
+        return make_unique<ASTNode>(ReturnStmt(move(value), returnToken.line, returnToken.column));
+    }
+
+    ASTPtr parseBlockStatement() {
+        Token blockToken = currentToken;  // Capture '{' position
+        vector<ASTPtr> body = parseBlock();
+        return make_unique<ASTNode>(BlockStmt(move(body), blockToken.line, blockToken.column));
+    }
+
+    vector<ASTPtr> parseBlock() {
+        Token lbraceToken = currentToken;  // Capture '{' position
+        expect(T_LBRACE);
+        vector<ASTPtr> statements;
+        while (!check(T_RBRACE) && !check(T_EOF)) {
+            statements.push_back(parseStatement());
+        }
+        if (check(T_EOF)) throw ParseError(ParseErrorType::UnclosedBlock, currentToken);
+        expect(T_RBRACE);
+        return statements;
+    }
+
+    ASTPtr parseMainDeclaration() {
+        Token mainToken = currentToken;  // Capture 'main' position
+        expect(T_MAIN);
+        vector<ASTPtr> body = parseBlock();
+        return make_unique<ASTNode>(MainDecl(move(body), mainToken.line, mainToken.column));
+    }
+
+    ASTPtr parseIncludeStatement() {
+        Token includeToken = currentToken;  // Capture 'include' position
+        expect(T_INCLUDE); // Consume 'include'
+        if (match(T_LT)) { // Handle include <header>
+            if (check(T_MAIN)) {
+                advance(); // Consume T_MAIN
+                expect(T_GT); // Consume '>'
+                return make_unique<ASTNode>(IncludeStmt("main", includeToken.line, includeToken.column));
+            } else {
+                // Handle include <other_header>
+                string header;
+                if (check(T_IDENTIFIER)) {
+                    header = currentToken.value;
+                    advance(); // Consume identifier
+                } else {
+                    // Or handle other tokens that might represent a header name within <>
+                    throw ParseError(ParseErrorType::ExpectedIdentifier, currentToken); // Or a more specific error
+                }
+                expect(T_GT); // Consume '>'
+                return make_unique<ASTNode>(IncludeStmt(header, includeToken.line, includeToken.column));
+            }
+        } else if (check(T_STRINGLIT)) { // Handle include "header"
+            Token headerTok = currentToken;
+            advance(); // Consume string literal
+            string header = headerTok.value;
+            if (header.size() >= 2 && header.front() == '"' && header.back() == '"') {
+                header = header.substr(1, header.size() - 2); // Remove quotes
+            }
+            return make_unique<ASTNode>(IncludeStmt(header, includeToken.line, includeToken.column));
+        } else {
+            throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
+        }
+    }
+
+
+public:
+    Parser(const vector<Token>& toks) : tokens(toks), current(0) {
+        if (!tokens.empty()) currentToken = tokens[0];
+        else currentToken = {T_EOF, "EOF", -1, -1};
+    }
+
     
-    unique_ptr<ASTNode> parsePrimary() {
-        if (match(T_BOOLLIT)) {
-            // Handle boolean literals if needed
-            return make_unique<IntLiteral>(previous().value == "true" ? 1 : 0);
+    vector<ASTPtr> parseProgram() {
+        vector<ASTPtr> declarations;
+
+        // Enforce first token must be include<main>
+        if (!(check(T_INCLUDE))) {
+            throw ParseError(ParseErrorType::UnexpectedToken, currentToken);
         }
-        
-        if (match(T_INTLIT)) {
-            return make_unique<IntLiteral>(stoi(previous().value));
+        declarations.push_back(parseIncludeStatement());
+
+        // Continue with the rest
+        while (currentToken.type != T_EOF) {
+            if (check(T_INCLUDE)) { // Also handle subsequent include statements
+                declarations.push_back(parseIncludeStatement());
+                continue;
+            }
+            if (isTypeToken(currentToken.type)) {
+                const Token& next = peek(1);
+                if (next.type == T_IDENTIFIER) {
+                    // Check if it's a function definition or prototype
+                    if (isFunctionDefinition()) {
+                        declarations.push_back(parseFunctionDeclaration());
+                    } else {
+                        declarations.push_back(parseFunctionPrototype());
+                    }
+                } else {
+                    declarations.push_back(parseStatement());
+                }
+                continue;
+            }
+            if (check(T_MAIN)) {
+                declarations.push_back(parseMainDeclaration());
+                continue;
+            }
+            declarations.push_back(parseStatement());
         }
-        
-        if (match(T_FLOATLIT)) {
-            return make_unique<FloatLiteral>(stof(previous().value));
-        }
-        
-        if (match(T_STRINGLIT)) {
-            return make_unique<StringLiteral>(previous().value);
-        }
-        
-        if (match(T_IDENTIFIER)) {
-            return make_unique<Identifier>(previous().value);
-        }
-        
-        if (match(T_LPAREN)) {
-            auto expr = parseExpression();
-            consume(T_RPAREN, "Expected ')' after expression");
-            return expr;
-        }
-        
-        throw runtime_error("Expected expression at line " + to_string(peek().line));
+        return declarations;
     }
+
 };
 
-// === Lexer Integration (simplified version of your lexer) ===
-static const map<string, TokenType> keywords = {
-    {"int", T_INT}, {"float", T_FLOAT}, {"double", T_DOUBLE},
-    {"char", T_CHAR}, {"void", T_VOID}, {"bool", T_BOOL},
-    {"true", T_BOOLLIT}, {"false", T_BOOLLIT},
-    {"if", T_IF}, {"else", T_ELSE}, {"while", T_WHILE}, {"return", T_RETURN},
-    {"print", T_PRINT}, {"main", T_MAIN}
-};
-
-const char* tokenTypeToString(TokenType type) {
-    switch (type) {
-        case T_INT: return "T_INT";
-        case T_FLOAT: return "T_FLOAT";
-        case T_IDENTIFIER: return "T_IDENTIFIER";
-        case T_INTLIT: return "T_INTLIT";
-        case T_FLOATLIT: return "T_FLOATLIT";
-        case T_STRINGLIT: return "T_STRINGLIT";
-        case T_LPAREN: return "T_LPAREN";
-        case T_RPAREN: return "T_RPAREN";
-        case T_LBRACE: return "T_LBRACE";
-        case T_RBRACE: return "T_RBRACE";
-        case T_SEMICOLON: return "T_SEMICOLON";
-        case T_COMMA: return "T_COMMA";
-        case T_ASSIGNOP: return "T_ASSIGNOP";
-        case T_EQUALOP: return "T_EQUALOP";
-        case T_LT: return "T_LT";
-        case T_GT: return "T_GT";
-        case T_PLUS: return "T_PLUS";
-        case T_MINUS: return "T_MINUS";
-        case T_MULTIPLY: return "T_MULTIPLY";
-        case T_DIVIDE: return "T_DIVIDE";
-        case T_IF: return "T_IF";
-        case T_ELSE: return "T_ELSE";
-        case T_WHILE: return "T_WHILE";
-        case T_RETURN: return "T_RETURN";
-        case T_PRINT: return "T_PRINT";
-        case T_EOF: return "T_EOF";
-        default: return "T_UNKNOWN";
-    }
-}
-
-// Function to parse tokens from your lexer's output file
-vector<Token> loadTokensFromFile(const string& filename) {
-    vector<Token> tokens;
-    ifstream file(filename);
-    if (!file.is_open()) {
-        cerr << "Could not open " << filename << endl;
-        return tokens;
-    }
-    
-    string line;
-    while (getline(file, line)) {
-        if (line.empty()) continue;
-        
-        // Parse format: TOKEN_TYPE(value),line,column
-        size_t parenPos = line.find('(');
-        size_t closeParenPos = line.find(')');
-        size_t firstCommaPos = line.find(',', closeParenPos);
-        size_t secondCommaPos = line.find(',', firstCommaPos + 1);
-        
-        if (parenPos == string::npos || closeParenPos == string::npos || 
-            firstCommaPos == string::npos || secondCommaPos == string::npos) {
-            continue;
-        }
-        
-        string tokenTypeStr = line.substr(0, parenPos);
-        string value = line.substr(parenPos + 1, closeParenPos - parenPos - 1);
-        int lineNum = stoi(line.substr(firstCommaPos + 1, secondCommaPos - firstCommaPos - 1));
-        int column = stoi(line.substr(secondCommaPos + 1));
-        
-        // Convert string to TokenType
-        TokenType type = T_EOF;
-        if (tokenTypeStr == "T_INT") type = T_INT;
-        else if (tokenTypeStr == "T_FLOAT") type = T_FLOAT;
-        else if (tokenTypeStr == "T_IDENTIFIER") type = T_IDENTIFIER;
-        else if (tokenTypeStr == "T_INTLIT") type = T_INTLIT;
-        else if (tokenTypeStr == "T_FLOATLIT") type = T_FLOATLIT;
-        else if (tokenTypeStr == "T_STRINGLIT") type = T_STRINGLIT;
-        else if (tokenTypeStr == "T_LPAREN") type = T_LPAREN;
-        else if (tokenTypeStr == "T_RPAREN") type = T_RPAREN;
-        else if (tokenTypeStr == "T_LBRACE") type = T_LBRACE;
-        else if (tokenTypeStr == "T_RBRACE") type = T_RBRACE;
-        else if (tokenTypeStr == "T_SEMICOLON") type = T_SEMICOLON;
-        else if (tokenTypeStr == "T_COMMA") type = T_COMMA;
-        else if (tokenTypeStr == "T_ASSIGNOP") type = T_ASSIGNOP;
-        else if (tokenTypeStr == "T_EQUALOP") type = T_EQUALOP;
-        else if (tokenTypeStr == "T_LT") type = T_LT;
-        else if (tokenTypeStr == "T_GT") type = T_GT;
-        else if (tokenTypeStr == "T_LE") type = T_LE;
-        else if (tokenTypeStr == "T_GE") type = T_GE;
-        else if (tokenTypeStr == "T_NE") type = T_NE;
-        else if (tokenTypeStr == "T_PLUS") type = T_PLUS;
-        else if (tokenTypeStr == "T_MINUS") type = T_MINUS;
-        else if (tokenTypeStr == "T_MULTIPLY") type = T_MULTIPLY;
-        else if (tokenTypeStr == "T_DIVIDE") type = T_DIVIDE;
-        else if (tokenTypeStr == "T_MODULO") type = T_MODULO;
-        else if (tokenTypeStr == "T_AND") type = T_AND;
-        else if (tokenTypeStr == "T_OR") type = T_OR;
-        else if (tokenTypeStr == "T_NOT") type = T_NOT;
-        else if (tokenTypeStr == "T_IF") type = T_IF;
-        else if (tokenTypeStr == "T_ELSE") type = T_ELSE;
-        else if (tokenTypeStr == "T_WHILE") type = T_WHILE;
-        else if (tokenTypeStr == "T_RETURN") type = T_RETURN;
-        else if (tokenTypeStr == "T_PRINT") type = T_PRINT;
-        else if (tokenTypeStr == "T_BOOLLIT") type = T_BOOLLIT;
-        else if (tokenTypeStr == "T_CHARLIT") type = T_CHARLIT;
-        else continue; // Skip unknown tokens
-        
-        tokens.push_back({type, value, lineNum, column});
-    }
-    
-    // Add EOF token
-    tokens.push_back({T_EOF, "", 0, 0});
-    return tokens;
-}
-
-int main() {
+vector<unique_ptr<ASTNode>> parseFromFile(const vector<Token>& tokens) {
     try {
-        // Load tokens from the lexer output file
-        vector<Token> tokens = loadTokensFromFile("tester/tokens.txt");
-        
-        if (tokens.empty()) {
-            cerr << "No tokens found or could not read tokens file." << endl;
-            return 1;
-        }
-        
-        cout << "Loaded " << tokens.size() << " tokens from lexer output." << endl;
-        
-        // Create parser and parse the tokens
         Parser parser(tokens);
-        auto ast = parser.parse();
-        
-        // Open output file for AST
-        ofstream outputFile("tester/ast.txt");
-        if (!outputFile.is_open()) {
-            cerr << "Could not create ast.txt output file." << endl;
-            return 1;
+        auto ast = parser.parseProgram();
+
+        cout << "=== Parsed AST ===\n";
+        for (const auto& node : ast) {
+            if (node) printASTNode(node->node);
         }
-        
-        // Redirect cout to the output file
-        streambuf* coutBuf = cout.rdbuf();
-        cout.rdbuf(outputFile.rdbuf());
-        
-        // Print the AST
-        cout << "=== Abstract Syntax Tree ===" << endl;
-        ast->print();
-        
-        // Restore cout
-        cout.rdbuf(coutBuf);
-        outputFile.close();
-        
-        // Also print to console for immediate feedback
-        cout << "Parsing completed successfully!" << endl;
-        cout << "AST written to tester/ast.txt" << endl;
-        
-        // Print a preview of the AST to console
-        cout << "\n=== AST Preview ===" << endl;
-        ast->print();
-        
-    } catch (const exception& e) {
-        cerr << "Error: " << e.what() << endl;
-        return 1;
+        cout << "\n=== Parsing Successful ===\n";
+
+        return ast;
+    } 
+    catch (const ParseError& e) {
+        cerr << "[Parser Error] " << e.message
+             << " (line " << e.token.line
+             << ", col " << e.token.column << ")\n";
+        exit(EXIT_FAILURE);
+    } 
+    catch (const exception& e) {
+        cerr << "[Parser Exception] " << e.what() << "\n";
+        exit(EXIT_FAILURE);
     }
-    
-    return 0;
 }

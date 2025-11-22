@@ -1,72 +1,47 @@
-#include <iostream>
-#include <string>
-#include <map>
-#include <cstring>
-#include <fstream>
-#include <sstream>
-using namespace std;
-
-// === Token Types ===
-enum TokenType {
-    // Types
-    T_INT, T_FLOAT, T_DOUBLE, T_CHAR, T_VOID, T_BOOL,
-
-    // Literals
-    T_IDENTIFIER, T_INTLIT, T_FLOATLIT, T_STRINGLIT, T_CHARLIT, T_BOOLLIT,
-
-    // Brackets & Separators
-    T_LPAREN, T_RPAREN, T_LBRACE, T_RBRACE, T_LBRACKET, T_RBRACKET,
-    T_SEMICOLON, T_COMMA, T_DOT,
-
-    // Operators
-    T_ASSIGNOP, T_EQUALOP, T_NE, T_LT, T_GT, T_LE, T_GE,
-    T_PLUS, T_MINUS, T_MULTIPLY, T_DIVIDE, T_MODULO,
-    T_INCREMENT, T_DECREMENT,
-    T_AND, T_OR, T_NOT,
-
-    // Keywords
-    T_IF, T_ELSE, T_WHILE, T_RETURN, T_PRINT,  // <-- Added T_PRINT
-
-    // Special functions
-    T_MAIN,  // Optional: make main a keyword
-
-    // Comments
-    T_SINGLE_COMMENT, T_MULTI_COMMENT,
-
-    // Error & EOF
-    T_ERROR, T_EOF
-};
-
-struct Token {
-    TokenType type;
-    string value;
-    int line;
-    int column;
-};
-
+#include"compiler.h"
 // === Static Keyword Map ===
 static const map<string, TokenType> keywords = {
     {"int", T_INT}, {"float", T_FLOAT}, {"double", T_DOUBLE},
-    {"char", T_CHAR}, {"void", T_VOID}, {"bool", T_BOOL},
+    {"char", T_CHAR}, {"void", T_VOID}, {"bool", T_BOOL}, {"enum", T_ENUM},
+
     {"true", T_BOOLLIT}, {"false", T_BOOLLIT},
     {"if", T_IF}, {"else", T_ELSE}, {"while", T_WHILE}, {"return", T_RETURN},
-    {"print", T_PRINT},   // <-- 'print' is now a keyword
-    {"main", T_MAIN}      // <-- Treat 'main' as special keyword
+    {"print", T_PRINT}, {"main", T_MAIN},
+
+    // Newly added keywords
+    {"string", T_STRING}, {"do", T_DO}, {"switch", T_SWITCH}, {"include", T_INCLUDE},
+    {"break", T_BREAK}, {"for", T_FOR}, {"default", T_DEFAULT}, {"case", T_CASE}
 };
 
+
+// === Single-character tokens ===
+// static const map<char, TokenType> singleChars = {
+//     {'(', T_LPAREN}, {')', T_RPAREN}, {'{', T_LBRACE}, {'}', T_RBRACE},
+//     {'[', T_LBRACKET}, {']', T_RBRACKET}, {';', T_SEMICOLON},
+//     {',', T_COMMA}, {'.', T_DOT}, {'+', T_PLUS}, {'-', T_MINUS},{':', T_COLON},   // <-- added here
+//     {'*', T_MULTIPLY}, {'/', T_DIVIDE}, {'%', T_MODULO}, {'=', T_ASSIGNOP},
+//     {'!', T_NOT}, {'<', T_LT}, {'>', T_GT}
+// };
 // === Single-character tokens ===
 static const map<char, TokenType> singleChars = {
     {'(', T_LPAREN}, {')', T_RPAREN}, {'{', T_LBRACE}, {'}', T_RBRACE},
     {'[', T_LBRACKET}, {']', T_RBRACKET}, {';', T_SEMICOLON},
-    {',', T_COMMA}, {'.', T_DOT}, {'+', T_PLUS}, {'-', T_MINUS},
+    {',', T_COMMA}, {'.', T_DOT}, {'+', T_PLUS}, {'-', T_MINUS},{':', T_COLON},
     {'*', T_MULTIPLY}, {'/', T_DIVIDE}, {'%', T_MODULO}, {'=', T_ASSIGNOP},
-    {'!', T_NOT}, {'<', T_LT}, {'>', T_GT}
+    {'!', T_NOT}, {'<', T_LT}, {'>', T_GT}, {'&', T_BITAND}, {'|', T_BITOR},
+    {'^', T_BITXOR}
 };
 
+// // === Two-character operators ===
+// static const map<string, TokenType> twoCharOps = {
+//     {"==", T_EQUALOP}, {"!=", T_NE}, {"<=", T_LE}, {">=", T_GE},
+//     {"&&", T_AND}, {"||", T_OR}, {"++", T_INCREMENT}, {"--", T_DECREMENT}
+// };
 // === Two-character operators ===
 static const map<string, TokenType> twoCharOps = {
     {"==", T_EQUALOP}, {"!=", T_NE}, {"<=", T_LE}, {">=", T_GE},
-    {"&&", T_AND}, {"||", T_OR}, {"++", T_INCREMENT}, {"--", T_DECREMENT}
+    {"&&", T_AND}, {"||", T_OR}, {"++", T_INCREMENT}, {"--", T_DECREMENT},
+    {"<<", T_BITLSHIFT}, {">>", T_BITRSHIFT}
 };
 
 // === Lexer State ===
@@ -353,20 +328,31 @@ bool getNextToken(LexerState& state, Token& token) {
 }
 
 // === Token Type to String ===
+
 const char* tokenTypeToString(TokenType type) {
     switch (type) {
+        case T_INCLUDE: return "T_INCLUDE";
         case T_INT: return "T_INT";
         case T_FLOAT: return "T_FLOAT";
         case T_DOUBLE: return "T_DOUBLE";
         case T_CHAR: return "T_CHAR";
         case T_VOID: return "T_VOID";
         case T_BOOL: return "T_BOOL";
+        case T_ENUM: return "T_ENUM";
         case T_IDENTIFIER: return "T_IDENTIFIER";
         case T_INTLIT: return "T_INTLIT";
         case T_FLOATLIT: return "T_FLOATLIT";
         case T_STRINGLIT: return "T_STRINGLIT";
         case T_CHARLIT: return "T_CHARLIT";
         case T_BOOLLIT: return "T_BOOLLIT";
+        case T_STRING: return "T_STRING";
+        case T_DO: return "T_DO";
+        case T_SWITCH: return "T_SWITCH";
+        case T_BREAK: return "T_BREAK";
+        case T_FOR: return "T_FOR";
+        case T_DEFAULT: return "T_DEFAULT";
+        case T_CASE: return "T_CASE";
+        case T_COLON: return "T_COLON";
         case T_LPAREN: return "T_LPAREN";
         case T_RPAREN: return "T_RPAREN";
         case T_LBRACE: return "T_LBRACE";
@@ -383,6 +369,11 @@ const char* tokenTypeToString(TokenType type) {
         case T_GT: return "T_GT";
         case T_LE: return "T_LE";
         case T_GE: return "T_GE";
+        case T_BITAND: return "T_BITAND";      // Added
+        case T_BITOR: return "T_BITOR";        // Added
+        case T_BITXOR: return "T_BITXOR";      // Added
+        case T_BITLSHIFT: return "T_BITLSHIFT"; // Added
+        case T_BITRSHIFT: return "T_BITRSHIFT"; // Added
         case T_PLUS: return "T_PLUS";
         case T_MINUS: return "T_MINUS";
         case T_MULTIPLY: return "T_MULTIPLY";
@@ -407,28 +398,14 @@ const char* tokenTypeToString(TokenType type) {
     }
 }
 
-// =========================================================================
+/* ======== */
 
-void testLexer(const string& code, ostream& out) {
-    LexerState state = createLexerState(code.c_str());
-    Token token;
-    while (getNextToken(state, token)) {
-        if (token.type == T_ERROR) {
-            out << "ERROR(line " << token.line << ", col " << token.column << "): " << token.value << "\n";
-        } 
-        else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
-            //out << tokenTypeToString(token.type) << "(" << token.value << "), " << "line: " << token.line << ", col: " << token.column <<"\n";
-            out << tokenTypeToString(token.type) << "(" << token.value << ")," << token.line << "," << token.column <<"\n";
-        }
-    }
-    out << endl;
-}
-
-int main() {
-    ifstream inputFile("tester/sample.txt");
+vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename) {
+    // Read the input file
+    ifstream inputFile(inputFilename);
     if (!inputFile.is_open()) {
-        cerr << "Failed to open input.txt" << endl;
-        return 1;
+        cerr << "Failed to open input file: " << inputFilename << endl;
+        return {};
     }
 
     stringstream buffer;
@@ -436,86 +413,32 @@ int main() {
     string code = buffer.str();
     inputFile.close();
 
-    // Open output file in trunc mode (clear previous contents)
-    ofstream outputFile("tester/tokens.txt", ios::out | ios::trunc);
-    if (!outputFile.is_open()) {
-        cerr << "Failed to open tester/tokens.txt" << endl;
-        return 1;
+    // Lexing
+    vector<Token> tokens;
+    LexerState state = createLexerState(code.c_str());
+    Token token;
+
+    while (getNextToken(state, token)) {
+        if (token.type == T_ERROR) {
+            cerr << "ERROR(line " << token.line << ", col " << token.column << "): " << token.value << "\n";
+        } else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
+            tokens.push_back(token);
+        }
     }
 
-    // Run lexer and write to output file
-    testLexer(code, outputFile);
+    // Append EOF token
+    tokens.push_back({T_EOF, "EOF", -1, -1});
 
-    outputFile.close();
-    cout << "Lexing completed successfully. Results written to tester/tokens.txt" << endl;
+    // Write tokens to output file for debugging
+    ofstream outFile(outputFilename, ios::out | ios::trunc);
+    if (!outFile.is_open()) {
+        cerr << "Failed to open output file: " << outputFilename << endl;
+    } else {
+        for (const auto& t : tokens) {
+            outFile << tokenTypeToString(t.type) << "(" << t.value << ")," << t.line << "," << t.column << "\n";
+        }
+        outFile.close();
+    }
 
-    return 0;
+    return tokens;
 }
-
-// // === Test Function ===
-// void testLexer(const string& code, const string& testName) {
-//     cout << "=== " << testName << " ===\n";
-//     LexerState state = createLexerState(code.c_str());
-//     Token token;
-//     while (getNextToken(state, token)) {
-//         if (token.type == T_ERROR) {
-//             cout << "ERROR(line " << token.line << ", col " << token.column << "): " << token.value << "\n";
-//         } 
-//         else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
-//             cout << tokenTypeToString(token.type) << "(" << token.value << ")\n";
-//         }
-//         /*
-//         else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
-//             cout << "Line " << token.line << ", Col " << token.column << ": "
-//                  << tokenTypeToString(token.type) << "(\"" << token.value << "\")\n";
-//         }
-//         */
-//     }
-//     cout << endl;
-// }
-
-// // === Example Input Code (with print and main) ===
-// int main() {
-//     string code = R"(
-//     include<main>
-//     // Functions
-//     int add(int a, int b) {
-//         return a + b;
-//     }
-
-//     // Main entry point
-//     main {
-//         int x = 42;
-//         float y = 3.14159;
-
-//         // Unicode identifiers
-//         int π = 3;
-//         int 🌍 = 9;
-//         float résumé = 2.5;
-//         char 你好 = 'A';
-
-//         // Print statements
-//         print("Hello World! 🌍✨\n";)
-//         print("Value of pi: ", π, "\n");
-
-//         if (π > 0) {
-//             print("Positive pi\n");
-//         } else {
-//             return x;
-//         }
-
-//         while (x > 0) {
-//             x = x - 1;
-//             print "x = ", x, "\n";
-//         }
-
-//         // Invalid variable name
-//         int 123val = 55;
-
-//         return 0;
-//     }
-//     )";
-
-//     testLexer(code, "Final Lexer with PRINT and MAIN");
-//     return 0;
-// }

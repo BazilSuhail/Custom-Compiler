@@ -1,84 +1,50 @@
-#include <iostream>
-#include <string>
-#include <map>
-#include <cstring>
-#include <cwctype>
-#include <cstdint>
-using namespace std;
-
-enum TokenType {
-    // Data types
-    T_INT, T_FLOAT, T_DOUBLE, T_CHAR, T_VOID, T_BOOL,
-    
-    // Literals
-    T_IDENTIFIER, T_INTLIT, T_FLOATLIT, T_STRINGLIT, T_CHARLIT, T_BOOLLIT,
-    
-    // Brackets and separators
-    T_LPAREN, T_RPAREN, T_LBRACE, T_RBRACE, T_LBRACKET, T_RBRACKET,
-    T_SEMICOLON, T_COMMA, T_DOT, T_COLON,
-    
-    // Operators
-    T_ASSIGNOP, T_EQUALOP, T_NE, T_LT, T_GT, T_LE, T_GE,
-    T_PLUS, T_MINUS, T_MULTIPLY, T_DIVIDE, T_MODULO,
-    T_INCREMENT, T_DECREMENT,
-    T_AND, T_OR, T_NOT,
-    T_BITWISE_AND, T_BITWISE_OR, T_BITWISE_XOR, T_BITWISE_NOT,
-    T_LEFT_SHIFT, T_RIGHT_SHIFT,
-    
-    // Preprocessor
-    T_INCLUDE, T_DEFINE,
-    
-    // Keywords
-    T_IF, T_ELSE, T_WHILE, T_FOR, T_RETURN, T_BREAK, T_CONTINUE,
-    T_SWITCH, T_CASE, T_DEFAULT, T_DO,
-    T_CONST, T_STATIC, T_SIGNED, T_UNSIGNED,
-    T_SHORT, T_LONG, T_ENUM, T_TYPEDEF,
-    
-    // Comments
-    T_SINGLE_COMMENT, T_MULTI_COMMENT,
-    
-    // Special
-    T_ERROR
-};
-
-struct Token {
-    TokenType type;
-    string value;
-    int line;
-    int column;
-};
-
-// keyword map (built once, faster than re-creating every call)
+#include"compiler.h"
+// === Static Keyword Map ===
 static const map<string, TokenType> keywords = {
     {"int", T_INT}, {"float", T_FLOAT}, {"double", T_DOUBLE},
-    {"char", T_CHAR}, {"void", T_VOID}, {"bool", T_BOOL},
-    {"if", T_IF}, {"else", T_ELSE}, {"while", T_WHILE},
-    {"for", T_FOR}, {"return", T_RETURN}, {"break", T_BREAK},
-    {"continue", T_CONTINUE}, {"switch", T_SWITCH}, {"case", T_CASE},
-    {"default", T_DEFAULT}, {"do", T_DO}, {"const", T_CONST},
-    {"static", T_STATIC}, {"signed", T_SIGNED}, {"unsigned", T_UNSIGNED},
-    {"short", T_SHORT}, {"long", T_LONG}, {"enum", T_ENUM},
-    {"typedef", T_TYPEDEF}, {"true", T_BOOLLIT}, {"false", T_BOOLLIT},
-    {"#include", T_INCLUDE}, {"#define", T_DEFINE}
+    {"char", T_CHAR}, {"void", T_VOID}, {"bool", T_BOOL}, {"enum", T_ENUM},
+
+    {"true", T_BOOLLIT}, {"false", T_BOOLLIT},
+    {"if", T_IF}, {"else", T_ELSE}, {"while", T_WHILE}, {"return", T_RETURN},
+    {"print", T_PRINT}, {"main", T_MAIN},
+
+    // Newly added keywords
+    {"string", T_STRING}, {"do", T_DO}, {"switch", T_SWITCH}, {"include", T_INCLUDE},
+    {"break", T_BREAK}, {"for", T_FOR}, {"default", T_DEFAULT}, {"case", T_CASE}
 };
 
-// single-char tokens
+
+// === Single-character tokens ===
+// static const map<char, TokenType> singleChars = {
+//     {'(', T_LPAREN}, {')', T_RPAREN}, {'{', T_LBRACE}, {'}', T_RBRACE},
+//     {'[', T_LBRACKET}, {']', T_RBRACKET}, {';', T_SEMICOLON},
+//     {',', T_COMMA}, {'.', T_DOT}, {'+', T_PLUS}, {'-', T_MINUS},{':', T_COLON},   // <-- added here
+//     {'*', T_MULTIPLY}, {'/', T_DIVIDE}, {'%', T_MODULO}, {'=', T_ASSIGNOP},
+//     {'!', T_NOT}, {'<', T_LT}, {'>', T_GT}
+// };
+// === Single-character tokens ===
 static const map<char, TokenType> singleChars = {
     {'(', T_LPAREN}, {')', T_RPAREN}, {'{', T_LBRACE}, {'}', T_RBRACE},
-    {'[', T_LBRACKET}, {']', T_RBRACKET}, {';', T_SEMICOLON}, {',', T_COMMA},
-    {'.', T_DOT}, {':', T_COLON}, {'+', T_PLUS}, {'-', T_MINUS},
-    {'*', T_MULTIPLY}, {'/', T_DIVIDE}, {'%', T_MODULO}, {'<', T_LT},
-    {'>', T_GT}, {'!', T_NOT}, {'&', T_BITWISE_AND}, {'|', T_BITWISE_OR},
-    {'^', T_BITWISE_XOR}, {'~', T_BITWISE_NOT}, {'=', T_ASSIGNOP}
+    {'[', T_LBRACKET}, {']', T_RBRACKET}, {';', T_SEMICOLON},
+    {',', T_COMMA}, {'.', T_DOT}, {'+', T_PLUS}, {'-', T_MINUS},{':', T_COLON},
+    {'*', T_MULTIPLY}, {'/', T_DIVIDE}, {'%', T_MODULO}, {'=', T_ASSIGNOP},
+    {'!', T_NOT}, {'<', T_LT}, {'>', T_GT}, {'&', T_BITAND}, {'|', T_BITOR},
+    {'^', T_BITXOR}
 };
 
-// two-character operators
+// // === Two-character operators ===
+// static const map<string, TokenType> twoCharOps = {
+//     {"==", T_EQUALOP}, {"!=", T_NE}, {"<=", T_LE}, {">=", T_GE},
+//     {"&&", T_AND}, {"||", T_OR}, {"++", T_INCREMENT}, {"--", T_DECREMENT}
+// };
+// === Two-character operators ===
 static const map<string, TokenType> twoCharOps = {
     {"==", T_EQUALOP}, {"!=", T_NE}, {"<=", T_LE}, {">=", T_GE},
     {"&&", T_AND}, {"||", T_OR}, {"++", T_INCREMENT}, {"--", T_DECREMENT},
-    {"<<", T_LEFT_SHIFT}, {">>", T_RIGHT_SHIFT}
+    {"<<", T_BITLSHIFT}, {">>", T_BITRSHIFT}
 };
 
+// === Lexer State ===
 struct LexerState {
     const char* input;
     int pos;
@@ -87,7 +53,6 @@ struct LexerState {
     int inputLength;
 };
 
-// Create lexer state
 LexerState createLexerState(const char* source) {
     LexerState state;
     state.input = source;
@@ -98,32 +63,29 @@ LexerState createLexerState(const char* source) {
     return state;
 }
 
-// --- Utility functions ---
+// === Utility Functions ===
 inline bool isAsciiWhitespace(char ch) {
     return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
 }
+
 inline bool isDigit(char ch) {
     return ch >= '0' && ch <= '9';
 }
+
 inline bool isAsciiAlpha(char ch) {
     return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_';
 }
+
 inline bool isAsciiAlphaNumeric(char ch) {
     return isAsciiAlpha(ch) || isDigit(ch);
 }
-inline bool isUnicodeChar(const char* str, int pos, int len) {
-    return pos < len && (str[pos] & 0x80) != 0; // Non-ASCII byte
+
+// Check if byte starts a UTF-8 sequence (non-ASCII)
+inline bool isUnicodeLeadByte(char ch) {
+    return (ch & 0x80) != 0; // Non-ASCII
 }
 
-// Helper to build a token
-inline void makeToken(Token& token, TokenType type, const string& value, const LexerState& state, int startCol) {
-    token.type = type;
-    token.value = value;
-    token.line = state.line;
-    token.column = startCol;
-}
-
-// Skip spaces/tabs/newlines
+// Skip whitespace including newlines
 void skipWhitespace(LexerState& state) {
     while (state.pos < state.inputLength && isAsciiWhitespace(state.input[state.pos])) {
         if (state.input[state.pos] == '\n') {
@@ -136,191 +98,347 @@ void skipWhitespace(LexerState& state) {
     }
 }
 
-// --- Token matchers ---
+// Make token helper
+void makeToken(Token& token, TokenType type, const string& value, const LexerState& state, int startCol) {
+    token.type = type;
+    token.value = value;
+    token.line = state.line;
+    token.column = startCol;
+}
 
-// Comments
+// === Match Comments ===
 bool tryMatchComments(LexerState& state, Token& token) {
     if (state.pos + 1 >= state.inputLength) return false;
     int startCol = state.column;
 
+    // Single-line comment //
     if (state.input[state.pos] == '/' && state.input[state.pos + 1] == '/') {
-        string comment = "//"; state.pos += 2; state.column += 2;
-        while (state.pos < state.inputLength && state.input[state.pos] != '\n')
-            comment += state.input[state.pos++], state.column++;
-        if (state.pos < state.inputLength && state.input[state.pos] == '\n')
-            state.line++, state.column = 1, state.pos++;
+        string comment = "//";
+        state.pos += 2;
+        state.column += 2;
+        while (state.pos < state.inputLength && state.input[state.pos] != '\n') {
+            comment += state.input[state.pos++];
+            state.column++;
+        }
         makeToken(token, T_SINGLE_COMMENT, comment, state, startCol);
         return true;
     }
+
+    // Multi-line comment /* ... */
     if (state.input[state.pos] == '/' && state.input[state.pos + 1] == '*') {
-        string comment = "/*"; state.pos += 2; state.column += 2;
+        string comment = "/*";
+        state.pos += 2;
+        state.column += 2;
         while (state.pos + 1 < state.inputLength) {
             if (state.input[state.pos] == '*' && state.input[state.pos + 1] == '/') {
-                comment += "*/"; state.pos += 2; state.column += 2; break;
+                comment += "*/";
+                state.pos += 2;
+                state.column += 2;
+                makeToken(token, T_MULTI_COMMENT, comment, state, startCol);
+                return true;
             }
-            if (state.input[state.pos] == '\n') state.line++, state.column = 1;
-            else state.column++;
+            if (state.input[state.pos] == '\n') {
+                state.line++;
+                state.column = 1;
+            } else {
+                state.column++;
+            }
             comment += state.input[state.pos++];
         }
-        makeToken(token, T_MULTI_COMMENT, comment, state, startCol);
+        makeToken(token, T_ERROR, "Unterminated multi-line comment", state, startCol);
         return true;
     }
     return false;
 }
 
-// Preprocessor directives (#include, #define)
-bool tryMatchPreprocessor(LexerState& state, Token& token) {
-    if (state.input[state.pos] != '#') return false;
+// === Match String or Char Literal (with escape support) ===
+bool tryMatchQuoted(LexerState& state, Token& token) {
+    if (state.pos >= state.inputLength) return false;
+    char quote = state.input[state.pos];
+    if (quote != '"' && quote != '\'') return false;
+
     int startCol = state.column;
-    string directive;
-    while (state.pos < state.inputLength &&
-           (isAsciiAlpha(state.input[state.pos]) || state.input[state.pos] == '#'))
-        directive += state.input[state.pos++], state.column++;
+    string literal(1, quote);
+    state.pos++; state.column++;
 
-    auto it = keywords.find(directive);
-    if (it != keywords.end()) {
-        makeToken(token, it->second, directive, state, startCol);
-    } else {
-        makeToken(token, T_ERROR, "Unknown directive: " + directive, state, startCol);
-    }
-    return true;
-}
-
-// String or char literals (unified)
-bool tryMatchQuoted(LexerState& state, Token& token, char delimiter, TokenType type) {
-    if (state.input[state.pos] != delimiter) return false;
-    int startCol = state.column;
-    string value(1, delimiter); state.pos++; state.column++;
-
-    while (state.pos < state.inputLength && state.input[state.pos] != delimiter) {
-        if (state.input[state.pos] == '\\' && state.pos + 1 < state.inputLength) {
-            value += state.input[state.pos++]; value += state.input[state.pos++];
+    while (state.pos < state.inputLength && state.input[state.pos] != quote) {
+        if (state.input[state.pos] == '\\') {
+            if (state.pos + 1 >= state.inputLength) {
+                literal += state.input[state.pos++];
+                state.column++;
+                break;
+            }
+            literal += state.input[state.pos++]; // '\'
+            literal += state.input[state.pos++]; // escaped char
             state.column += 2;
         } else {
-            if (state.input[state.pos] == '\n') state.line++, state.column = 1;
-            else state.column++;
-            value += state.input[state.pos++];
+            if (state.input[state.pos] == '\n') {
+                state.line++;
+                state.column = 1;
+            } else {
+                state.column++;
+            }
+            literal += state.input[state.pos++];
         }
     }
+
     if (state.pos < state.inputLength) {
-        value += delimiter; state.pos++; state.column++;
-        makeToken(token, type, value, state, startCol);
+        literal += quote;
+        state.pos++; state.column++;
+        makeToken(token, quote == '"' ? T_STRINGLIT : T_CHARLIT, literal, state, startCol);
+        return true;
     } else {
         makeToken(token, T_ERROR, "Unterminated literal", state, startCol);
-    }
-    return true;
-}
-
-// Operators
-bool tryMatchOperator(LexerState& state, Token& token) {
-    if (state.pos >= state.inputLength) return false;
-    char ch = state.input[state.pos];
-    char nextCh = (state.pos + 1 < state.inputLength) ? state.input[state.pos + 1] : '\0';
-    string twoChar = string(1, ch) + nextCh;
-    int startCol = state.column;
-
-    auto it = twoCharOps.find(twoChar);
-    if (it != twoCharOps.end()) {
-        makeToken(token, it->second, twoChar, state, startCol);
-        state.pos += 2; state.column += 2;
         return true;
     }
+}
+
+// === Match Operators (two-char first) ===
+bool tryMatchOperator(LexerState& state, Token& token) {
+    if (state.pos >= state.inputLength) return false;
+    int startCol = state.column;
+    char ch = state.input[state.pos];
+    char next = (state.pos + 1 < state.inputLength) ? state.input[state.pos + 1] : '\0';
+    string two = string(1, ch) + next;
+
+    auto it = twoCharOps.find(two);
+    if (it != twoCharOps.end()) {
+        makeToken(token, it->second, two, state, startCol);
+        state.pos += 2;
+        state.column += 2;
+        return true;
+    }
+
     auto singleIt = singleChars.find(ch);
     if (singleIt != singleChars.end()) {
         makeToken(token, singleIt->second, string(1, ch), state, startCol);
-        state.pos++; state.column++;
+        state.pos++;
+        state.column++;
         return true;
     }
+
     return false;
 }
 
-// Identifiers or numbers
-bool tryMatchIdentifierOrNumber(LexerState& state, Token& token) {
+// === Match Identifier or Number ===
+bool tryMatchIdOrNumber(LexerState& state, Token& token) {
     if (state.pos >= state.inputLength) return false;
+
     int startCol = state.column;
     string value;
 
-    // Numbers
-    if (isDigit(state.input[state.pos])) {
-        while (state.pos < state.inputLength && isAsciiAlphaNumeric(state.input[state.pos]))
-            value += state.input[state.pos++], state.column++;
+    char current = state.input[state.pos];
 
-        bool hasAlpha = false;
-        for (char c : value) if (isAsciiAlpha(c)) hasAlpha = true;
-        if (hasAlpha) { makeToken(token, T_ERROR, "Invalid identifier: " + value, state, startCol); return true; }
+    // Start with digit → number
+    if (isDigit(current)) {
+        while (state.pos < state.inputLength &&
+               (isDigit(state.input[state.pos]) ||
+                state.input[state.pos] == '.' ||
+                state.input[state.pos] == 'e' || state.input[state.pos] == 'E' ||
+                state.input[state.pos] == '+' || state.input[state.pos] == '-')) {
 
-        if (state.pos < state.inputLength &&
-            (state.input[state.pos] == '.' || state.input[state.pos] == 'e' || state.input[state.pos] == 'E')) {
-            bool hasDot = false, hasExp = false;
-            while (state.pos < state.inputLength &&
-                   (isDigit(state.input[state.pos]) || state.input[state.pos] == '.' ||
-                    state.input[state.pos] == 'e' || state.input[state.pos] == 'E' ||
-                    state.input[state.pos] == '+' || state.input[state.pos] == '-')) {
-                if (state.input[state.pos] == '.') { if (hasDot) break; hasDot = true; }
-                if (state.input[state.pos] == 'e' || state.input[state.pos] == 'E') { if (hasExp) break; hasExp = true; }
-                value += state.input[state.pos++]; state.column++;
+            char c = state.input[state.pos];
+            if (!isDigit(c) && c != '.' && c != 'e' && c != 'E' && c != '+' && c != '-') {
+                break;
             }
-            makeToken(token, T_FLOATLIT, value, state, startCol);
-            return true;
+
+            value += state.input[state.pos++];
+            state.column++;
         }
-        makeToken(token, T_INTLIT, value, state, startCol);
+
+        // After number, check for invalid identifier suffix like 123abc
+        if (state.pos < state.inputLength) {
+            char next = state.input[state.pos];
+            if (isAsciiAlpha(next) || isUnicodeLeadByte(next)) {
+                string badIdent = value;
+                while (state.pos < state.inputLength) {
+                    char c = state.input[state.pos];
+                    if (isAsciiAlphaNumeric(c) || isUnicodeLeadByte(c) || ((c & 0xC0) == 0x80)) {
+                        badIdent += c;
+                        state.pos++;
+                        state.column++;
+                    } else {
+                        break;
+                    }
+                }
+                makeToken(token, T_ERROR, "Invalid numeric literal followed by identifier: '" + badIdent + "'", state, startCol);
+                return true;
+            }
+        }
+
+        if (value.find('.') != string::npos || value.find('e') != string::npos || value.find('E') != string::npos) {
+            makeToken(token, T_FLOATLIT, value, state, startCol);
+        } else {
+            makeToken(token, T_INTLIT, value, state, startCol);
+        }
         return true;
     }
 
-    // Identifiers/keywords (including Unicode start)
-    if (isAsciiAlpha(state.input[state.pos]) || isUnicodeChar(state.input, state.pos, state.inputLength)) {
-        while (state.pos < state.inputLength &&
-              (isAsciiAlphaNumeric(state.input[state.pos]) || isUnicodeChar(state.input, state.pos, state.inputLength)))
-            value += state.input[state.pos++], state.column++;
+    // Identifier: starts with alpha/_/Unicode
+    if (isAsciiAlpha(current) || isUnicodeLeadByte(current)) {
+        while (state.pos < state.inputLength) {
+            char c = state.input[state.pos];
+            if (isAsciiAlphaNumeric(c) || isUnicodeLeadByte(c)) {
+                value += c;
+                state.pos++;
+                state.column++;
+            } else if ((c & 0xC0) == 0x80 || (c & 0xC0) == 0xC0) {
+                // UTF-8 continuation bytes
+                value += c;
+                state.pos++;
+                state.column++;
+            } else {
+                break;
+            }
+        }
 
         auto it = keywords.find(value);
-        makeToken(token, it != keywords.end() ? it->second : T_IDENTIFIER, value, state, startCol);
+        TokenType type = (it != keywords.end()) ? it->second : T_IDENTIFIER;
+        makeToken(token, type, value, state, startCol);
         return true;
     }
+
     return false;
 }
 
-// Get next token
+// === Get Next Token ===
 bool getNextToken(LexerState& state, Token& token) {
-    while (state.pos < state.inputLength) {
-        skipWhitespace(state);
-        if (state.pos >= state.inputLength) break;
-        if (tryMatchComments(state, token)) return true;
-        if (tryMatchPreprocessor(state, token)) return true;
-        if (tryMatchQuoted(state, token, '"', T_STRINGLIT)) return true;
-        if (tryMatchQuoted(state, token, '\'', T_CHARLIT)) return true;
-        if (tryMatchOperator(state, token)) return true;
-        if (tryMatchIdentifierOrNumber(state, token)) return true;
-
-        // Unknown character
-        makeToken(token, T_ERROR, string("Unknown character: ") + state.input[state.pos], state, state.column);
-        state.pos++; state.column++;
-        return true;
+    skipWhitespace(state);
+    if (state.pos >= state.inputLength) {
+        token.type = T_EOF;
+        token.value = "";
+        token.line = state.line;
+        token.column = state.column;
+        return false;
     }
-    return false;
+
+    int startCol = state.column;
+
+    if (tryMatchComments(state, token)) return true;
+    if (tryMatchQuoted(state, token)) return true;
+    if (tryMatchOperator(state, token)) return true;
+    if (tryMatchIdOrNumber(state, token)) return true;
+
+    // Unknown character
+    string err = string("Unexpected character: '") + state.input[state.pos] + "'";
+    makeToken(token, T_ERROR, err, state, startCol);
+    state.pos++;
+    state.column++;
+    return true;
 }
 
-// Map token type to string
+// === Token Type to String ===
+
 const char* tokenTypeToString(TokenType type) {
-    static const char* names[] = {
-        "T_INT", "T_FLOAT", "T_DOUBLE", "T_CHAR", "T_VOID", "T_BOOL",
-        "T_IDENTIFIER", "T_INTLIT", "T_FLOATLIT", "T_STRINGLIT", "T_CHARLIT", "T_BOOLLIT",
-        "T_LPAREN", "T_RPAREN", "T_LBRACE", "T_RBRACE", "T_LBRACKET", "T_RBRACKET",
-        "T_SEMICOLON", "T_COMMA", "T_DOT", "T_COLON",
-        "T_ASSIGNOP", "T_EQUALOP", "T_NE", "T_LT", "T_GT", "T_LE", "T_GE",
-        "T_PLUS", "T_MINUS", "T_MULTIPLY", "T_DIVIDE", "T_MODULO",
-        "T_INCREMENT", "T_DECREMENT",
-        "T_AND", "T_OR", "T_NOT",
-        "T_BITWISE_AND", "T_BITWISE_OR", "T_BITWISE_XOR", "T_BITWISE_NOT",
-        "T_LEFT_SHIFT", "T_RIGHT_SHIFT",
-        "T_INCLUDE", "T_DEFINE",
-        "T_IF", "T_ELSE", "T_WHILE", "T_FOR", "T_RETURN", "T_BREAK", "T_CONTINUE",
-        "T_SWITCH", "T_CASE", "T_DEFAULT", "T_DO",
-        "T_CONST", "T_STATIC", "T_SIGNED", "T_UNSIGNED",
-        "T_SHORT", "T_LONG", "T_ENUM", "T_TYPEDEF",
-        "T_SINGLE_COMMENT", "T_MULTI_COMMENT",
-        "T_ERROR"
-    };
-    if (type < 0 || type >= (int)(sizeof(names)/sizeof(names[0]))) return "T_UNKNOWN";
-    return names[type];
+    switch (type) {
+        case T_INCLUDE: return "T_INCLUDE";
+        case T_INT: return "T_INT";
+        case T_FLOAT: return "T_FLOAT";
+        case T_DOUBLE: return "T_DOUBLE";
+        case T_CHAR: return "T_CHAR";
+        case T_VOID: return "T_VOID";
+        case T_BOOL: return "T_BOOL";
+        case T_ENUM: return "T_ENUM";
+        case T_IDENTIFIER: return "T_IDENTIFIER";
+        case T_INTLIT: return "T_INTLIT";
+        case T_FLOATLIT: return "T_FLOATLIT";
+        case T_STRINGLIT: return "T_STRINGLIT";
+        case T_CHARLIT: return "T_CHARLIT";
+        case T_BOOLLIT: return "T_BOOLLIT";
+        case T_STRING: return "T_STRING";
+        case T_DO: return "T_DO";
+        case T_SWITCH: return "T_SWITCH";
+        case T_BREAK: return "T_BREAK";
+        case T_FOR: return "T_FOR";
+        case T_DEFAULT: return "T_DEFAULT";
+        case T_CASE: return "T_CASE";
+        case T_COLON: return "T_COLON";
+        case T_LPAREN: return "T_LPAREN";
+        case T_RPAREN: return "T_RPAREN";
+        case T_LBRACE: return "T_LBRACE";
+        case T_RBRACE: return "T_RBRACE";
+        case T_LBRACKET: return "T_LBRACKET";
+        case T_RBRACKET: return "T_RBRACKET";
+        case T_SEMICOLON: return "T_SEMICOLON";
+        case T_COMMA: return "T_COMMA";
+        case T_DOT: return "T_DOT";
+        case T_ASSIGNOP: return "T_ASSIGNOP";
+        case T_EQUALOP: return "T_EQUALOP";
+        case T_NE: return "T_NE";
+        case T_LT: return "T_LT";
+        case T_GT: return "T_GT";
+        case T_LE: return "T_LE";
+        case T_GE: return "T_GE";
+        case T_BITAND: return "T_BITAND";      // Added
+        case T_BITOR: return "T_BITOR";        // Added
+        case T_BITXOR: return "T_BITXOR";      // Added
+        case T_BITLSHIFT: return "T_BITLSHIFT"; // Added
+        case T_BITRSHIFT: return "T_BITRSHIFT"; // Added
+        case T_PLUS: return "T_PLUS";
+        case T_MINUS: return "T_MINUS";
+        case T_MULTIPLY: return "T_MULTIPLY";
+        case T_DIVIDE: return "T_DIVIDE";
+        case T_MODULO: return "T_MODULO";
+        case T_INCREMENT: return "T_INCREMENT";
+        case T_DECREMENT: return "T_DECREMENT";
+        case T_AND: return "T_AND";
+        case T_OR: return "T_OR";
+        case T_NOT: return "T_NOT";
+        case T_IF: return "T_IF";
+        case T_ELSE: return "T_ELSE";
+        case T_WHILE: return "T_WHILE";
+        case T_RETURN: return "T_RETURN";
+        case T_PRINT: return "T_PRINT";
+        case T_MAIN: return "T_MAIN";
+        case T_SINGLE_COMMENT: return "T_SINGLE_COMMENT";
+        case T_MULTI_COMMENT: return "T_MULTI_COMMENT";
+        case T_ERROR: return "T_ERROR";
+        case T_EOF: return "T_EOF";
+        default: return "T_UNKNOWN";
+    }
+}
+
+/* ======== */
+
+vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename) {
+    // Read the input file
+    ifstream inputFile(inputFilename);
+    if (!inputFile.is_open()) {
+        cerr << "Failed to open input file: " << inputFilename << endl;
+        return {};
+    }
+
+    stringstream buffer;
+    buffer << inputFile.rdbuf();
+    string code = buffer.str();
+    inputFile.close();
+
+    // Lexing
+    vector<Token> tokens;
+    LexerState state = createLexerState(code.c_str());
+    Token token;
+
+    while (getNextToken(state, token)) {
+        if (token.type == T_ERROR) {
+            cerr << "ERROR(line " << token.line << ", col " << token.column << "): " << token.value << "\n";
+        } else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
+            tokens.push_back(token);
+        }
+    }
+
+    // Append EOF token
+    tokens.push_back({T_EOF, "EOF", -1, -1});
+
+    // Write tokens to output file for debugging
+    ofstream outFile(outputFilename, ios::out | ios::trunc);
+    if (!outFile.is_open()) {
+        cerr << "Failed to open output file: " << outputFilename << endl;
+    } else {
+        for (const auto& t : tokens) {
+            outFile << tokenTypeToString(t.type) << "(" << t.value << ")," << t.line << "," << t.column << "\n";
+        }
+        outFile.close();
+    }
+
+    return tokens;
 }

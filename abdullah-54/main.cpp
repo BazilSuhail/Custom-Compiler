@@ -12,10 +12,10 @@ int main(int argc, char* argv[]) {
 
     // Parse tokens into AST
     auto ast = parseFromFile(tokens); 
-    performScopeAnalysis(ast, tokens);
-    performTypeChecking(ast, tokens);
-    
-     cout << "\n\nmeow\n\n";
+    //performScopeAnalysis(ast, tokens);
+    //performTypeChecking(ast, tokens);
+    generateTAC(ast,"tester/tac.txt");
+     //cout << "\n\nmeow\n\n";
 
  
     return 0;
