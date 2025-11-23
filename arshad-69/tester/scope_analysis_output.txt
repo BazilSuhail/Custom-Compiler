@@ -1,0 +1,50 @@
+=== SCOPE TREE (Spaghetti Stack) ===
+Scope [global] (depth: 0):
+  add : FUNCTION (int) at 12:5 [defined: yes] signature: int(int, int)
+  calculateArea : FUNCTION (float) at 92:7 [defined: yes] signature: float(float)
+  counter : VARIABLE (int) at 63:9
+  globalVar : VARIABLE (int) at 1:5
+  multiply : FUNCTION (int) at 24:5 [defined: yes] signature: int(int, int)
+  product : VARIABLE (int) at 34:9
+  sum : VARIABLE (int) at 33:9
+  temp : VARIABLE (int) at 60:9
+  x : VARIABLE (int) at 29:9
+  y : VARIABLE (int) at 30:9
+  z : VARIABLE (int) at 40:9
+  Scope [function_add] (depth: 1):
+    a : PARAMETER (int) at 12:13
+    b : PARAMETER (int) at 12:20
+    result : VARIABLE (int) at 13:9
+    temp : VARIABLE (int) at 16:9
+  Scope [function_multiply] (depth: 1):
+    x : PARAMETER (int) at 24:18
+    y : PARAMETER (int) at 24:25
+  Scope [block] (depth: 1):
+    blockVar : VARIABLE (int) at 48:13
+  Scope [block] (depth: 1):
+    loopVar : VARIABLE (int) at 65:13
+    x : VARIABLE (int) at 68:13
+  Scope [function_multiply] (depth: 1):
+    a : PARAMETER (int) at 84:18
+    b : PARAMETER (int) at 84:25
+  Scope [function_calculateArea] (depth: 1):
+    area : VARIABLE (float) at 96:11
+    pi : VARIABLE (float) at 93:11
+    radius : PARAMETER (float) at 92:27
+====================================
+
+=== SCOPE ERRORS DETECTED ===
+Total errors: 9
+
+Error at line 84, column 5: Function redefinition: 'multiply'
+Error at line 16, column 16: Undeclared variable accessed: 'undeclaredLocal'
+Error at line 37, column 9: Variable redefinition: 'x'
+Error at line 40, column 13: Undeclared variable accessed: 'undeclaredVar'
+Error at line 54, column 13: Variable redefinition: 'blockVar'
+Error at line 60, column 16: Undeclared variable accessed: 'blockVar'
+Error at line 78, column 5: Undefined function called: 'completelyUndefinedFunction'
+Error at line 96, column 18: Undeclared variable accessed: 'unknownConstant'
+Error at line 102, column 5: Variable redefinition: 'globalVar'
+
+=== SCOPE ANALYSIS COMPLETE ===
+
