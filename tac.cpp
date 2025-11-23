@@ -16,6 +16,18 @@ private:
     unordered_map<string, string> enumValues;
     stack<string> breakLabels;
     
+      string getTypeString(TokenType type) {
+        switch (type) {
+            case T_INT: return "int";
+            case T_FLOAT: return "float";
+            case T_CHAR: return "char";
+            case T_STRING: return "string";
+            case T_BOOL: return "bool";
+            case T_VOID: return "void";
+            case T_DOUBLE: return "double"; 
+            default: return "int";
+        }
+    }
 public:
     TACGenerator(const string& filename) 
         : outputFile(filename), tempCounter(0), labelCounter(0), indentLevel(0) {
@@ -181,16 +193,18 @@ private:
         emit(result + " = call " + callee + "(" + argsStr + ")");
         return result;
     }
-    
+        
     void processVarDecl(const VarDecl& decl) {
+        // Include type information for variable declarations
+        string varType = getTypeString(decl.type);
         if (decl.initializer) {
             string initVal = processNode(decl.initializer->node);
-            emit(decl.name + " = " + initVal);
+            emit(varType + " " + decl.name + " = " + initVal);
         } else {
-            emit(decl.name + " = 0");
+            emit(varType + " " + decl.name + " = 0");
         }
     }
-    
+
     void processBlockStmt(const BlockStmt& stmt) {
         for (const auto& s : stmt.body) {
             if (s) processNode(s->node);
@@ -205,12 +219,19 @@ private:
         string oldFunction = currentFunction;
         currentFunction = func.name;
         
-        emit("\nfunction " + func.name + " begin");
+        
+        // Include return type in function declaration
+        string returnType = getTypeString(func.returnType);
+        
+        emit("\n" + returnType + " function " + func.name + " begin");
+        //emit("\nfunction " + func.name + " begin");
         increaseIndent();
         
         // Parameters
         for (const auto& param : func.params) {
-            emit(param.second + " = param");
+            string paramType = getTypeString(param.first); // param.first is the type
+            emit(paramType + " " + param.second + " = param");
+            //emit(param.second + " = param");
         }
         
         // Function body

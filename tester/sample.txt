@@ -1,7 +1,9 @@
 include<main>
+void meow(string s);
 
-void meow(){
+void meow(string s){
     print("Hellow Bazil");
+    print(s);
 }
 
 int add(int n, int m) {
@@ -14,13 +16,26 @@ int mul(int n, int m) {
     return res;
 }
 
+float processData(int v){
+    int result = v + 0.1;
+    print("df");
+    return result;
+}
+
 main {
-    meow();
+    meow("Hahahah====================================");
+    char s = 'c';
+    print(s);
+
     int result = add(25,5);
     int result1 = mul(105,10);
+    float result2 = processData(105.3);
+    //float result2 = 105.2 + 0.33;
+    
     print("Factorial:");
     print(result);
     print(result1);
+    print(result2);
 
     int a1 = 5;
     int a2 = 3;
