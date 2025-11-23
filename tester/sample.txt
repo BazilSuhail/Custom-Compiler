@@ -2,8 +2,24 @@ include<main>
 void meow(string s);
 
 void meow(string s){
-    print("Hellow Bazil");
     print(s);
+}
+
+char sw(char s){
+    switch (s) {
+        case 'c'{
+            print("value is c");
+            break;            
+        }
+        case 'x'{
+            print("value is x"); 
+            break;
+        }
+        default{
+            print("other value");
+        }
+    }
+    return s;
 }
 
 int add(int n, int m) {
@@ -16,21 +32,16 @@ int mul(int n, int m) {
     return res;
 }
 
-float processData(int v){
-    int result = v + 0.1;
-    print("df");
-    return result;
-}
-
 main {
     meow("Hahahah====================================");
-    char s = 'c';
+    meow("huihui");
+    char s = sw('x');
     print(s);
 
     int result = add(25,5);
     int result1 = mul(105,10);
-    float result2 = processData(105.3);
-    //float result2 = 105.2 + 0.33;
+    //float result2 = processData(105.3);
+    float result2 = 105.2 + 0.33;
     
     print("Factorial:");
     print(result);
@@ -52,16 +63,25 @@ main {
     print("shiftLeft is", shiftLeft);
     print("shiftRight is", shiftRight);
 
+    bool flag = true;
+    int x = 0;
 
-    
+    do {
+        if (x > 3) {
+            flag = false;
+            break;
+        }
+        print("x is now");
+        print(x);
+        x=x+1;
+    } while (true);
+            
     int a;
     while (a<5){
-            print("Goat is Bazil");
-
+        print("Goat is Bazil");
         print(a);
         a = a + 1;
     }
-    
     
     for (int i = 0; i <= 3; i=i+1) {
         if (i == 1 || i == 3) {

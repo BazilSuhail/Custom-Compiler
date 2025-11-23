@@ -657,13 +657,35 @@ public:
         
         Value* condValue = nullptr;
         
-        if (condition.find(" == 0") != string::npos) {
-            string var = condition.substr(0, condition.find(" == 0"));
-            var.erase(0, var.find_first_not_of(" \t"));
-            var.erase(var.find_last_not_of(" \t") + 1);
-            auto [val, type] = getValueWithType(var);
-            val = convertToType(val, VarType::INT);
-            condValue = builder.CreateICmpEQ(val, ConstantInt::get(int32Ty, 0));
+        if (condition.find(" == ") != string::npos) {
+            size_t eqPos = condition.find(" == ");
+            string leftOp = condition.substr(0, eqPos);
+            string rightOp = condition.substr(eqPos + 4);
+            
+            leftOp.erase(0, leftOp.find_first_not_of(" \t"));
+            leftOp.erase(leftOp.find_last_not_of(" \t") + 1);
+            rightOp.erase(0, rightOp.find_first_not_of(" \t"));
+            rightOp.erase(rightOp.find_last_not_of(" \t") + 1);
+            
+            auto [lVal, lType] = getValueWithType(leftOp);
+            auto [rVal, rType] = getValueWithType(rightOp);
+            
+            // Check if comparing chars
+            if (lVal->getType()->isIntegerTy(8) || rVal->getType()->isIntegerTy(8)) {
+                // Extend char to i32 for comparison
+                if (lVal->getType()->isIntegerTy(8)) {
+                    lVal = builder.CreateZExt(lVal, int32Ty);
+                }
+                if (rVal->getType()->isIntegerTy(8)) {
+                    rVal = builder.CreateZExt(rVal, int32Ty);
+                }
+                condValue = builder.CreateICmpEQ(lVal, rVal);
+            } else {
+                // Regular comparison
+                lVal = convertToType(lVal, VarType::INT);
+                rVal = convertToType(rVal, VarType::INT);
+                condValue = builder.CreateICmpEQ(lVal, rVal);
+            }
         } else if (condition.find(" != 0") != string::npos) {
             string var = condition.substr(0, condition.find(" != 0"));
             var.erase(0, var.find_first_not_of(" \t"));
@@ -671,15 +693,24 @@ public:
             auto [val, type] = getValueWithType(var);
             val = convertToType(val, VarType::INT);
             condValue = builder.CreateICmpNE(val, ConstantInt::get(int32Ty, 0));
+        } else if (condition.find(" == 0") != string::npos) {
+            string var = condition.substr(0, condition.find(" == 0"));
+            var.erase(0, var.find_first_not_of(" \t"));
+            var.erase(var.find_last_not_of(" \t") + 1);
+            auto [val, type] = getValueWithType(var);
+            val = convertToType(val, VarType::INT);
+            condValue = builder.CreateICmpEQ(val, ConstantInt::get(int32Ty, 0));
         }
         
-        BasicBlock* thenBlock = labels[labelName];
-        BasicBlock* elseBlock = BasicBlock::Create(ctx, "cont", currentFunc);
-        
-        builder.CreateCondBr(condValue, thenBlock, elseBlock);
-        
-        currentBlock = elseBlock;
-        builder.SetInsertPoint(currentBlock);
+        if (labels.find(labelName) != labels.end()) {
+            BasicBlock* thenBlock = labels[labelName];
+            BasicBlock* elseBlock = BasicBlock::Create(ctx, "cont", currentFunc);
+            
+            builder.CreateCondBr(condValue, thenBlock, elseBlock);
+            
+            currentBlock = elseBlock;
+            builder.SetInsertPoint(currentBlock);
+        }
     }
     
     void processGoto(const string& stmt) {
@@ -687,10 +718,13 @@ public:
         labelName.erase(0, labelName.find_first_not_of(" \t"));
         labelName.erase(labelName.find_last_not_of(" \t") + 1);
         
-        builder.CreateBr(labels[labelName]);
-        
-        currentBlock = BasicBlock::Create(ctx, "aftergoto", currentFunc);
-        builder.SetInsertPoint(currentBlock);
+        if (labels.find(labelName) != labels.end()) {
+            builder.CreateBr(labels[labelName]);
+            
+            // Create unreachable block for any code after goto
+            currentBlock = BasicBlock::Create(ctx, "aftergoto", currentFunc);
+            builder.SetInsertPoint(currentBlock);
+        }
     }
     
     void processReturn(const string& stmt) {
