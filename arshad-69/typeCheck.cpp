@@ -593,6 +593,7 @@ string TypeChecker::checkExpression(ASTNode* node) {
             return getResultType(leftType, rightType, binOp->operator_);
         }
         
+        
         case NodeType::UnaryOp: {
             UnaryOp* unOp = static_cast<UnaryOp*>(node);
             string operandType = checkExpression(unOp->operand.get());
