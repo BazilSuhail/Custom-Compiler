@@ -1,0 +1,246 @@
+=== Abstract Syntax Tree ===
+Program [
+  Var(
+    VarDecl {
+      type_tok: int,
+      ident: "globalVar",
+      expr: Some(
+        42
+      )
+    }
+  )
+  Fn(
+    FnDecl {
+      type_tok: int,
+      ident: "add",
+      params: [
+        Param { type: int, name: "a" }
+        Param { type: int, name: "b" }
+      ],
+      block: [
+        Var(
+          VarDecl {
+            type_tok: int,
+            ident: "result",
+            expr: Some(
+              ::Add(+)
+                "a"
+                "b"
+            )
+          }
+        )
+        Ret(
+          ExprStmt {
+            expr: Some(
+              "result"
+            )
+          }
+        )
+      ]
+    }
+  )
+  Fn(
+    FnDecl {
+      type_tok: int,
+      ident: "multiply",
+      params: [
+        Param { type: int, name: "x" }
+        Param { type: int, name: "y" }
+      ],
+      block: [
+        Ret(
+          ExprStmt {
+            expr: Some(
+              ::Mul(*)
+                "x"
+                "y"
+            )
+          }
+        )
+      ]
+    }
+  )
+  Var(
+    VarDecl {
+      type_tok: int,
+      ident: "x",
+      expr: Some(
+        10
+      )
+    }
+  )
+  Var(
+    VarDecl {
+      type_tok: int,
+      ident: "y",
+      expr: Some(
+        20
+      )
+    }
+  )
+  Var(
+    VarDecl {
+      type_tok: int,
+      ident: "sum",
+      expr: Some(
+        Call(FnCall {
+          ident: "add",
+          args: [
+            Some(
+              "x"
+            ),
+            Some(
+              "y"
+            ),
+          ]
+        })
+      )
+    }
+  )
+  Var(
+    VarDecl {
+      type_tok: int,
+      ident: "product",
+      expr: Some(
+        Call(FnCall {
+          ident: "multiply",
+          args: [
+            Some(
+              "x"
+            ),
+            Some(
+              "y"
+            ),
+          ]
+        })
+      )
+    }
+  )
+  Var(
+    VarDecl {
+      type_tok: int,
+      ident: "x",
+      expr: Some(
+        30
+      )
+    }
+  )
+  Var(
+    VarDecl {
+      type_tok: int,
+      ident: "z",
+      expr: Some(
+        "undeclaredVar"
+      )
+    }
+  )
+  Print([
+    ""Sum: ""
+    "sum"
+  ])
+  Print([
+    ""Product: ""
+    "product"
+  ])
+  If(
+    IfStmt {
+      cond: Some(
+        ::Comp(>)
+          "x"
+          0
+      ),
+      if_block: [
+        Var(
+          VarDecl {
+            type_tok: int,
+            ident: "blockVar",
+            expr: Some(
+              100
+            )
+          }
+        )
+        Print([
+          ""Inside if: ""
+          "blockVar"
+        ])
+      ],
+      else_block: [
+      ]
+    }
+  )
+  Var(
+    VarDecl {
+      type_tok: int,
+      ident: "counter",
+      expr: Some(
+        5
+      )
+    }
+  )
+  While(
+    WhileStmt {
+      cond: Some(
+        ::Comp(>)
+          "counter"
+          0
+      ),
+      body: [
+        Var(
+          VarDecl {
+            type_tok: int,
+            ident: "loopVar",
+            expr: Some(
+              "counter"
+            )
+          }
+        )
+        Print([
+          ""Counter: ""
+          "loopVar"
+        ])
+        Assign("counter", ::Sub(-)
+  "counter"
+  1
+)
+      ]
+    }
+  )
+  Ret(
+    ExprStmt {
+      expr: Some(
+        0
+      )
+    }
+  )
+  Fn(
+    FnDecl {
+      type_tok: float,
+      ident: "calculateArea",
+      params: [
+        Param { type: float, name: "radius" }
+      ],
+      block: [
+        Var(
+          VarDecl {
+            type_tok: float,
+            ident: "pi",
+            expr: Some(
+              3.14159
+            )
+          }
+        )
+        Ret(
+          ExprStmt {
+            expr: Some(
+              ::Mul(*)
+                ::Mul(*)
+                  "pi"
+                  "radius"
+                "radius"
+            )
+          }
+        )
+      ]
+    }
+  )
+]
