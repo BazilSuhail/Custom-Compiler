@@ -3,6 +3,7 @@ include<main>
 void displayMessage(string message);
 
 void displayMessage(string message){
+    
     int x = 15;
 
     print(message, x);
@@ -71,6 +72,7 @@ void demonstrateBitwise(){
 }
  
  main {
+    
     displayMessage("=== Starting Program Execution ===");
     displayMessage("Welcome to the Toy Language Demo!");
     
@@ -105,15 +107,44 @@ void demonstrateBitwise(){
         number = number + 1;
     }
 
-    print("For loop example (Triangle pattern):");
-    for (int row = 1; row <= 5; row = row + 1) {
-        for (int col = 1; col <= row; col = col + 1) {
+    
+    print("For loop example (Triangle pattern)");
+    for (int row = 1; row <= 5; row++) {
+        for (int col = 1; col <= row; col++) {
             print("*");
         }
+        print("\n");
+    }
+    /*
+    int height = 8;
+
+    for (int row = 1; row <= height; row++) {
+        // Left stars
+        for (int col = 1; col <= row; col++) {
+            print("*");
+        }
+        
+        // Middle spaces
+        int spaces = 2 * (height - row);
+        for (int space = 1; space <= spaces; space++) {
+            print("-");
+        }
+        
+        // Right stars
+        for (int col = 1; col <= row; col++) {
+            print("*");
+        }
+        print("\n");
     }
 
+    float a = 0.22;
+    float a = 2.5e-3;
+    float a = 1e10;
 
-    print("Multiplication Table (3x3):");
+    */
+
+
+    print("\n Multiplication Table (3x3):");
     for (int i = 1; i <= 3; i = i + 1) {
         for (int j = 1; j <= 3; j = j + 1) {
             int product = i * j;

@@ -202,6 +202,86 @@ bool tryMatchOperator(LexerState& state, Token& token) {
 }
 
 // === Match Identifier or Number ===
+// bool tryMatchIdOrNumber(LexerState& state, Token& token) {
+//     if (state.pos >= state.inputLength) return false;
+
+//     int startCol = state.column;
+//     string value;
+
+//     char current = state.input[state.pos];
+
+//     // Start with digit → number
+//     if (isDigit(current)) {
+//         while (state.pos < state.inputLength &&
+//                (isDigit(state.input[state.pos]) ||
+//                 state.input[state.pos] == '.' ||
+//                 state.input[state.pos] == 'e' || state.input[state.pos] == 'E' ||
+//                 state.input[state.pos] == '+' || state.input[state.pos] == '-')) {
+
+//             char c = state.input[state.pos];
+//             if (!isDigit(c) && c != '.' && c != 'e' && c != 'E' && c != '+' && c != '-') {
+//                 break;
+//             }
+
+//             value += state.input[state.pos++];
+//             state.column++;
+//         }
+
+//         // After number, check for invalid identifier suffix like 123abc
+//         if (state.pos < state.inputLength) {
+//             char next = state.input[state.pos];
+//             if (isAsciiAlpha(next) || isUnicodeLeadByte(next)) {
+//                 string badIdent = value;
+//                 while (state.pos < state.inputLength) {
+//                     char c = state.input[state.pos];
+//                     if (isAsciiAlphaNumeric(c) || isUnicodeLeadByte(c) || ((c & 0xC0) == 0x80)) {
+//                         badIdent += c;
+//                         state.pos++;
+//                         state.column++;
+//                     } else {
+//                         break;
+//                     }
+//                 }
+//                 makeToken(token, T_ERROR, "Invalid numeric literal followed by identifier: '" + badIdent + "'", state, startCol);
+//                 return true;
+//             }
+//         }
+
+//         if (value.find('.') != string::npos || value.find('e') != string::npos || value.find('E') != string::npos) {
+//             makeToken(token, T_FLOATLIT, value, state, startCol);
+//         } else {
+//             makeToken(token, T_INTLIT, value, state, startCol);
+//         }
+//         return true;
+//     }
+
+//     // Identifier: starts with alpha/_/Unicode
+//     if (isAsciiAlpha(current) || isUnicodeLeadByte(current)) {
+//         while (state.pos < state.inputLength) {
+//             char c = state.input[state.pos];
+//             if (isAsciiAlphaNumeric(c) || isUnicodeLeadByte(c)) {
+//                 value += c;
+//                 state.pos++;
+//                 state.column++;
+//             } else if ((c & 0xC0) == 0x80 || (c & 0xC0) == 0xC0) {
+//                 // UTF-8 continuation bytes
+//                 value += c;
+//                 state.pos++;
+//                 state.column++;
+//             } else {
+//                 break;
+//             }
+//         }
+
+//         auto it = keywords.find(value);
+//         TokenType type = (it != keywords.end()) ? it->second : T_IDENTIFIER;
+//         makeToken(token, type, value, state, startCol);
+//         return true;
+//     }
+
+//     return false;
+// }
+// === Match Identifier or Number ===
 bool tryMatchIdOrNumber(LexerState& state, Token& token) {
     if (state.pos >= state.inputLength) return false;
 
@@ -209,22 +289,61 @@ bool tryMatchIdOrNumber(LexerState& state, Token& token) {
     string value;
 
     char current = state.input[state.pos];
+    
+    // Check if it starts with '.' followed by a digit (like .22)
+    bool startsWithDecimal = false;
+    if (current == '.' && state.pos + 1 < state.inputLength && isDigit(state.input[state.pos + 1])) {
+        startsWithDecimal = true;
+    }
 
-    // Start with digit → number
-    if (isDigit(current)) {
-        while (state.pos < state.inputLength &&
-               (isDigit(state.input[state.pos]) ||
-                state.input[state.pos] == '.' ||
-                state.input[state.pos] == 'e' || state.input[state.pos] == 'E' ||
-                state.input[state.pos] == '+' || state.input[state.pos] == '-')) {
-
+    // Start with digit OR decimal point followed by digit → number
+    if (isDigit(current) || startsWithDecimal) {
+        bool hasDecimalPoint = startsWithDecimal;
+        bool hasExponent = false;
+        
+        while (state.pos < state.inputLength) {
             char c = state.input[state.pos];
-            if (!isDigit(c) && c != '.' && c != 'e' && c != 'E' && c != '+' && c != '-') {
-                break;
+            
+            // Handle decimal point
+            if (c == '.') {
+                if (hasDecimalPoint) {
+                    // Second decimal point - invalid
+                    break;
+                }
+                hasDecimalPoint = true;
+                value += c;
+                state.pos++;
+                state.column++;
+                continue;
             }
-
-            value += state.input[state.pos++];
-            state.column++;
+            
+            // Handle exponent (e or E)
+            if ((c == 'e' || c == 'E') && !hasExponent) {
+                hasExponent = true;
+                value += c;
+                state.pos++;
+                state.column++;
+                
+                // Check for optional +/- after exponent
+                if (state.pos < state.inputLength && 
+                    (state.input[state.pos] == '+' || state.input[state.pos] == '-')) {
+                    value += state.input[state.pos];
+                    state.pos++;
+                    state.column++;
+                }
+                continue;
+            }
+            
+            // Handle digits
+            if (isDigit(c)) {
+                value += c;
+                state.pos++;
+                state.column++;
+                continue;
+            }
+            
+            // Not part of the number
+            break;
         }
 
         // After number, check for invalid identifier suffix like 123abc
@@ -247,7 +366,8 @@ bool tryMatchIdOrNumber(LexerState& state, Token& token) {
             }
         }
 
-        if (value.find('.') != string::npos || value.find('e') != string::npos || value.find('E') != string::npos) {
+        // Determine if it's a float or int
+        if (hasDecimalPoint || hasExponent) {
             makeToken(token, T_FLOATLIT, value, state, startCol);
         } else {
             makeToken(token, T_INTLIT, value, state, startCol);
@@ -381,50 +501,8 @@ const char* tokenTypeToString(TokenType type) {
 
 /* ======== */
 
-// vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename) {
-//     // Read the input file
-//     ifstream inputFile(inputFilename);
-//     if (!inputFile.is_open()) {
-//         cerr << "Failed to open input file: " << inputFilename << endl;
-//         return {};
-//     }
-
-//     stringstream buffer;
-//     buffer << inputFile.rdbuf();
-//     string code = buffer.str();
-//     inputFile.close();
-
-//     // Lexing
-//     vector<Token> tokens;
-//     LexerState state = createLexerState(code.c_str());
-//     Token token;
-
-//     while (getNextToken(state, token)) {
-//         if (token.type == T_ERROR) {
-//             cerr << "ERROR(line " << token.line << ", col " << token.column << "): " << token.value << "\n";
-//         } else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
-//             tokens.push_back(token);
-//         }
-//     }
-
-//     // Append EOF token
-//     tokens.push_back({T_EOF, "EOF", -1, -1});
-
-//     // Write tokens to output file for debugging
-//     ofstream outFile(outputFilename, ios::out | ios::trunc);
-//     if (!outFile.is_open()) {
-//         cerr << "Failed to open output file: " << outputFilename << endl;
-//     } else {
-//         for (const auto& t : tokens) {
-//             outFile << tokenTypeToString(t.type) << "(" << t.value << ")," << t.line << "," << t.column << "\n";
-//         }
-//         outFile.close();
-//     }
-
-//     return tokens;
-// }
-
 vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename) {
+    // Read the input file
     ifstream inputFile(inputFilename);
     if (!inputFile.is_open()) {
         cerr << "Failed to open input file: " << inputFilename << endl;
@@ -436,6 +514,7 @@ vector<Token> lexAndDumpToFile(const string& inputFilename, const string& output
     string code = buffer.str();
     inputFile.close();
 
+    // Lexing
     vector<Token> tokens;
     LexerState state = createLexerState(code.c_str());
     Token token;
@@ -448,7 +527,48 @@ vector<Token> lexAndDumpToFile(const string& inputFilename, const string& output
         }
     }
 
+    // Append EOF token
     tokens.push_back({T_EOF, "EOF", -1, -1});
+
+    // Write tokens to output file for debugging
+    ofstream outFile(outputFilename, ios::out | ios::trunc);
+    if (!outFile.is_open()) {
+        cerr << "Failed to open output file: " << outputFilename << endl;
+    } else {
+        for (const auto& t : tokens) {
+            outFile << tokenTypeToString(t.type) << "(" << t.value << ")," << t.line << "," << t.column << "\n";
+        }
+        outFile.close();
+    }
 
     return tokens;
 }
+
+// vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename) {
+//     ifstream inputFile(inputFilename);
+//     if (!inputFile.is_open()) {
+//         cerr << "Failed to open input file: " << inputFilename << endl;
+//         return {};
+//     }
+
+//     stringstream buffer;
+//     buffer << inputFile.rdbuf();
+//     string code = buffer.str();
+//     inputFile.close();
+
+//     vector<Token> tokens;
+//     LexerState state = createLexerState(code.c_str());
+//     Token token;
+
+//     while (getNextToken(state, token)) {
+//         if (token.type == T_ERROR) {
+//             cerr << "ERROR(line " << token.line << ", col " << token.column << "): " << token.value << "\n";
+//         } else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
+//             tokens.push_back(token);
+//         }
+//     }
+
+//     tokens.push_back({T_EOF, "EOF", -1, -1});
+
+//     return tokens;
+// }

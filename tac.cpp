@@ -73,38 +73,100 @@ private:
     void decreaseIndent() { if (indentLevel > 0) indentLevel--; }
     
     string processNode(const ASTNodeVariant& node) {
-        return visit([this](const auto& n) -> string {
-            using T = decay_t<decltype(n)>;
+    return visit([this](const auto& n) -> string {
+        using T = decay_t<decltype(n)>;
+        
+        if constexpr (is_same_v<T, IntLiteral>) {
+            return to_string(n.value);
+        }
+        else if constexpr (is_same_v<T, FloatLiteral>) {
+            // Check if it's actually a double by looking at the original value
+            // For proper handling, we need to format it correctly
+            double val = static_cast<double>(n.value);
             
-            if constexpr (is_same_v<T, IntLiteral>) return to_string(n.value);
-            else if constexpr (is_same_v<T, FloatLiteral>) return to_string(n.value);
-            else if constexpr (is_same_v<T, StringLiteral>) return "\"" + n.value + "\"";
-            else if constexpr (is_same_v<T, CharLiteral>) return "'" + string(1, n.value) + "'";
-            else if constexpr (is_same_v<T, BoolLiteral>) return n.value ? "true" : "false";
-            else if constexpr (is_same_v<T, Identifier>) return n.name;
-            else if constexpr (is_same_v<T, BinaryExpr>) return processBinaryExpr(n);
-            else if constexpr (is_same_v<T, UnaryExpr>) return processUnaryExpr(n);
-            else if constexpr (is_same_v<T, IncludeStmt>) { processIncludeStmt(n); return ""; }
-            else if constexpr (is_same_v<T, EnumValueList>) { processEnumValueList(n); return ""; }
-            else if constexpr (is_same_v<T, EnumDecl>) { processEnumDecl(n); return ""; }
-            else if constexpr (is_same_v<T, CallExpr>) return processCallExpr(n);
-            else if constexpr (is_same_v<T, VarDecl>) { processVarDecl(n); return ""; }
-            else if constexpr (is_same_v<T, BlockStmt>) { processBlockStmt(n); return ""; }
-            else if constexpr (is_same_v<T, FunctionProto>) { processFunctionProto(n); return ""; }
-            else if constexpr (is_same_v<T, FunctionDecl>) { processFunctionDecl(n); return ""; }
-            else if constexpr (is_same_v<T, MainDecl>) { processMainDecl(n); return ""; }
-            else if constexpr (is_same_v<T, IfStmt>) { processIfStmt(n); return ""; }
-            else if constexpr (is_same_v<T, WhileStmt>) { processWhileStmt(n); return ""; }
-            else if constexpr (is_same_v<T, DoWhileStmt>) { processDoWhileStmt(n); return ""; }
-            else if constexpr (is_same_v<T, ForStmt>) { processForStmt(n); return ""; }
-            else if constexpr (is_same_v<T, SwitchStmt>) { processSwitchStmt(n); return ""; }
-            else if constexpr (is_same_v<T, ReturnStmt>) { processReturnStmt(n); return ""; }
-            else if constexpr (is_same_v<T, PrintStmt>) { processPrintStmt(n); return ""; }
-            else if constexpr (is_same_v<T, BreakStmt>) { processBreakStmt(n); return ""; }
-            else if constexpr (is_same_v<T, ExpressionStmt>) { processExpressionStmt(n); return ""; }
-            else return "";
-        }, node);
-    }
+            // Use ostringstream to avoid trailing zeros
+            ostringstream oss;
+            oss << val;
+            string result = oss.str();
+            
+            // Remove trailing zeros after decimal point
+            if (result.find('.') != string::npos) {
+                result.erase(result.find_last_not_of('0') + 1, string::npos);
+                if (result.back() == '.') {
+                    result.pop_back();
+                }
+            }
+            
+            return result;
+        }
+        else if constexpr (is_same_v<T, StringLiteral>) {
+            return "\"" + n.value + "\"";
+        }
+        else if constexpr (is_same_v<T, CharLiteral>) {
+            return "'" + string(1, n.value) + "'";
+        }
+        else if constexpr (is_same_v<T, BoolLiteral>) {
+            return n.value ? "true" : "false";
+        }
+        else if constexpr (is_same_v<T, Identifier>) {
+            return n.name;
+        }
+        else if constexpr (is_same_v<T, BinaryExpr>) return processBinaryExpr(n);
+        else if constexpr (is_same_v<T, UnaryExpr>) return processUnaryExpr(n);
+        else if constexpr (is_same_v<T, IncludeStmt>) { processIncludeStmt(n); return ""; }
+        else if constexpr (is_same_v<T, EnumValueList>) { processEnumValueList(n); return ""; }
+        else if constexpr (is_same_v<T, EnumDecl>) { processEnumDecl(n); return ""; }
+        else if constexpr (is_same_v<T, CallExpr>) return processCallExpr(n);
+        else if constexpr (is_same_v<T, VarDecl>) { processVarDecl(n); return ""; }
+        else if constexpr (is_same_v<T, BlockStmt>) { processBlockStmt(n); return ""; }
+        else if constexpr (is_same_v<T, FunctionProto>) { processFunctionProto(n); return ""; }
+        else if constexpr (is_same_v<T, FunctionDecl>) { processFunctionDecl(n); return ""; }
+        else if constexpr (is_same_v<T, MainDecl>) { processMainDecl(n); return ""; }
+        else if constexpr (is_same_v<T, IfStmt>) { processIfStmt(n); return ""; }
+        else if constexpr (is_same_v<T, WhileStmt>) { processWhileStmt(n); return ""; }
+        else if constexpr (is_same_v<T, DoWhileStmt>) { processDoWhileStmt(n); return ""; }
+        else if constexpr (is_same_v<T, ForStmt>) { processForStmt(n); return ""; }
+        else if constexpr (is_same_v<T, SwitchStmt>) { processSwitchStmt(n); return ""; }
+        else if constexpr (is_same_v<T, ReturnStmt>) { processReturnStmt(n); return ""; }
+        else if constexpr (is_same_v<T, PrintStmt>) { processPrintStmt(n); return ""; }
+        else if constexpr (is_same_v<T, BreakStmt>) { processBreakStmt(n); return ""; }
+        else if constexpr (is_same_v<T, ExpressionStmt>) { processExpressionStmt(n); return ""; }
+        else return "";
+    }, node);
+}
+    // string processNode(const ASTNodeVariant& node) {
+    //     return visit([this](const auto& n) -> string {
+    //         using T = decay_t<decltype(n)>;
+            
+    //         if constexpr (is_same_v<T, IntLiteral>) return to_string(n.value);
+    //         else if constexpr (is_same_v<T, FloatLiteral>) return to_string(n.value);
+    //         else if constexpr (is_same_v<T, StringLiteral>) return "\"" + n.value + "\"";
+    //         else if constexpr (is_same_v<T, CharLiteral>) return "'" + string(1, n.value) + "'";
+    //         else if constexpr (is_same_v<T, BoolLiteral>) return n.value ? "true" : "false";
+    //         else if constexpr (is_same_v<T, Identifier>) return n.name;
+    //         else if constexpr (is_same_v<T, BinaryExpr>) return processBinaryExpr(n);
+    //         else if constexpr (is_same_v<T, UnaryExpr>) return processUnaryExpr(n);
+    //         else if constexpr (is_same_v<T, IncludeStmt>) { processIncludeStmt(n); return ""; }
+    //         else if constexpr (is_same_v<T, EnumValueList>) { processEnumValueList(n); return ""; }
+    //         else if constexpr (is_same_v<T, EnumDecl>) { processEnumDecl(n); return ""; }
+    //         else if constexpr (is_same_v<T, CallExpr>) return processCallExpr(n);
+    //         else if constexpr (is_same_v<T, VarDecl>) { processVarDecl(n); return ""; }
+    //         else if constexpr (is_same_v<T, BlockStmt>) { processBlockStmt(n); return ""; }
+    //         else if constexpr (is_same_v<T, FunctionProto>) { processFunctionProto(n); return ""; }
+    //         else if constexpr (is_same_v<T, FunctionDecl>) { processFunctionDecl(n); return ""; }
+    //         else if constexpr (is_same_v<T, MainDecl>) { processMainDecl(n); return ""; }
+    //         else if constexpr (is_same_v<T, IfStmt>) { processIfStmt(n); return ""; }
+    //         else if constexpr (is_same_v<T, WhileStmt>) { processWhileStmt(n); return ""; }
+    //         else if constexpr (is_same_v<T, DoWhileStmt>) { processDoWhileStmt(n); return ""; }
+    //         else if constexpr (is_same_v<T, ForStmt>) { processForStmt(n); return ""; }
+    //         else if constexpr (is_same_v<T, SwitchStmt>) { processSwitchStmt(n); return ""; }
+    //         else if constexpr (is_same_v<T, ReturnStmt>) { processReturnStmt(n); return ""; }
+    //         else if constexpr (is_same_v<T, PrintStmt>) { processPrintStmt(n); return ""; }
+    //         else if constexpr (is_same_v<T, BreakStmt>) { processBreakStmt(n); return ""; }
+    //         else if constexpr (is_same_v<T, ExpressionStmt>) { processExpressionStmt(n); return ""; }
+    //         else return "";
+    //     }, node);
+    // }
     
     string processBinaryExpr(const BinaryExpr& expr) {
         string left = processNode(expr.left->node);
@@ -165,17 +227,17 @@ private:
             if (expr.isPostfix) {
                 // POSTFIX: return OLD value, then increment
                 string oldValue = newTemp();
-                emit(oldValue + " = " + operand);        // Save old value
+                emit(oldValue + " = " + operand);
                 string temp = newTemp();
                 emit(temp + " = " + operand + " " + op + " 1");
-                emit(operand + " = " + temp);            // Update operand
-                return oldValue;                         // Return OLD value
+                emit(operand + " = " + temp);
+                return oldValue;
             } else {
                 // PREFIX: increment first, then return NEW value
                 string temp = newTemp();
                 emit(temp + " = " + operand + " " + op + " 1");
                 emit(operand + " = " + temp);
-                return operand;                          // Return NEW value
+                return operand;
             }
         }
          
