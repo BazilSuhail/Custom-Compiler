@@ -1090,11 +1090,11 @@ vector<unique_ptr<ASTNode>> parseFromFile(const vector<Token>& tokens) {
         Parser parser(tokens);
         auto ast = parser.parseProgram();
 
-        cout << "=== Parsed AST ===\n";
+        // cout << "=== Parsed AST ===\n";
         // for (const auto& node : ast) {
         //     if (node) printASTNode(node->node);
         // }
-        cout << "\n=== Parsing Successful ===\n";
+        // cout << "\n=== Parsing Successful ===\n";
 
         return ast;
     } 

@@ -3,7 +3,9 @@ include<main>
 void displayMessage(string message);
 
 void displayMessage(string message){
-    print(message);
+    int x = 15;
+
+    print(message, x);
 }
 
 char processCharacter(char inputChar){
@@ -68,7 +70,7 @@ void demonstrateBitwise(){
     print(rightShift);
 }
  
-main {
+ main {
     displayMessage("=== Starting Program Execution ===");
     displayMessage("Welcome to the Toy Language Demo!");
     
@@ -79,36 +81,49 @@ main {
     demonstrateArithmetic();
     demonstrateBitwise();
 
-    print("Do-while loop example:");
+    print("Do-while loop example (Countdown):");
     bool continueLoop = true;
-    int counter = 1;
+    int counter = 5;
     
     do {
-        if (counter > 4) {
+        if (counter < 1) {
             continueLoop = false;
             break;
         }
-        print("Counter value: ");
-        print(counter/2);
-        counter = counter + 1;
+        print("Countdown: ");
+        print(counter);
+        counter = counter - 1;
     } while (true);
     
-    print("\nWhile loop example:\n");
+    print("\nWhile loop example (Even numbers under 10):");
     int number = 0;
-    while (number < 5){
-        print("Current number: ");
-        print(number);
+    while (number < 10){
+        if (number % 2 == 0) {
+            print("Even number: ");
+            print(number);
+        }
         number = number + 1;
     }
 
-    print("For loop example:");
-    for (int index = 0; index <= 3; index++) {
-        if (index == 1 || index == 3) {
-            print("Special value found at index: ");
-            print(index);
+    print("For loop example (Triangle pattern):");
+    for (int row = 1; row <= 5; row = row + 1) {
+        for (int col = 1; col <= row; col = col + 1) {
+            print("*");
         }
-        print("Processing index: ");
-        print(index);
+    }
+
+
+    print("Multiplication Table (3x3):");
+    for (int i = 1; i <= 3; i = i + 1) {
+        for (int j = 1; j <= 3; j = j + 1) {
+            int product = i * j;
+            print(i);
+            print(" x ");
+            print(j);
+            print(" = ");
+            print(product);
+        }
+        print("---");
     }
     
     displayMessage("=== Program Execution Complete ===");

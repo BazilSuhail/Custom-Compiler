@@ -46,7 +46,6 @@ private:
     }
     
     // ===== TYPE CLASSIFICATION =====
-    
     bool isNumericType(TokenType type) const {
         return type == T_INT || type == T_FLOAT || type == T_DOUBLE;
     }
@@ -180,12 +179,10 @@ private:
     // ===== TYPE COMPATIBILITY (Strict - no conversions) =====
     
     bool areTypesStrictlyEqual(TokenType t1, TokenType t2) const {
-        // Error types are never compatible
         if (t1 == T_ERROR || t2 == T_ERROR) {
             return false;
         }
         
-        // Types must be exactly the same
         return t1 == t2;
     }
     
@@ -207,14 +204,12 @@ private:
     
     void checkFunctionDecl(const FunctionDecl& func) {
 
-        currentScope->addSymbol(SymbolInfo(func.returnType, func.name, func.line, func.column, 
-                                          true, false, false, false, func.params));
+        currentScope->addSymbol(SymbolInfo(func.returnType, func.name, func.line, func.column, true, false, false, false, func.params));
         
         currentFunctionReturnType = func.returnType;
         currentFunctionName = func.name;
         foundReturnStmt = false; 
         
-        // Enter function scope
         enterScope();
         
         for (const auto& param : func.params) {
@@ -226,24 +221,21 @@ private:
             checkASTNode(stmt->node);
         }
         
-        // Check if non-void function has a return statement
         if (func.returnType != T_VOID && !foundReturnStmt) {
             addError(ReturnStmtNotFound, func.line, func.column, func.name);
         }
         
         exitScope();
         
-        // Reset function context
         currentFunctionReturnType = T_VOID;
         currentFunctionName = "";
-        foundReturnStmt = false;  // Reset flag
+        foundReturnStmt = false; 
     }
     
     void checkFunctionProto(const FunctionProto& proto) {
         currentScope->addSymbol(
-            SymbolInfo(proto.returnType, proto.name, proto.line, proto.column,
-                        true, false, false, true, proto.params)
-            );
+            SymbolInfo(proto.returnType, proto.name, proto.line, proto.column, true, false, false, true, proto.params)
+        );
     }
     
     // ===== EXPRESSION CHECKING =====
@@ -320,7 +312,6 @@ private:
         checkExpressionNode(expr.operand->node);
         TokenType operandType = inferType(expr.operand->node);
         
-        // Increment/Decrement operators require integer type
         if (expr.op == T_INCREMENT || expr.op == T_DECREMENT) {
             if (operandType != T_INT) {
                 addError(IncrementDecrementOnNonInt, expr.line, expr.column);
@@ -328,7 +319,6 @@ private:
             return;
         }
         
-        // NOT operator requires bool
         if (expr.op == T_NOT) {
             if (operandType != T_BOOL) {
                 addError(NotOnNonBool, expr.line, expr.column);
@@ -336,7 +326,6 @@ private:
             return;
         }
         
-        // Unary minus requires numeric type
         if (expr.op == T_MINUS) {
             if (!isNumericType(operandType)) {
                 addError(AttemptedAddOpOnNonNumeric, expr.line, expr.column);
@@ -354,16 +343,14 @@ private:
         SymbolInfo* funcSym = lookupSymbol(funcIdent.name);
         
         if (!funcSym || !funcSym->isFunction) {
-            return; // Error already caught by scope analysis
+            return;
         }
         
-        // Check argument count
         if (call.args.size() != funcSym->params.size()) {
             addError(FnCallParamCount, call.line, call.column, funcIdent.name);
             return;
         }
         
-        // Check each argument type
         for (size_t i = 0; i < call.args.size(); i++) {
             checkExpressionNode(call.args[i]->node);
             TokenType argType = inferType(call.args[i]->node);
@@ -389,7 +376,7 @@ private:
     // ===== STATEMENT CHECKING =====
     
     void checkReturnStmt(const ReturnStmt& stmt) {
-        foundReturnStmt = true;  // Mark that we found a return statement
+        foundReturnStmt = true; 
         
         if (stmt.value) {
             checkExpressionNode(stmt.value->node);
@@ -606,16 +593,12 @@ private:
     }
     
     void checkEnumDecl(const EnumDecl& enm) {
-        // Add enum to symbol table
-        currentScope->addSymbol(SymbolInfo(T_ENUM, enm.name, enm.line, enm.column, 
-                                          false, true, false, false, {}));
+        currentScope->addSymbol(SymbolInfo(T_ENUM, enm.name, enm.line, enm.column, false, true, false, false, {}));
         
-        // Add enum values as int constants
         if (holds_alternative<EnumValueList>(enm.values->node)) {
             const EnumValueList& valueList = get<EnumValueList>(enm.values->node);
             for (const string& value : valueList.values) {
-                currentScope->addSymbol(SymbolInfo(T_INT, value, enm.line, enm.column,
-                                                  false, false, true, false, {}));
+                currentScope->addSymbol(SymbolInfo(T_INT, value, enm.line, enm.column, false, false, true, false, {}));
             }
         }
     }
@@ -693,7 +676,6 @@ public:
     }
 };
 
-// Entry point for type checking
 void performTypeChecking(const vector<ASTPtr>& ast, const vector<Token>& tokens) {
     try {
         TypeChecker checker;

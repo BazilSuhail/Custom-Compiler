@@ -1,28 +1,15 @@
 #include"compiler.h"
-// === Static Keyword Map ===
+
 static const map<string, TokenType> keywords = {
     {"int", T_INT}, {"float", T_FLOAT}, {"double", T_DOUBLE},
     {"char", T_CHAR}, {"void", T_VOID}, {"bool", T_BOOL}, {"enum", T_ENUM},
-
     {"true", T_BOOLLIT}, {"false", T_BOOLLIT},
     {"if", T_IF}, {"else", T_ELSE}, {"while", T_WHILE}, {"return", T_RETURN},
     {"print", T_PRINT}, {"main", T_MAIN},
-
-    // Newly added keywords
     {"string", T_STRING}, {"do", T_DO}, {"switch", T_SWITCH}, {"include", T_INCLUDE},
     {"break", T_BREAK}, {"for", T_FOR}, {"default", T_DEFAULT}, {"case", T_CASE}
 };
 
-
-// === Single-character tokens ===
-// static const map<char, TokenType> singleChars = {
-//     {'(', T_LPAREN}, {')', T_RPAREN}, {'{', T_LBRACE}, {'}', T_RBRACE},
-//     {'[', T_LBRACKET}, {']', T_RBRACKET}, {';', T_SEMICOLON},
-//     {',', T_COMMA}, {'.', T_DOT}, {'+', T_PLUS}, {'-', T_MINUS},{':', T_COLON},   // <-- added here
-//     {'*', T_MULTIPLY}, {'/', T_DIVIDE}, {'%', T_MODULO}, {'=', T_ASSIGNOP},
-//     {'!', T_NOT}, {'<', T_LT}, {'>', T_GT}
-// };
-// === Single-character tokens ===
 static const map<char, TokenType> singleChars = {
     {'(', T_LPAREN}, {')', T_RPAREN}, {'{', T_LBRACE}, {'}', T_RBRACE},
     {'[', T_LBRACKET}, {']', T_RBRACKET}, {';', T_SEMICOLON},
@@ -32,12 +19,6 @@ static const map<char, TokenType> singleChars = {
     {'^', T_BITXOR}
 };
 
-// // === Two-character operators ===
-// static const map<string, TokenType> twoCharOps = {
-//     {"==", T_EQUALOP}, {"!=", T_NE}, {"<=", T_LE}, {">=", T_GE},
-//     {"&&", T_AND}, {"||", T_OR}, {"++", T_INCREMENT}, {"--", T_DECREMENT}
-// };
-// === Two-character operators ===
 static const map<string, TokenType> twoCharOps = {
     {"==", T_EQUALOP}, {"!=", T_NE}, {"<=", T_LE}, {">=", T_GE},
     {"&&", T_AND}, {"||", T_OR}, {"++", T_INCREMENT}, {"--", T_DECREMENT},
