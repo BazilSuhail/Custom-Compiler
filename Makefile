@@ -1,46 +1,38 @@
 # === Compiler and flags ===
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall
+CXXFLAGS = -std=c++17 -Wall -fexceptions
 
-# LLVM flags (for llvm_test.cpp)
+# LLVM flags (used automatically if llvm_test.cpp is included)
 LLVM_FLAGS = $(shell llvm-config --cxxflags --ldflags --libs all --system-libs)
 
-# Source files for main compiler
-COMPILER_SOURCES = lexer.cpp parser.cpp scope.cpp type.cpp tac.cpp main.cpp
+# Source files (main.cpp calls or includes everything)
+SOURCES = lexer.cpp parser.cpp scope.cpp type.cpp tac.cpp llvm.cpp main.cpp
 
-# Output executables
-COMPILER_OUTPUT = compiler.exe
-LLVM_OUTPUT = llvm_program.exe
+# Output executable
+OUTPUT = program.exe
 
 # Default input file
 INPUT ?= sample
 
 # === Targets ===
 
-# Build and run main compiler
-all: $(COMPILER_OUTPUT)
-	@echo Running $(COMPILER_OUTPUT) with input file tester/$(INPUT).txt...
-	./$(COMPILER_OUTPUT) $(INPUT)
+# Default: do nothing
+all:
+	@echo "Use 'make build' to compile the program OR 'make run' to run it"
 
-$(COMPILER_OUTPUT): $(COMPILER_SOURCES)
-	@echo Compiling compiler sources...
-	$(CXX) $(CXXFLAGS) $(COMPILER_SOURCES) -o $(COMPILER_OUTPUT)
+# Build the executable
+build: $(OUTPUT)
+
+$(OUTPUT): $(SOURCES)
+	@echo Compiling all sources into $(OUTPUT)...
+	$(CXX) $(CXXFLAGS) $(SOURCES) -o $(OUTPUT) $(LLVM_FLAGS) -fexceptions
 	@echo Compilation finished.
 
-# Run main compiler only
-run: $(COMPILER_OUTPUT) $(LLVM_OUTPUT)
-	@echo Running $(COMPILER_OUTPUT) with input file tester/$(INPUT).txt...
-	./$(COMPILER_OUTPUT) $(INPUT)
-	@echo Running $(LLVM_OUTPUT)...
-	./$(LLVM_OUTPUT)
+# Run the program with optional input file
+run: $(OUTPUT)
+	@echo Running $(OUTPUT) with input file tester/$(INPUT).txt...
+	./$(OUTPUT) $(INPUT)
 
-# Compile and run LLVM test program
-llvm: llvm_test.cpp
-	@echo Compiling llvm_test.cpp with LLVM...
-	$(CXX) $(CXXFLAGS) llvm_test.cpp -o $(LLVM_OUTPUT) $(LLVM_FLAGS)
-	@echo Running $(LLVM_OUTPUT)...
-	./$(LLVM_OUTPUT)
-
-# Clean all executables
+# Clean executable
 clean:
-	rm -f $(COMPILER_OUTPUT) $(LLVM_OUTPUT)
+	rm -f $(OUTPUT)

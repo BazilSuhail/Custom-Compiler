@@ -1,3 +1,5 @@
+#include "compiler.h"
+
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/IRBuilder.h>
@@ -6,12 +8,13 @@
 #include <llvm/ExecutionEngine/GenericValue.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/Support/TargetSelect.h>
-#include <iostream>
+/*#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
 #include <map>
+*/
 #include <algorithm>
 
 using namespace llvm;
@@ -894,7 +897,8 @@ public:
         if (functions.find("main") != functions.end()) {
             Function* mainFunc = functions["main"].func;
             ee->runFunction(mainFunc, {});
-        } else {
+        } 
+        else {
             errs() << "Error: No main function found\n";
         }
         
@@ -904,24 +908,38 @@ public:
     }
 };
 
-int main(int argc, char* argv[]) {
-    string tacFile = "tester/tac.txt";
+// int main(int argc, char* argv[]) {
+//     string tacFile = "tester/tac.txt";
     
-    if (argc > 1) {
-        tacFile = argv[1];
-    }
+//     if (argc > 1) {
+//         tacFile = argv[1];
+//     }
     
+//     TACExecutor executor;
+    
+//     if (!executor.readTACFile(tacFile)) {
+//         return 1;
+//     }
+    
+//     cout << "Reading TAC from: " << tacFile << endl;
+    
+//     executor.execute();
+//     executor.printIR();
+//     executor.run();
+    
+//     return 0;
+// }
+void executeTACProgram() {
     TACExecutor executor;
-    
+    const string tacFile = "tester/tac.txt";
     if (!executor.readTACFile(tacFile)) {
-        return 1;
+        std::cerr << "Error: Failed to read TAC file: " << tacFile << std::endl;
+        exit(1);
     }
     
-    cout << "Reading TAC from: " << tacFile << endl;
+    cout << "Reading TAC from: " << tacFile << std::endl;
     
     executor.execute();
     executor.printIR();
     executor.run();
-    
-    return 0;
 }

@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include <string>
-#include <map>
 #include <cstring>
 #include <fstream>
 #include <sstream>
@@ -11,13 +10,15 @@
 #include <vector> 
 #include <memory>
 #include <stdexcept> 
-#include <unordered_map>
 #include <cctype>
 #include <variant>
 #include <functional>
 
 #include <stack>
 #include <set>
+#include <map>
+#include <unordered_map>
+
 
 using namespace std;
 
@@ -555,5 +556,6 @@ vector<unique_ptr<ASTNode>> parseFromFile(const vector<Token>& tokens);
 void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens); 
 void performTypeChecking(const vector<ASTPtr>& ast, const vector<Token>& tokens);
 void generateTAC(const vector<unique_ptr<ASTNode>>& ast, const string& outputFilename);
+void executeTACProgram();
 
 #endif

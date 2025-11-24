@@ -18,6 +18,8 @@ int main(int argc, char* argv[]) {
 
     generateTAC(ast, "tester/tac.txt");
 
+    executeTACProgram();
+
     auto end = chrono::high_resolution_clock::now();
 
     long long durationMs = chrono::duration_cast<chrono::milliseconds>(end - start).count();
@@ -28,6 +30,7 @@ int main(int argc, char* argv[]) {
 }
 
 // #include "compiler.h"
+// cd /c/Users/Bazil\ Suhail/Downloads/Custom-Compiler
 // #include <string>
 
 // int main(int argc, char* argv[]) {

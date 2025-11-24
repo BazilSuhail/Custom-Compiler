@@ -126,6 +126,22 @@ private:
         }
         
         // Unary expression
+        // if (holds_alternative<UnaryExpr>(node)) {
+        //     const UnaryExpr& expr = get<UnaryExpr>(node);
+            
+        //     // NOT operator returns bool
+        //     if (expr.op == T_NOT) {
+        //         return T_BOOL;
+        //     }
+            
+        //     // Unary minus returns same type as operand
+        //     if (expr.op == T_MINUS && expr.operand) {
+        //         return inferType(expr.operand->node);
+        //     }
+            
+        //     return T_ERROR;
+        // }
+        // Unary expression
         if (holds_alternative<UnaryExpr>(node)) {
             const UnaryExpr& expr = get<UnaryExpr>(node);
             
@@ -134,7 +150,10 @@ private:
                 return T_BOOL;
             }
             
-            // Unary minus returns same type as operand
+            if ((expr.op == T_INCREMENT || expr.op == T_DECREMENT) && expr.operand) {
+                return inferType(expr.operand->node);
+            }
+            
             if (expr.op == T_MINUS && expr.operand) {
                 return inferType(expr.operand->node);
             }

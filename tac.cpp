@@ -147,10 +147,39 @@ private:
         }
     }
     
+    // string processUnaryExpr(const UnaryExpr& expr) {
+    //     string operand = processNode(expr.operand->node);
+    //     string result = newTemp();
+        
+    //     string op = (expr.op == T_MINUS) ? "-" : (expr.op == T_NOT) ? "!" : "?";
+    //     emit(result + " = " + op + operand);
+        
+    //     return result;
+    // }
     string processUnaryExpr(const UnaryExpr& expr) {
         string operand = processNode(expr.operand->node);
-        string result = newTemp();
         
+        if (expr.op == T_INCREMENT || expr.op == T_DECREMENT) {
+            string op = (expr.op == T_INCREMENT) ? "+" : "-";
+            
+            if (expr.isPostfix) {
+                // POSTFIX: return OLD value, then increment
+                string oldValue = newTemp();
+                emit(oldValue + " = " + operand);        // Save old value
+                string temp = newTemp();
+                emit(temp + " = " + operand + " " + op + " 1");
+                emit(operand + " = " + temp);            // Update operand
+                return oldValue;                         // Return OLD value
+            } else {
+                // PREFIX: increment first, then return NEW value
+                string temp = newTemp();
+                emit(temp + " = " + operand + " " + op + " 1");
+                emit(operand + " = " + temp);
+                return operand;                          // Return NEW value
+            }
+        }
+         
+        string result = newTemp();
         string op = (expr.op == T_MINUS) ? "-" : (expr.op == T_NOT) ? "!" : "?";
         emit(result + " = " + op + operand);
         
