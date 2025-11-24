@@ -400,8 +400,50 @@ const char* tokenTypeToString(TokenType type) {
 
 /* ======== */
 
+// vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename) {
+//     // Read the input file
+//     ifstream inputFile(inputFilename);
+//     if (!inputFile.is_open()) {
+//         cerr << "Failed to open input file: " << inputFilename << endl;
+//         return {};
+//     }
+
+//     stringstream buffer;
+//     buffer << inputFile.rdbuf();
+//     string code = buffer.str();
+//     inputFile.close();
+
+//     // Lexing
+//     vector<Token> tokens;
+//     LexerState state = createLexerState(code.c_str());
+//     Token token;
+
+//     while (getNextToken(state, token)) {
+//         if (token.type == T_ERROR) {
+//             cerr << "ERROR(line " << token.line << ", col " << token.column << "): " << token.value << "\n";
+//         } else if (token.type != T_SINGLE_COMMENT && token.type != T_MULTI_COMMENT) {
+//             tokens.push_back(token);
+//         }
+//     }
+
+//     // Append EOF token
+//     tokens.push_back({T_EOF, "EOF", -1, -1});
+
+//     // Write tokens to output file for debugging
+//     ofstream outFile(outputFilename, ios::out | ios::trunc);
+//     if (!outFile.is_open()) {
+//         cerr << "Failed to open output file: " << outputFilename << endl;
+//     } else {
+//         for (const auto& t : tokens) {
+//             outFile << tokenTypeToString(t.type) << "(" << t.value << ")," << t.line << "," << t.column << "\n";
+//         }
+//         outFile.close();
+//     }
+
+//     return tokens;
+// }
+
 vector<Token> lexAndDumpToFile(const string& inputFilename, const string& outputFilename) {
-    // Read the input file
     ifstream inputFile(inputFilename);
     if (!inputFile.is_open()) {
         cerr << "Failed to open input file: " << inputFilename << endl;
@@ -413,7 +455,6 @@ vector<Token> lexAndDumpToFile(const string& inputFilename, const string& output
     string code = buffer.str();
     inputFile.close();
 
-    // Lexing
     vector<Token> tokens;
     LexerState state = createLexerState(code.c_str());
     Token token;
@@ -426,19 +467,7 @@ vector<Token> lexAndDumpToFile(const string& inputFilename, const string& output
         }
     }
 
-    // Append EOF token
     tokens.push_back({T_EOF, "EOF", -1, -1});
-
-    // Write tokens to output file for debugging
-    ofstream outFile(outputFilename, ios::out | ios::trunc);
-    if (!outFile.is_open()) {
-        cerr << "Failed to open output file: " << outputFilename << endl;
-    } else {
-        for (const auto& t : tokens) {
-            outFile << tokenTypeToString(t.type) << "(" << t.value << ")," << t.line << "," << t.column << "\n";
-        }
-        outFile.close();
-    }
 
     return tokens;
 }

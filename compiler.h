@@ -114,6 +114,11 @@ struct BinaryExpr {
             case T_MULTIPLY: cout << "*"; break;
             case T_DIVIDE: cout << "/"; break;
             case T_MODULO: cout << "%"; break;
+                
+            case T_NOT: cout << "!";
+            case T_INCREMENT: cout << "++"; break;
+            case T_DECREMENT: cout << "--"; break;
+
             case T_EQUALOP: cout << "=="; break;
             case T_NE: cout << "!="; break;
             case T_LT: cout << "<"; break;
@@ -123,19 +128,34 @@ struct BinaryExpr {
             case T_AND: cout << "&&"; break;
             case T_OR: cout << "||"; break;
             case T_ASSIGNOP: cout << "="; break;
+            case T_BITAND: cout << "&"; break;
+            case T_BITOR: cout << "|"; break;
+            case T_BITXOR: cout << "^"; break;
+            case T_BITLSHIFT: cout << "<<"; break;
+            case T_BITRSHIFT: cout << ">>"; break;
             default: cout << "op_" << (int)t; break;
-            //cout << "op_" << (int)t << " (" << static_cast<char>(t) << ")"; 
         }
     }
 };
 
+// struct UnaryExpr {
+//     TokenType op;
+//     unique_ptr<struct ASTNode> operand;
+//     int line, column;
+//     UnaryExpr(TokenType o, unique_ptr<struct ASTNode> opd, int l = -1, int c = -1) 
+//         : op(o), operand(move(opd)), line(l), column(c) {}
+// };
 struct UnaryExpr {
     TokenType op;
     unique_ptr<struct ASTNode> operand;
+    bool isPostfix;  // ADD THIS
     int line, column;
-    UnaryExpr(TokenType o, unique_ptr<struct ASTNode> opd, int l = -1, int c = -1) 
-        : op(o), operand(move(opd)), line(l), column(c) {}
+    
+    // ADD isPostfix parameter with default false
+    UnaryExpr(TokenType o, unique_ptr<struct ASTNode> opd, int l = -1, int c = -1, bool postfix = false) 
+        : op(o), operand(move(opd)), isPostfix(postfix), line(l), column(c) {}
 };
+
 
 // ============= language syntax
 struct IncludeStmt {
@@ -476,7 +496,13 @@ enum TypeChkError {
     AttemptedShiftOnNonInt,      // Shift operator used on non-integer type
     AttemptedAddOpOnNonNumeric,  // Addition/subtraction used on non-numeric types
     AttemptedExponentiationOfNonNumeric, // Exponentiation used on non-numeric types (Not in grammar, handled as Mismatch)
-    ReturnStmtNotFound           // Function missing a return statement where required (Not implemented, requires control flow analysis)
+    ReturnStmtNotFound,          // Function missing a return statement where required (Not implemented, requires control flow analysis)
+    // Bonus
+    ReturnStmtInVoid,            // Return statement with value in void function (Not implemented, requires control flow analysis)
+    InvalidSwitchConditionType,  // Switch expression does not have a integer or char
+    InvalidCaseValueType,         // Case value type doesn't match switch expression
+    IncrementDecrementOnNonInt,   // ++ or -- applied to a non-integer type
+    NotOnNonBool               // ! applied to a non-boolean type
 };
 
 struct TypeCheckError {
@@ -501,8 +527,13 @@ struct TypeCheckError {
             { AttemptedBitOpOnNonInt, "Attempted bitwise operation on non-integer type" },
             { AttemptedShiftOnNonInt, "Attempted shift operation on non-integer type" },
             { AttemptedAddOpOnNonNumeric, "Attempted addition/subtraction on non-numeric type" },
-            { AttemptedExponentiationOfNonNumeric, "Attempted exponentiation on non-numeric type" },
-            { ReturnStmtNotFound, "Return statement not found where required" }
+            { ReturnStmtNotFound, "Return statement not found where required" },
+            // new ones
+            { ReturnStmtInVoid, "Return statement with value in void function" },
+            { InvalidSwitchConditionType, "Switch expression does not have a integer or char" },
+            { InvalidCaseValueType, "Case value type doesn't match switch expression" },
+            { IncrementDecrementOnNonInt, "Increment or decrement on non-integer type" },
+            { NotOnNonBool, "Logical not used on non-boolean type" }
         };
 
         auto it = texts.find(t);
@@ -523,9 +554,6 @@ vector<unique_ptr<ASTNode>> parseFromFile(const vector<Token>& tokens);
 // Updated scope analysis function that returns the symbol table
 void performScopeAnalysis(const vector<ASTPtr>& ast, const vector<Token>& tokens); 
 void performTypeChecking(const vector<ASTPtr>& ast, const vector<Token>& tokens);
-
-
-
 void generateTAC(const vector<unique_ptr<ASTNode>>& ast, const string& outputFilename);
 
 #endif

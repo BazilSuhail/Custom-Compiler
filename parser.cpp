@@ -75,6 +75,16 @@ struct ParseError {
             case T_VOID: return "T_VOID";
             case T_BOOL: return "T_BOOL";
             case T_STRING: return "T_STRING";
+
+            case T_PLUS: return "T_PLUS";
+            case T_MULTIPLY: return "T_MULTIPLY";
+            case T_DIVIDE: return "T_DIVIDE";
+            case T_MODULO: return "T_MODULO";
+            case T_MINUS: return "T_MINUS";
+            case T_INCREMENT: return "T_INCREMENT";
+            case T_DECREMENT: return "T_DECREMENT";
+            case T_NOT: return "T_NOT";
+
             case T_IDENTIFIER: return "T_IDENTIFIER";
             case T_INTLIT: return "T_INTLIT";
             case T_FLOATLIT: return "T_FLOATLIT";
@@ -89,10 +99,7 @@ struct ParseError {
             case T_COMMA: return "T_COMMA";
             case T_DOT: return "T_DOT";
             case T_ASSIGNOP: return "T_ASSIGNOP";
-            case T_PLUS: return "T_PLUS";
-            case T_MINUS: return "T_MINUS";
-            case T_MULTIPLY: return "T_MULTIPLY";
-            case T_DIVIDE: return "T_DIVIDE";
+            
             case T_IF: return "T_IF";
             case T_ELSE: return "T_ELSE";
             case T_WHILE: return "T_WHILE";
@@ -160,10 +167,27 @@ void printBinaryExpr(const BinaryExpr& node, int indent) {
     if (node.right) printASTNode(node.right->node, indent + 2);
 }
 
+// void printUnaryExpr(const UnaryExpr& node, int indent) {
+//     cout << string(indent, ' ') << "\033[1m\033[31m" << "UnaryExpr(";
+//     if (node.op == T_MINUS) cout << "-";
+//     else if (node.op == T_NOT) cout << "!";
+//     else cout << "unary_op";
+//     cout << ")" << RESET << "\n";
+//     if (node.operand) printASTNode(node.operand->node, indent + 2);
+// }
+// Update printUnaryExpr to show postfix vs prefix:
 void printUnaryExpr(const UnaryExpr& node, int indent) {
-    cout << string(indent, ' ') << "\033[1m\033[31m" << "UnaryExpr(";
+    cout << string(indent, ' ') << "\033[1m\033[31m";
+    if (node.isPostfix) {
+        cout << "PostfixExpr(";
+    } else {
+        cout << "UnaryExpr(";
+    }
+    
     if (node.op == T_MINUS) cout << "-";
     else if (node.op == T_NOT) cout << "!";
+    else if (node.op == T_INCREMENT) cout << "++";
+    else if (node.op == T_DECREMENT) cout << "--";
     else cout << "unary_op";
     cout << ")" << RESET << "\n";
     if (node.operand) printASTNode(node.operand->node, indent + 2);
@@ -408,7 +432,9 @@ private:
         TERM = 6,
         FACTOR = 7,
         UNARY = 8,
-        CALL = 9,
+        //CALL = 9,
+        POSTFIX = 9,    // ADD THIS - for postfix ++/--
+        CALL = 10,      // UPDATE THIS
     };
 
     // Convenience helpers
@@ -461,6 +487,7 @@ private:
             case T_PLUS: case T_MINUS: return TERM;
             case T_MULTIPLY: case T_DIVIDE: case T_MODULO: return FACTOR;
             case T_LPAREN: return CALL;
+            case T_INCREMENT: case T_DECREMENT: return POSTFIX;  // ADD THIS
             // Add bitwise operators with appropriate precedence
             case T_BITAND: case T_BITOR: case T_BITXOR: return TERM;  // Bitwise ops have same precedence as +/-
             case T_BITLSHIFT: case T_BITRSHIFT: return TERM;  // Shift ops have same precedence as +/-
@@ -530,6 +557,8 @@ private:
             case T_IDENTIFIER: return parseIdentifier();
             case T_LPAREN:    return parseGroupedExpression();
             case T_MINUS:
+            case T_INCREMENT:  
+            case T_DECREMENT:  
             case T_NOT:
                 return parseUnaryExpression();
             default:
@@ -543,10 +572,14 @@ private:
             case T_DIVIDE: case T_MODULO: case T_EQUALOP: case T_NE:
             case T_LT: case T_GT: case T_LE: case T_GE: case T_AND: case T_OR:
                 return parseBinaryExpression(move(left), precedence);
+            
+            case T_INCREMENT:  // ADD THIS
+            case T_DECREMENT:  // ADD THIS
+                return parsePostfixUnaryExpression(move(left));
                 
             // Add bitwise operators here
             case T_BITAND: case T_BITOR: case T_BITXOR: case T_BITLSHIFT: case T_BITRSHIFT:
-            return parseBinaryExpression(move(left), precedence);
+                return parseBinaryExpression(move(left), precedence);
 
             case T_LPAREN:
                 if (isIdentifierNode(left)) return parseCallExpression(move(left));
@@ -613,11 +646,28 @@ private:
         return make_unique<ASTNode>(BinaryExpr(T_LPAREN, move(expr), nullptr, startToken.line, startToken.column));
     }
 
-    ASTPtr parseUnaryExpression() {
+    /*ASTPtr parseUnaryExpression() {
         Token op = currentToken;
         advance();
         ASTPtr right = parseExpression(UNARY);
         return make_unique<ASTNode>(UnaryExpr(op.type, move(right), op.line, op.column));
+    }*/
+
+    ASTPtr parseUnaryExpression() {
+        Token op = currentToken;
+        advance();
+        ASTPtr right = parseExpression(UNARY);
+        
+        // isPostfix = false for prefix operators (++x, --x, !x, -x)
+        return make_unique<ASTNode>(UnaryExpr(op.type, move(right), op.line, op.column, false));
+    }    
+
+    ASTPtr parsePostfixUnaryExpression(ASTPtr left) {
+        Token op = currentToken;
+        advance();
+        
+        // isPostfix = true for postfix operators (x++, x--)
+        return make_unique<ASTNode>(UnaryExpr(op.type, move(left), op.line, op.column, true));
     }
 
     ASTPtr parseBinaryExpression(ASTPtr left, int precedence) {
@@ -637,11 +687,11 @@ private:
 
     // ------------------------ Parse enums with position tracking
     ASTPtr parseEnumDeclaration() {
-        Token enumToken = currentToken;  // Position of 'enum'
-        expect(T_ENUM); // Consume 'enum'
+        Token enumToken = currentToken; 
+        expect(T_ENUM); 
         Token nameToken = expect(T_IDENTIFIER, ParseErrorType::ExpectedIdentifier); // Get enum name
         string name = nameToken.value;
-        expect(T_LBRACE); // Consume '{'
+        expect(T_LBRACE); 
 
         vector<string> values;
         if (!check(T_RBRACE)) { // Check if enum body is not empty
@@ -651,9 +701,8 @@ private:
             } while (match(T_COMMA)); // Handle comma-separated values
         }
         expect(T_RBRACE); // Consume '}'
-        consumeSemicolon(); // Enums end with semicolon
-
-        // Create the EnumValueList AST node with position
+        consumeSemicolon();
+        
         auto valueList = make_unique<ASTNode>(EnumValueList(move(values), nameToken.line, nameToken.column));
         // Create the EnumDecl AST node with position of enum keyword
         return make_unique<ASTNode>(EnumDecl(name, move(valueList), enumToken.line, enumToken.column));
@@ -687,21 +736,22 @@ private:
         if (isTypeToken(currentToken.type)) {
             const Token& next = peek(1);
             if (next.type == T_IDENTIFIER) {
-                // Look ahead further to determine if it's a function or variable declaration
-                // We need to check if after the identifier there's a '(' (function) or other tokens (variable)
                 size_t i = current + 2; // After type and identifier
                 if (i < tokens.size() && tokens[i].type == T_LPAREN) {
                     // It's a function (definition or prototype)
                     if (isFunctionDefinition()) {
                         return parseFunctionDeclaration();
-                    } else {
+                    } 
+                    else {
                         return parseFunctionPrototype();
                     }
-                } else {
+                } 
+                else {
                     // It's a variable declaration
                     return parseVariableDeclaration();
                 }
-            } else {
+            } 
+            else {
                 return parseVariableDeclaration();
             }
         }
@@ -840,9 +890,9 @@ private:
 
     // Replace the do-while method with position tracking
     ASTPtr parseDoWhileStatement() {
-        Token doToken = currentToken;  // Capture 'do' position
-        vector<ASTPtr> bodyVec = parseBlock(); // Parse as vector first
-        ASTPtr body = make_unique<ASTNode>(BlockStmt(move(bodyVec), doToken.line, doToken.column)); // Wrap in BlockStmt
+        Token doToken = currentToken; 
+        vector<ASTPtr> bodyVec = parseBlock(); 
+        ASTPtr body = make_unique<ASTNode>(BlockStmt(move(bodyVec), doToken.line, doToken.column));
         expect(T_WHILE);
         expect(T_LPAREN);
         ASTPtr cond = parseExpression();
@@ -903,16 +953,15 @@ private:
         while (!check(T_RBRACE) && !check(T_EOF)) {
             if (match(T_CASE)) {
                 ASTPtr val = parseExpression();
-                // Expect block statement directly after case value (no colon)
+                
                 vector<ASTPtr> caseBody = parseBlock(); // This will parse the { ... } block
                 cases.push_back(make_unique<ASTNode>(CaseBlock(move(val), move(caseBody), currentToken.line, currentToken.column)));
             } 
             else if (match(T_DEFAULT)) {
-                // Expect block statement directly after default (no colon)
-                defaultBody = parseBlock(); // This will parse the { ... } block
+                defaultBody = parseBlock();
             } 
             else {
-                advance(); // skip unknown tokens
+                advance();
             }
         }
         expect(T_RBRACE);
@@ -955,22 +1004,22 @@ private:
     }
 
     ASTPtr parseIncludeStatement() {
-        Token includeToken = currentToken;  // Capture 'include' position
-        expect(T_INCLUDE); // Consume 'include'
-        if (match(T_LT)) { // Handle include <header>
+        Token includeToken = currentToken;  
+        expect(T_INCLUDE);
+        if (match(T_LT)) {
             if (check(T_MAIN)) {
-                advance(); // Consume T_MAIN
-                expect(T_GT); // Consume '>'
+                advance();
+                expect(T_GT);
                 return make_unique<ASTNode>(IncludeStmt("main", includeToken.line, includeToken.column));
-            } else {
-                // Handle include <other_header>
+            } 
+            else {
                 string header;
                 if (check(T_IDENTIFIER)) {
                     header = currentToken.value;
-                    advance(); // Consume identifier
-                } else {
-                    // Or handle other tokens that might represent a header name within <>
-                    throw ParseError(ParseErrorType::ExpectedIdentifier, currentToken); // Or a more specific error
+                    advance();
+                } 
+                else {
+                    throw ParseError(ParseErrorType::ExpectedIdentifier, currentToken);
                 }
                 expect(T_GT); // Consume '>'
                 return make_unique<ASTNode>(IncludeStmt(header, includeToken.line, includeToken.column));
@@ -1042,9 +1091,9 @@ vector<unique_ptr<ASTNode>> parseFromFile(const vector<Token>& tokens) {
         auto ast = parser.parseProgram();
 
         cout << "=== Parsed AST ===\n";
-        for (const auto& node : ast) {
-            if (node) printASTNode(node->node);
-        }
+        // for (const auto& node : ast) {
+        //     if (node) printASTNode(node->node);
+        // }
         cout << "\n=== Parsing Successful ===\n";
 
         return ast;
