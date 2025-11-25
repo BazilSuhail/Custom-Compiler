@@ -25,8 +25,8 @@ char processCharacter(char inputChar){
 }
 
 int calculateSum(int firstNumber, int secondNumber) {
-    int sumResult = firstNumber + secondNumber;
-    return sumResult;
+    int 😒Result = firstNumber + secondNumber;
+    return 😒Result;
 }
 
 int calculateProduct(int firstNumber, int secondNumber) {
@@ -35,9 +35,9 @@ int calculateProduct(int firstNumber, int secondNumber) {
 }
 
 void demonstrateArithmetic(){
-    int sumResult = calculateSum(25, 5);
+    int 🤡product = calculateSum(25, 5);
     print("25 + 5 = ");
-    print("\nSum Result: ",sumResult);
+    print("\nSum Result: ",🤡product);
     
     int productResult = calculateProduct(105, 10);
     print("105 * 10 = ");
@@ -47,7 +47,7 @@ void demonstrateArithmetic(){
     print("\n105.2 + 0.33=", decimalResult); 
 }
 
-void demonstrateBitwise(){
+void 👽OrBitwise(){
     int number1 = 5;
     int number2 = 3;
 
@@ -74,11 +74,10 @@ void demonstrateBitwise(){
     displayMessage("Welcome to the Toy Language Demo!");
     
     char processedChar = processCharacter('x');
-    print("\n\nProcessed character: ");
-    print(processedChar);
+    print("\n\nProcessed character: ",processedChar);
     
     demonstrateArithmetic();
-    demonstrateBitwise();
+    👽OrBitwise();
 
     print("\n\nDo-while loop example (Countdown):\n");
     
