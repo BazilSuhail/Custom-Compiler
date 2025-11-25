@@ -770,137 +770,166 @@ public:
     }
     
     Value* processFunctionCall(const string& stmt) {
+
         size_t callPos = stmt.find("call ");
-        string rest = stmt.substr(callPos + 5);
-        
-        size_t parenPos = rest.find('(');
-        string funcName = rest.substr(0, parenPos);
-        
-        size_t endParen = rest.find(')');
-        string argsStr = rest.substr(parenPos + 1, endParen - parenPos - 1);
-        
-        // Handle print specially
-        if (funcName == "print") {
-            argsStr.erase(0, argsStr.find_first_not_of(" \t"));
-            argsStr.erase(argsStr.find_last_not_of(" \t") + 1);
+            string rest = stmt.substr(callPos + 5);
             
-            if (argsStr[0] == '"') {
-                // String literal
-                string str = argsStr.substr(1, argsStr.size() - 2);
-                Value* strVal = builder.CreateGlobalString(str);
-                builder.CreateCall(putsFunc, {strVal});
-            } else if (argsStr[0] == '\'' && argsStr.size() >= 3) {
-                // Char literal
-                char ch = argsStr[1];
-                builder.CreateCall(putcharFunc, {ConstantInt::get(int32Ty, ch)});
-                builder.CreateCall(putcharFunc, {ConstantInt::get(int32Ty, '\n')});
-            } else {
-                // Variable or expression
-                auto [val, type] = getValueWithType(argsStr);
-                Type* valType = val->getType();
+            size_t parenPos = rest.find('(');
+            string funcName = rest.substr(0, parenPos);
+            
+            size_t endParen = rest.find(')');
+            string argsStr = rest.substr(parenPos + 1, endParen - parenPos - 1);
+            
+            // Handle print specially
+            if (funcName == "print") {
+                argsStr.erase(0, argsStr.find_first_not_of(" \t"));
+                argsStr.erase(argsStr.find_last_not_of(" \t") + 1);
                 
-                // Check if it's a string variable (pointer type and VarType::STRING)
-                if (type == VarType::STRING && valType->isPointerTy()) {
-                    // String variable - use puts
-                    builder.CreateCall(putsFunc, {val});
-                } else if (valType->isFloatingPointTy()) {
-                    // Float or double
-                    Value* fmtStr = builder.CreateGlobalString("%f\n");
-                    if (valType->isFloatTy()) {
-                        val = builder.CreateFPExt(val, doubleTy);
+                if (argsStr[0] == '"') {
+                    // String literal - process escape sequences and print everything
+                    string str = argsStr.substr(1, argsStr.size() - 2);
+                    
+                    // Process escape sequences: convert \n to actual newline, etc.
+                    string processedStr;
+                    for (size_t i = 0; i < str.length(); i++) {
+                        if (str[i] == '\\' && i + 1 < str.length()) {
+                            switch (str[i + 1]) {
+                                case 'n': processedStr += '\n'; i++; break;
+                                case 't': processedStr += '\t'; i++; break;
+                                case 'r': processedStr += '\r'; i++; break;
+                                case '\\': processedStr += '\\'; i++; break;
+                                case '"': processedStr += '"'; i++; break;
+                                case '0': processedStr += '\0'; i++; break;
+                                default: 
+                                    // Keep backslash and next char as-is for unknown sequences
+                                    processedStr += str[i];
+                                    processedStr += str[i + 1];
+                                    i++;
+                                    break;
+                            }
+                        } else {
+                            processedStr += str[i];
+                        }
                     }
-                    builder.CreateCall(printfFunc, {fmtStr, val});
-                } else if (valType->isIntegerTy(8)) {
-                    // Char
-                    Value* charVal = builder.CreateZExt(val, int32Ty);
-                    builder.CreateCall(putcharFunc, {charVal});
-                    builder.CreateCall(putcharFunc, {ConstantInt::get(int32Ty, '\n')});
+                    
+                    // Use printf to print the string - this will show all characters
+                    // including special ones like = + - etc., and escape sequences 
+                    // will already be converted to actual characters (newline, tab, etc.)
+                    Value* strVal = builder.CreateGlobalString(processedStr);
+                    Value* fmtStr = builder.CreateGlobalString("%s");
+                    builder.CreateCall(printfFunc, {fmtStr, strVal});
+                } else if (argsStr[0] == '\'' && argsStr.size() >= 3) {
+                    // Char literal - print without newline
+                    char ch = argsStr[1];
+                    builder.CreateCall(putcharFunc, {ConstantInt::get(int32Ty, ch)});
+                    // Removed the automatic newline
                 } else {
-                    // Integer
-                    if (valType->isIntegerTy(1)) {
-                        val = builder.CreateZExt(val, int32Ty);
+                    // Variable or expression
+                    auto [val, type] = getValueWithType(argsStr);
+                    Type* valType = val->getType();
+                    
+                    // Check if it's a string variable (pointer type and VarType::STRING)
+                    if (type == VarType::STRING && valType->isPointerTy()) {
+                        // String variable - use printf with %s instead of puts
+                        Value* fmtStr = builder.CreateGlobalString("%s");
+                        builder.CreateCall(printfFunc, {fmtStr, val});
+                    } else if (valType->isFloatingPointTy()) {
+                        // Float or double - no newline in format
+                        Value* fmtStr = builder.CreateGlobalString("%f");
+                        if (valType->isFloatTy()) {
+                            val = builder.CreateFPExt(val, doubleTy);
+                        }
+                        builder.CreateCall(printfFunc, {fmtStr, val});
+                    } else if (valType->isIntegerTy(8)) {
+                        // Char - print without newline
+                        Value* charVal = builder.CreateZExt(val, int32Ty);
+                        builder.CreateCall(putcharFunc, {charVal});
+                    } else {
+                        // Integer - no newline in format
+                        if (valType->isIntegerTy(1)) {
+                            val = builder.CreateZExt(val, int32Ty);
+                        }
+                        Value* fmtStr = builder.CreateGlobalString("%d");
+                        builder.CreateCall(printfFunc, {fmtStr, val});
                     }
-                    Value* fmtStr = builder.CreateGlobalString("%d\n");
-                    builder.CreateCall(printfFunc, {fmtStr, val});
                 }
+                return nullptr;
             }
+            
+            // Regular function call
+            if (functions.find(funcName) != functions.end()) {
+                vector<Value*> args;
+                
+                if (!argsStr.empty()) {
+                    stringstream ss(argsStr);
+                    string arg;
+                    size_t paramIdx = 0;
+                    
+                    while (getline(ss, arg, ',')) {
+                        arg.erase(0, arg.find_first_not_of(" \t"));
+                        arg.erase(arg.find_last_not_of(" \t") + 1);
+                        
+                        auto [val, type] = getValueWithType(arg);
+                        
+                        // Convert to expected parameter type
+                        if (paramIdx < functions[funcName].paramTypes.size()) {
+                            VarType expectedType = functions[funcName].paramTypes[paramIdx];
+                            val = convertToType(val, expectedType);
+                        }
+                        
+                        args.push_back(val);
+                        paramIdx++;
+                    }
+                }
+                
+                return builder.CreateCall(functions[funcName].func, args);
+            }
+            
             return nullptr;
         }
         
-        // Regular function call
-        if (functions.find(funcName) != functions.end()) {
-            vector<Value*> args;
+        string extractFunctionName(const string& line) {
+            size_t start = line.find("function ") + 9;
+            size_t end = line.find(" ", start);
+            return line.substr(start, end - start);
+        }
+        
+        void printIR() {
+            outs() << "\n========== GENERATED LLVM IR ==========\n";
+            module->print(outs(), nullptr);
+            outs() << "=======================================\n\n";
+        }
+        
+        void run() {
+            outs() << "\033[1m\033[95m========== EXECUTING PROGRAM ==========\033[0m\n";
             
-            if (!argsStr.empty()) {
-                stringstream ss(argsStr);
-                string arg;
-                size_t paramIdx = 0;
-                
-                while (getline(ss, arg, ',')) {
-                    arg.erase(0, arg.find_first_not_of(" \t"));
-                    arg.erase(arg.find_last_not_of(" \t") + 1);
-                    
-                    auto [val, type] = getValueWithType(arg);
-                    
-                    // Convert to expected parameter type
-                    if (paramIdx < functions[funcName].paramTypes.size()) {
-                        VarType expectedType = functions[funcName].paramTypes[paramIdx];
-                        val = convertToType(val, expectedType);
-                    }
-                    
-                    args.push_back(val);
-                    paramIdx++;
-                }
+            InitializeNativeTarget();
+            InitializeNativeTargetAsmPrinter();
+            InitializeNativeTargetAsmParser();
+            
+            string err;
+            ExecutionEngine* ee = EngineBuilder(std::move(module)).setErrorStr(&err).create();
+            
+            if (!ee) {
+                errs() << "Engine Error: " << err << "\n";
+                return;
             }
             
-            return builder.CreateCall(functions[funcName].func, args);
+            ee->finalizeObject();
+            
+            if (functions.find("main") != functions.end()) {
+                Function* mainFunc = functions["main"].func;
+                ee->runFunction(mainFunc, {});
+            } 
+            else {
+                errs() << "Error: No main function found\n";
+            }
+            
+            outs() << "=======================================\n";
+            
+            delete ee;
         }
-        
-        return nullptr;
-    }
-    
-    string extractFunctionName(const string& line) {
-        size_t start = line.find("function ") + 9;
-        size_t end = line.find(" ", start);
-        return line.substr(start, end - start);
-    }
-    
-    void printIR() {
-        outs() << "\n========== GENERATED LLVM IR ==========\n";
-        module->print(outs(), nullptr);
-        outs() << "=======================================\n\n";
-    }
-    
-    void run() {
-        outs() << "========== EXECUTING PROGRAM ==========\n";
-        
-        InitializeNativeTarget();
-        InitializeNativeTargetAsmPrinter();
-        InitializeNativeTargetAsmParser();
-        
-        string err;
-        ExecutionEngine* ee = EngineBuilder(std::move(module)).setErrorStr(&err).create();
-        
-        if (!ee) {
-            errs() << "Engine Error: " << err << "\n";
-            return;
-        }
-        
-        ee->finalizeObject();
-        
-        if (functions.find("main") != functions.end()) {
-            Function* mainFunc = functions["main"].func;
-            ee->runFunction(mainFunc, {});
-        } 
-        else {
-            errs() << "Error: No main function found\n";
-        }
-        
-        outs() << "=======================================\n";
-        
-        delete ee;
-    }
-};
+    };
 
 void executeTACProgram() {
     TACExecutor executor;

@@ -3,13 +3,11 @@ include<main>
 void displayMessage(string message);
 
 void displayMessage(string message){
-    
-    int x = 15;
-
-    print(message, x);
+    print("\n",message);
 }
 
 char processCharacter(char inputChar){
+    print("\n");
     switch (inputChar) {
         case 'c'{
             print("Character is c");
@@ -39,14 +37,14 @@ int calculateProduct(int firstNumber, int secondNumber) {
 void demonstrateArithmetic(){
     int sumResult = calculateSum(25, 5);
     print("25 + 5 = ");
-    print(sumResult);
+    print("\nSum Result: ",sumResult);
     
     int productResult = calculateProduct(105, 10);
     print("105 * 10 = ");
-    print(productResult);
+    print("\nProduct Result: ", productResult);
     
     float decimalResult = 105.2 + 0.33;
-    print("105.2 + 0.33 = ", decimalResult);
+    print("\n105.2 + 0.33=", decimalResult); 
 }
 
 void demonstrateBitwise(){
@@ -59,15 +57,15 @@ void demonstrateBitwise(){
     int leftShift = number1 << 2;
     int rightShift = number1 >> 1;
 
-    print("Bitwise AND: 5 & 3 = ");
+    print("\n\nBitwise AND: 5 & 3=");
     print(bitwiseAnd);
-    print("Bitwise OR: 5 | 3 = ");
+    print("\nBitwise OR: 5 | 3=");
     print(bitwiseOr);
-    print("Bitwise XOR: 5 ^ 3 = ");
+    print("\nBitwise XOR: 5 ^ 3=");
     print(bitwiseXor);
-    print("Left shift: 5 << 2 = ");
+    print("\nLeft shift: 5 << 2=");
     print(leftShift);
-    print("Right shift: 5 >> 1 = ");
+    print("\nRight shift: 5 >> 1=");
     print(rightShift);
 }
  
@@ -76,14 +74,14 @@ void demonstrateBitwise(){
     displayMessage("=== Starting Program Execution ===");
     displayMessage("Welcome to the Toy Language Demo!");
     
-    char processedChar = processCharacter('1');
-    print("Processed character: ");
+    char processedChar = processCharacter('c');
+    print("\n\nProcessed character: ");
     print(processedChar);
     
     demonstrateArithmetic();
     demonstrateBitwise();
 
-    print("Do-while loop example (Countdown):");
+    print("\n\nDo-while loop example (Countdown):\n");
     bool continueLoop = true;
     int counter = 5;
     
@@ -92,24 +90,25 @@ void demonstrateBitwise(){
             continueLoop = false;
             break;
         }
-        print("Countdown: ");
+        print("\nCountdown: ");
         print(counter);
         counter = counter - 1;
     } while (true);
     
-    print("\nWhile loop example (Even numbers under 10):");
+    print("\n\nWhile loop example (Even numbers under 10):\n");
     int number = 0;
     while (number < 10){
         if (number % 2 == 0) {
-            print("Even number: ");
+            print("\nEven number: ");
             print(number);
         }
         number = number + 1;
     }
 
     
-    print("For loop example (Triangle pattern)");
-    for (int row = 1; row <= 5; row++) {
+    print("\n\nFor loop example (Triangle pattern) \n\n");
+    for (int row = 1; row <= 5; row++) { 
+        if(row==1) {print("\n");}
         for (int col = 1; col <= row; col++) {
             print("*");
         }
@@ -141,20 +140,21 @@ void demonstrateBitwise(){
     float a = 2.5e-3;
     float a = 1e10;
 
-    */
+    */ 
 
-
-    print("\n Multiplication Table (3x3):");
+    print("\nMultiplication Table [3x3]: \n");
     for (int i = 1; i <= 3; i = i + 1) {
         for (int j = 1; j <= 3; j = j + 1) {
             int product = i * j;
             print(i);
             print(" x ");
             print(j);
-            print(" = ");
+            print("=");
             print(product);
+            print("\n");
+            //print(product);
         }
-        print("---");
+        print("\n---\n");
     }
     
     displayMessage("=== Program Execution Complete ===");
