@@ -1,11 +1,14 @@
-*.bat
-*.exe
-.vscode
-.gitignore
-# Ignore everything in tester/
-tester/*
-bazil-72/tester/*
+# Build outputs
+/target/
+**/*.rs.bk
 
-# But keep specific files (like sample.txt)
-!tester/sample.txt
-!make.bat
+# Environment files
+.env
+
+# OS files
+.DS_Store
+
+# Editor files
+.vscode/
+.idea/
+Cargo.lock
