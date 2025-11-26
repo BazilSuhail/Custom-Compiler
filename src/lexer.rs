@@ -262,11 +262,22 @@ impl Lexer {
         let mut has_decimal = false;
         let mut has_exponent = false;
 
+        let current = self.current_char()?;
+        
         // Check for decimal point followed by digit (like .22)
-        if self.current_char() == Some('.') && self.peek_char(1).map_or(false, |c| c.is_ascii_digit()) {
-            has_decimal = true;
-        } else if !self.current_char().map_or(false, |c| c.is_ascii_digit()) {
+        let starts_with_decimal = current == '.' 
+            && self.peek_char(1).map_or(false, |c| c.is_ascii_digit());
+        
+        // Must start with digit or decimal point followed by digit
+        if !current.is_ascii_digit() && !starts_with_decimal {
             return None;
+        }
+
+        // If starts with decimal, consume it immediately
+        if starts_with_decimal {
+            has_decimal = true;
+            value.push('.');
+            self.advance();
         }
 
         while let Some(ch) = self.current_char() {
@@ -362,6 +373,7 @@ impl Lexer {
 
         let start_col = self.column;
         let start_line = self.line;
+        let start_pos = self.pos;
 
         if let Some(token) = self.try_match_comment() {
             return Some(token);
@@ -383,11 +395,17 @@ impl Lexer {
             return Some(token);
         }
 
-        // Unknown character
+        // Unknown character - ensure we advance to prevent infinite loop
         if let Some(ch) = self.current_char() {
             let error_msg = format!("Unexpected character: '{}'", ch);
             self.advance();
             return Some(Token::new(TokenType::Error, error_msg, start_line, start_col));
+        }
+
+        // Safety check: if position hasn't advanced, force it
+        if self.pos == start_pos && self.pos < self.input.len() {
+            eprintln!("WARNING: Token matching failed to advance position at pos {}", self.pos);
+            self.advance();
         }
 
         None
@@ -395,8 +413,23 @@ impl Lexer {
 
     pub fn tokenize(&mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
+        let mut iterations = 0;
+        let max_iterations = self.input.len() * 2; // Safety limit
 
         loop {
+            iterations += 1;
+            if iterations > max_iterations {
+                eprintln!("ERROR: Tokenizer exceeded maximum iterations. Possible infinite loop.");
+                eprintln!("Position: {}, Line: {}, Column: {}", self.pos, self.line, self.column);
+                tokens.push(Token::new(
+                    TokenType::Error,
+                    "Tokenizer loop limit exceeded".to_string(),
+                    self.line,
+                    self.column
+                ));
+                break;
+            }
+
             if let Some(token) = self.next_token() {
                 let is_eof = token.token_type == TokenType::Eof;
                 
@@ -410,6 +443,7 @@ impl Lexer {
                     break;
                 }
             } else {
+                eprintln!("Warning: next_token() returned None unexpectedly at pos {}", self.pos);
                 break;
             }
         }
