@@ -1,7 +1,8 @@
 // Sample program to test the lexer
 
+const int bazil = true;
 main() {
-    int x = 42;
+    int x😒😒 = 42;
     float y = 3.14;
     double z = .22;
     

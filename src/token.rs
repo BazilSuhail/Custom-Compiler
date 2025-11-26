@@ -22,7 +22,7 @@ pub enum TokenType {
     BitAnd, BitOr, BitXor, BitLShift, BitRShift,
 
     // Keywords
-    If, Else, While, Return, Print, Main, Include,
+    If, Else, While, Return, Print, Main, Include, Const, Global,
 
     // New keywords
     String, Do, Switch, Break, For, Default, Case, Colon,
@@ -88,6 +88,8 @@ impl fmt::Display for TokenType {
             TokenType::Print => "T_PRINT",
             TokenType::Main => "T_MAIN",
             TokenType::Include => "T_INCLUDE",
+            TokenType::Const => "T_CONST",
+            TokenType::Global => "T_GLOBAL",
             TokenType::String => "T_STRING",
             TokenType::Do => "T_DO",
             TokenType::Switch => "T_SWITCH",

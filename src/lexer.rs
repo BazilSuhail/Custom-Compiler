@@ -31,6 +31,8 @@ impl Lexer {
         keywords.insert("do".to_string(), TokenType::Do);
         keywords.insert("switch".to_string(), TokenType::Switch);
         keywords.insert("include".to_string(), TokenType::Include);
+        keywords.insert("const".to_string(), TokenType::Const);
+        keywords.insert("global".to_string(), TokenType::Global);
         keywords.insert("break".to_string(), TokenType::Break);
         keywords.insert("for".to_string(), TokenType::For);
         keywords.insert("default".to_string(), TokenType::Default);
@@ -333,18 +335,46 @@ impl Lexer {
         Some(Token::new(token_type, value, start_line, start_col))
     }
 
+    fn is_identifier_start(&self, ch: char) -> bool {
+        // Allow alphabetic characters (including Unicode), underscore, or any Unicode letter
+        ch.is_alphabetic() || ch == '_'
+    }
+
+    fn is_identifier_continue(&self, ch: char) -> bool {
+        // Allow alphanumeric (including Unicode), underscore, or any Unicode character
+        // that is not whitespace, operator, or delimiter
+        if ch.is_alphanumeric() || ch == '_' {
+            return true;
+        }
+        
+        // Allow any Unicode character that is not:
+        // - Whitespace
+        // - Common operators and delimiters
+        // - ASCII control characters
+        if ch.is_whitespace() || ch.is_ascii_control() {
+            return false;
+        }
+        
+        // Exclude common operators and delimiters
+        let excluded = ['(', ')', '{', '}', '[', ']', ';', ',', '.', 
+                       '+', '-', '*', '/', '%', '=', '!', '<', '>', 
+                       '&', '|', '^', ':', '"', '\''];
+        
+        !excluded.contains(&ch)
+    }
+
     fn try_match_identifier(&mut self) -> Option<Token> {
         let start_col = self.column;
         let start_line = self.line;
 
         if let Some(ch) = self.current_char() {
-            if ch.is_alphabetic() || ch == '_' {
+            if self.is_identifier_start(ch) {
                 let mut value = String::new();
                 value.push(ch);
                 self.advance();
 
                 while let Some(c) = self.current_char() {
-                    if c.is_alphanumeric() || c == '_' {
+                    if self.is_identifier_continue(c) {
                         value.push(c);
                         self.advance();
                     } else {
