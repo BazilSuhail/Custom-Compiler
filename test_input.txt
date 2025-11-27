@@ -1,6 +1,6 @@
 // Sample program to test the lexer
-
-const int bazil = true;
+include<main>
+// const int bazil = true;
 main() {
     int x😒😒 = 42;
     float y = 3.14;
