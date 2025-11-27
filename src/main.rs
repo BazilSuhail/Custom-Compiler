@@ -14,7 +14,7 @@ fn main() {
     }
 
     let filename = &args[1];
-    println!("Reading file: {}", filename);
+    // println!("Reading file: {}", filename);
 
     let source = fs::read_to_string(filename).expect("Failed to read file");
     
