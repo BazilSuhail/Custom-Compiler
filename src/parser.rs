@@ -84,14 +84,15 @@ pub struct Parser {
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, current: 0 }
+        Parser { tokens, current: 0 }
     }
 
     // === Helper Methods ===
     
-    #[inline]
     fn current_token(&self) -> &Token {
-        self.tokens.get(self.current).unwrap_or_else(|| {
+        if self.current < self.tokens.len() {
+            &self.tokens[self.current]
+        } else {
             static EOF: Token = Token {
                 token_type: TokenType::Eof,
                 value: String::new(),
@@ -99,12 +100,14 @@ impl Parser {
                 column: 0,
             };
             &EOF
-        })
+        }
     }
 
-    #[inline]
     fn peek(&self, offset: usize) -> &Token {
-        self.tokens.get(self.current + offset).unwrap_or_else(|| {
+        let idx = self.current + offset;
+        if idx < self.tokens.len() {
+            &self.tokens[idx]
+        } else {
             static EOF: Token = Token {
                 token_type: TokenType::Eof,
                 value: String::new(),
@@ -112,21 +115,21 @@ impl Parser {
                 column: 0,
             };
             &EOF
-        })
+        }
     }
 
-    #[inline]
     fn is_at_end(&self) -> bool {
         self.current_token().token_type == TokenType::Eof
     }
 
     fn advance(&mut self) -> Token {
         let token = self.current_token().clone();
-        self.current = (self.current + 1).min(self.tokens.len());
+        if self.current < self.tokens.len() {
+            self.current += 1;
+        }
         token
     }
 
-    #[inline]
     fn check(&self, token_type: TokenType) -> bool {
         self.current_token().token_type == token_type
     }
@@ -152,15 +155,15 @@ impl Parser {
     }
 
     fn consume_semicolon(&mut self) -> Result<(), ParseError> {
-        self.match_token(TokenType::Semicolon)
-            .then_some(())
-            .ok_or_else(|| ParseError::new(
+        if !self.match_token(TokenType::Semicolon) {
+            return Err(ParseError::new(
                 ParseErrorType::MissingSemicolon,
                 self.current_token().clone(),
-            ))
+            ));
+        }
+        Ok(())
     }
 
-    #[inline]
     fn is_type_token(&self, token_type: TokenType) -> bool {
         matches!(
             token_type,
@@ -186,27 +189,60 @@ impl Parser {
         }
     }
 
+    fn is_identifier_node(node: &ASTNode) -> bool {
+        matches!(node, ASTNode::Identifier(_))
+    }
+
     fn is_function_definition(&self) -> bool {
-        self.tokens.get(self.current + 1)
-            .filter(|t| t.token_type == TokenType::Identifier)
-            .and_then(|_| self.tokens.get(self.current + 2))
-            .filter(|t| t.token_type == TokenType::LParen)
-            .and_then(|_| {
-                // Skip to matching RParen
-                let mut i = self.current + 3;
+        if self.current + 1 >= self.tokens.len() {
+            return false;
+        }
+
+        let mut i = self.current + 1;
+
+        // Look for identifier
+        if i < self.tokens.len() && self.tokens[i].token_type == TokenType::Identifier {
+            i += 1;
+            // Look for LPAREN
+            if i < self.tokens.len() && self.tokens[i].token_type == TokenType::LParen {
+                i += 1;
+                // Skip parameters
                 let mut paren_count = 1;
                 while i < self.tokens.len() && paren_count > 0 {
-                    match self.tokens[i].token_type {
-                        TokenType::LParen => paren_count += 1,
-                        TokenType::RParen => paren_count -= 1,
-                        _ => {}
+                    if self.tokens[i].token_type == TokenType::LParen {
+                        paren_count += 1;
+                    } else if self.tokens[i].token_type == TokenType::RParen {
+                        paren_count -= 1;
                     }
                     i += 1;
                 }
-                self.tokens.get(i)
-            })
-            .map(|t| t.token_type == TokenType::LBrace)
-            .unwrap_or(false)
+
+                // Check for LBRACE (function definition) vs SEMICOLON (prototype)
+                if i < self.tokens.len() && self.tokens[i].token_type == TokenType::LBrace {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    // === Helper for comma-separated lists ===
+    fn parse_comma_list<F, T>(&mut self, terminator: TokenType, mut parse_fn: F) -> Result<Vec<T>, ParseError>
+    where
+        F: FnMut(&mut Self) -> Result<T, ParseError>,
+    {
+        let mut items = Vec::new();
+        
+        if !self.check(terminator) {
+            loop {
+                items.push(parse_fn(self)?);
+                if !self.match_token(TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+        
+        Ok(items)
     }
 
     // === Pratt Parser Core ===
@@ -242,18 +278,17 @@ impl Parser {
 
     fn parse_infix(&mut self, left: ASTNode) -> Result<ASTNode, ParseError> {
         match self.current_token().token_type {
-            t if matches!(t, TokenType::AssignOp | TokenType::Plus | TokenType::Minus
-                | TokenType::Multiply | TokenType::Divide | TokenType::Modulo
-                | TokenType::EqualOp | TokenType::Ne | TokenType::Lt | TokenType::Gt
-                | TokenType::Le | TokenType::Ge | TokenType::And | TokenType::Or
-                | TokenType::BitAnd | TokenType::BitOr | TokenType::BitXor
-                | TokenType::BitLShift | TokenType::BitRShift) 
-                => self.parse_binary_expression(left),
+            TokenType::AssignOp | TokenType::Plus | TokenType::Minus
+            | TokenType::Multiply | TokenType::Divide | TokenType::Modulo
+            | TokenType::EqualOp | TokenType::Ne | TokenType::Lt | TokenType::Gt
+            | TokenType::Le | TokenType::Ge | TokenType::And | TokenType::Or
+            | TokenType::BitAnd | TokenType::BitOr | TokenType::BitXor
+            | TokenType::BitLShift | TokenType::BitRShift => self.parse_binary_expression(left),
 
             TokenType::Increment | TokenType::Decrement => self.parse_postfix_unary_expression(left),
 
             TokenType::LParen => {
-                if matches!(left, ASTNode::Identifier(_)) {
+                if Self::is_identifier_node(&left) {
                     self.parse_call_expression(left)
                 } else {
                     Err(ParseError::new(
@@ -270,7 +305,7 @@ impl Parser {
         }
     }
 
-    // === Literal Parsers (Optimized) ===
+    // === Literal Parsers ===
 
     fn parse_int_literal(&mut self) -> Result<ASTNode, ParseError> {
         let token = self.advance();
@@ -370,7 +405,7 @@ impl Parser {
         let op_token = self.advance();
         
         // Check for assignment to non-identifier
-        if op_token.token_type == TokenType::AssignOp && !matches!(left, ASTNode::Identifier(_)) {
+        if op_token.token_type == TokenType::AssignOp && !Self::is_identifier_node(&left) {
             return Err(ParseError::new(ParseErrorType::UnexpectedToken, op_token));
         }
 
@@ -390,8 +425,8 @@ impl Parser {
         let call_token = self.current_token().clone();
         self.expect(TokenType::LParen)?;
 
-        let args = self.parse_comma_separated_list(TokenType::RParen, |parser| {
-            parser.parse_expression(Precedence::Lowest)
+        let args = self.parse_comma_list(TokenType::RParen, |p| {
+            p.parse_expression(Precedence::Lowest)
         })?;
 
         self.expect(TokenType::RParen)?;
@@ -402,29 +437,6 @@ impl Parser {
             line: call_token.line,
             column: call_token.column,
         }))
-    }
-
-    // === Helper for comma-separated lists ===
-    fn parse_comma_separated_list<F, T>(
-        &mut self,
-        terminator: TokenType,
-        mut parse_item: F,
-    ) -> Result<Vec<T>, ParseError>
-    where
-        F: FnMut(&mut Self) -> Result<T, ParseError>,
-    {
-        let mut items = Vec::new();
-        
-        if !self.check(terminator) {
-            loop {
-                items.push(parse_item(self)?);
-                if !self.match_token(TokenType::Comma) {
-                    break;
-                }
-            }
-        }
-        
-        Ok(items)
     }
 
     // === Statement Parsers ===
@@ -510,9 +522,9 @@ impl Parser {
     fn parse_function_params(&mut self) -> Result<Vec<(TokenType, String)>, ParseError> {
         self.expect(TokenType::LParen)?;
         
-        let params = self.parse_comma_separated_list(TokenType::RParen, |parser| {
-            let param_type = parser.advance();
-            let param_name = parser.expect(TokenType::Identifier)?;
+        let params = self.parse_comma_list(TokenType::RParen, |p| {
+            let param_type = p.advance();
+            let param_name = p.expect(TokenType::Identifier)?;
             Ok((param_type.token_type, param_name.value))
         })?;
 
@@ -553,6 +565,7 @@ impl Parser {
 
     fn parse_main_declaration(&mut self) -> Result<ASTNode, ParseError> {
         let main_token = self.advance();
+        // No parentheses for main
         let body = self.parse_block()?;
 
         Ok(ASTNode::MainDecl(MainDecl {
@@ -566,8 +579,8 @@ impl Parser {
         let print_token = self.advance();
         self.expect(TokenType::LParen)?;
 
-        let args = self.parse_comma_separated_list(TokenType::RParen, |parser| {
-            parser.parse_expression(Precedence::Lowest)
+        let args = self.parse_comma_list(TokenType::RParen, |p| {
+            p.parse_expression(Precedence::Lowest)
         })?;
 
         self.expect(TokenType::RParen)?;
@@ -643,7 +656,7 @@ impl Parser {
         let for_token = self.advance();
         self.expect(TokenType::LParen)?;
 
-        // Init - only expressions allowed
+        // Init - only expressions allowed, NO variable declarations
         let init = if !self.check(TokenType::Semicolon) {
             let expr = self.parse_expression(Precedence::Lowest)?;
             self.consume_semicolon()?;
@@ -702,8 +715,10 @@ impl Parser {
                 self.expect(TokenType::Colon)?;
                 
                 let mut case_body = Vec::new();
-                while !matches!(self.current_token().token_type, 
-                    TokenType::Case | TokenType::Default | TokenType::RBrace) && !self.is_at_end() {
+                while !self.check(TokenType::Case) 
+                    && !self.check(TokenType::Default) 
+                    && !self.check(TokenType::RBrace) 
+                    && !self.is_at_end() {
                     case_body.push(self.parse_statement()?);
                 }
                 
@@ -738,8 +753,7 @@ impl Parser {
     fn parse_return_statement(&mut self) -> Result<ASTNode, ParseError> {
         let return_token = self.advance();
 
-        let value = if !matches!(self.current_token().token_type, 
-            TokenType::Semicolon | TokenType::RBrace) {
+        let value = if !self.check(TokenType::Semicolon) && !self.check(TokenType::RBrace) {
             Some(Box::new(self.parse_expression(Precedence::Lowest)?))
         } else {
             None
@@ -777,8 +791,8 @@ impl Parser {
 
     fn parse_block(&mut self) -> Result<Vec<ASTNode>, ParseError> {
         self.expect(TokenType::LBrace)?;
-        
         let mut statements = Vec::new();
+
         while !self.check(TokenType::RBrace) && !self.is_at_end() {
             statements.push(self.parse_statement()?);
         }
@@ -799,8 +813,8 @@ impl Parser {
         let name_token = self.expect(TokenType::Identifier)?;
         self.expect(TokenType::LBrace)?;
 
-        let values = self.parse_comma_separated_list(TokenType::RBrace, |parser| {
-            Ok(parser.expect(TokenType::Identifier)?.value)
+        let values = self.parse_comma_list(TokenType::RBrace, |p| {
+            Ok(p.expect(TokenType::Identifier)?.value)
         })?;
 
         self.expect(TokenType::RBrace)?;
@@ -823,6 +837,7 @@ impl Parser {
     pub fn parse_program(&mut self) -> Result<Vec<ASTNode>, ParseError> {
         let mut declarations = Vec::new();
 
+        // Parse global declarations - NO include requirement
         while !self.is_at_end() {
             let token_type = self.current_token().token_type;
 
