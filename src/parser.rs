@@ -1,4 +1,4 @@
-use crate::token::{Token, TokenType};
+use crate::token::{Token, TokenType, TypeNode};
 use crate::ast::*;
 
 // === Parse Errors ===
@@ -186,6 +186,23 @@ impl Parser {
             TokenType::Increment | TokenType::Decrement => Precedence::Postfix,
             TokenType::LParen => Precedence::Call,
             _ => Precedence::Lowest,
+        }
+    }
+
+    fn parse_type(&mut self) -> Result<TypeNode, ParseError> {
+        let token = self.current_token().clone();
+
+        if self.is_type_token(token.token_type) {
+            self.advance();
+            Ok(TypeNode::Builtin(token.token_type))
+        } else if token.token_type == TokenType::Identifier {
+            self.advance();
+            Ok(TypeNode::UserDefined(token.value))
+        } else {
+            Err(ParseError::new(
+                ParseErrorType::ExpectedTypeToken,
+                token,
+            ))
         }
     }
 
@@ -452,6 +469,16 @@ impl Parser {
             return self.parse_type_declaration();
         }
 
+        // Check for user-defined types (identifiers followed by identifiers)
+        // This handles: Color myColor = Red;
+        if token_type == TokenType::Identifier {
+            let next = self.peek(1);
+            if next.token_type == TokenType::Identifier {
+                // This is a user-defined type declaration
+                return self.parse_type_declaration();
+            }
+        }
+
         match token_type {
             TokenType::Print => self.parse_print_statement(),
             TokenType::If => self.parse_if_statement(),
@@ -499,7 +526,9 @@ impl Parser {
     }
 
     fn parse_variable_declaration(&mut self) -> Result<ASTNode, ParseError> {
-        let type_token = self.advance();
+        // let type_token = self.advance();
+        // let ident_token = self.expect(TokenType::Identifier)?;
+        let var_type = self.parse_type()?;
         let ident_token = self.expect(TokenType::Identifier)?;
 
         let initializer = if self.match_token(TokenType::AssignOp) {
@@ -510,22 +539,34 @@ impl Parser {
 
         self.consume_semicolon()?;
 
+        // Ok(ASTNode::VarDecl(VarDecl {
+        //     var_type: type_token.token_type,
+        //     name: ident_token.value,
+        //     initializer,
+        //     line: type_token.line,
+        //     column: type_token.column,
+        // }))
         Ok(ASTNode::VarDecl(VarDecl {
-            var_type: type_token.token_type,
+            var_type,
             name: ident_token.value,
             initializer,
-            line: type_token.line,
-            column: type_token.column,
+            line: ident_token.line,
+            column: ident_token.column,
         }))
+
     }
 
-    fn parse_function_params(&mut self) -> Result<Vec<(TokenType, String)>, ParseError> {
+    fn parse_function_params(&mut self) -> Result<Vec<(TypeNode, String)>, ParseError> {
         self.expect(TokenType::LParen)?;
         
         let params = self.parse_comma_list(TokenType::RParen, |p| {
-            let param_type = p.advance();
+            //let param_type = p.advance();
+            let param_type = p.parse_type()?;
+
             let param_name = p.expect(TokenType::Identifier)?;
-            Ok((param_type.token_type, param_name.value))
+            //Ok((param_type.token_type, param_name.value))
+            Ok((param_type, param_name.value))
+
         })?;
 
         self.expect(TokenType::RParen)?;
@@ -533,33 +574,37 @@ impl Parser {
     }
 
     fn parse_function_prototype(&mut self) -> Result<ASTNode, ParseError> {
-        let return_token = self.advance();
+        //let return_token = self.advance();
+        let return_type = self.parse_type()?;
         let name_token = self.expect(TokenType::Identifier)?;
         let params = self.parse_function_params()?;
         self.consume_semicolon()?;
 
         Ok(ASTNode::FunctionProto(FunctionProto {
-            return_type: return_token.token_type,
+            //return_type: return_token.token_type,
+            return_type: return_type,
             name: name_token.value,
             params,
-            line: return_token.line,
-            column: return_token.column,
+            line: name_token.line,
+            column: name_token.column,
         }))
     }
 
     fn parse_function_declaration(&mut self) -> Result<ASTNode, ParseError> {
-        let return_token = self.advance();
+        //let return_token = self.advance();
+        let return_type = self.parse_type()?;
         let name_token = self.expect(TokenType::Identifier)?;
         let params = self.parse_function_params()?;
         let body = self.parse_block()?;
 
         Ok(ASTNode::FunctionDecl(FunctionDecl {
-            return_type: return_token.token_type,
+            //return_type: return_token.token_type,
+            return_type: return_type,
             name: name_token.value,
             params,
             body,
-            line: return_token.line,
-            column: return_token.column,
+            line: name_token.line,
+            column: name_token.column,
         }))
     }
 
@@ -659,7 +704,7 @@ impl Parser {
         // Init - only expressions allowed, NO variable declarations
         // Init: must be "type identifier = expression ;"
 let init = if self.is_type_token(self.current_token().token_type) {
-    let type_token = self.advance();
+    let var_type = self.parse_type()?;
     let name_token = self.expect(TokenType::Identifier)?;
 
     if !self.match_token(TokenType::AssignOp) {
@@ -673,18 +718,17 @@ let init = if self.is_type_token(self.current_token().token_type) {
     self.expect(TokenType::Semicolon)?;
 
     Some(Box::new(ASTNode::VarDecl(VarDecl {
-        var_type: type_token.token_type,
+        var_type,
         name: name_token.value,
         initializer: Some(Box::new(value)),
-        line: type_token.line,
-        column: type_token.column,
+        line: name_token.line,
+        column: name_token.column,
     })))
 } else {
     // No init allowed
     self.expect(TokenType::Semicolon)?;
     None
 };
-
 
         // Condition
         let condition = if !self.check(TokenType::Semicolon) {

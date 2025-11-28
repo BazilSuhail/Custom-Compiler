@@ -1,4 +1,5 @@
 use crate::token::TokenType;
+use crate::token::TypeNode;
 
 // === AST Node Types ===
 
@@ -86,7 +87,7 @@ pub struct FunctionProto {
 
     pub return_type: TypeNode,
     pub name: String,
-    pub params: Vec<(TokenType, String)>,
+    pub params: Vec<(TypeNode, String)>,
     pub line: usize,
     pub column: usize,
 }
@@ -94,10 +95,9 @@ pub struct FunctionProto {
 #[derive(Debug, Clone)]
 pub struct FunctionDecl {
     //pub return_type: TokenType,
-
     pub return_type: TypeNode,
     pub name: String,
-    pub params: Vec<(TokenType, String)>,
+    pub params: Vec<(TypeNode, String)>,
     pub body: Vec<ASTNode>,
     pub line: usize,
     pub column: usize,

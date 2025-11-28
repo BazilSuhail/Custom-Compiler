@@ -1,5 +1,5 @@
 use crate::ast::*;
-use crate::token::TokenType;
+use crate::token::{TokenType, TypeNode};
 
 const RESET: &str = "\x1b[0m";
 const BOLD: &str = "\x1b[1m";
@@ -70,23 +70,23 @@ pub fn print_ast_node(node: &ASTNode, indent: usize) {
         }
         ASTNode::VarDecl(n) => {
             println!("{}{}{}VarDecl({}, \"{}\")){}", 
-                spacing, BOLD, CYAN, token_type_to_string(&n.var_type), n.name, RESET);
+                spacing, BOLD, CYAN, type_node_to_string(&n.var_type), n.name, RESET);
             if let Some(init) = &n.initializer {
                 print_ast_node(init, indent + 2);
             }
         }
         ASTNode::FunctionProto(n) => {
             println!("{}{}{}FunctionProto({}, \"{}\")){}", 
-                spacing, BOLD, YELLOW, token_type_to_string(&n.return_type), n.name, RESET);
+                spacing, BOLD, YELLOW, type_node_to_string(&n.return_type), n.name, RESET);
             for (param_type, param_name) in &n.params {
-                println!("{}  Param: {} {}", spacing, token_type_to_string(param_type), param_name);
+                println!("{}  Param: {} {}", spacing, type_node_to_string(param_type), param_name);
             }
         }
         ASTNode::FunctionDecl(n) => {
             println!("{}{}{}FunctionDecl({}, \"{}\")){}", 
-                spacing, BOLD, YELLOW, token_type_to_string(&n.return_type), n.name, RESET);
+                spacing, BOLD, YELLOW, type_node_to_string(&n.return_type), n.name, RESET);
             for (param_type, param_name) in &n.params {
-                println!("{}  Param: {} {}", spacing, token_type_to_string(param_type), param_name);
+                println!("{}  Param: {} {}", spacing, type_node_to_string(param_type), param_name);
             }
             println!("{}  Body:", spacing);
             for stmt in &n.body {
@@ -227,6 +227,13 @@ fn token_type_to_string(token_type: &TokenType) -> &'static str {
         TokenType::Void => "void",
         TokenType::String => "string",
         _ => "unknown",
+    }
+}
+
+fn type_node_to_string(type_node: &TypeNode) -> String {
+    match type_node {
+        TypeNode::Builtin(token_type) => token_type_to_string(token_type).to_string(),
+        TypeNode::UserDefined(name) => name.clone(),
     }
 }
 

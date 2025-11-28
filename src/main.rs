@@ -28,7 +28,8 @@ fn main() {
     //         process::exit(1);
     //     }
     // };
-    let source = fs::read_to_string("test_input.txt")
+    //let source = fs::read_to_string("test_input.txt")
+    let source = fs::read_to_string("enum.txt")
 .expect("failed to read test_input.txt");
     
     // Lexical Analysis

@@ -10,7 +10,7 @@ int globalCounter = 0;
 float pi = 3.14159;
 
 // Function declaration
-int add(int a, int b) {
+int add(Color a, int b) {
     return a + b;
 }
 
@@ -21,6 +21,7 @@ void printMessage(int code);
 main {
     int x = 42;
     float y = 3.14;
+    Color color = Red;
     
     if (x > 10 && y <= 5.0) {
         print("Hello World!");
