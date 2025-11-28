@@ -73,13 +73,16 @@ pub struct CallExpr {
 
 #[derive(Debug, Clone)]
 pub struct VarDecl {
-    //pub var_type: TokenType,
     pub var_type: TypeNode,
     pub name: String,
     pub initializer: Option<Box<ASTNode>>,
+    // The flags tell the compiler/semantic analysis how to treat the variable:
+    pub is_const: bool,
+    pub is_global: bool,
     pub line: usize,
     pub column: usize,
 }
+
 
 #[derive(Debug, Clone)]
 pub struct FunctionProto {

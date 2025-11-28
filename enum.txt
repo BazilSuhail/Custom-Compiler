@@ -46,11 +46,13 @@ int compareColors(Color c1, Color c2) {
 
 // Function returning enum based on int parameter
  
+    const int a = 5;
 
 // ===== 4. MAIN FUNCTION WITH ENUM USAGE =====
 main {
     // --- Variable declarations with enum types ---
-    Color myColor = Red;
+    global Color myColor = Red;
+    global int a = 44;
     Color favoriteColor = Blue;
     Status taskStatus = Pending;
     Direction heading = North;

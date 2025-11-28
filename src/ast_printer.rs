@@ -69,8 +69,15 @@ pub fn print_ast_node(node: &ASTNode, indent: usize) {
             }
         }
         ASTNode::VarDecl(n) => {
-            println!("{}{}{}VarDecl({}, \"{}\")){}", 
-                spacing, BOLD, CYAN, type_node_to_string(&n.var_type), n.name, RESET);
+            let mut modifiers = String::new();
+            if n.is_const {
+                modifiers.push_str("const ");
+            }
+            if n.is_global {
+                modifiers.push_str("global ");
+            }
+            println!("{}{}{}VarDecl({}{}{}\"{}\")){}", 
+                spacing, BOLD, CYAN, modifiers, type_node_to_string(&n.var_type), ", ", n.name, RESET);
             if let Some(init) = &n.initializer {
                 print_ast_node(init, indent + 2);
             }

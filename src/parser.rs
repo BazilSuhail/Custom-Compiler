@@ -465,6 +465,11 @@ impl Parser {
             return self.parse_enum_declaration();
         }
 
+        // Check for const or global modifiers
+        if token_type == TokenType::Const || token_type == TokenType::Global {
+            return self.parse_variable_declaration();
+        }
+
         if self.is_type_token(token_type) {
             return self.parse_type_declaration();
         }
@@ -526,6 +531,15 @@ impl Parser {
     }
 
     fn parse_variable_declaration(&mut self) -> Result<ASTNode, ParseError> {
+        let mut is_const = false;
+        let mut is_global = false;
+
+        if self.match_token(TokenType::Const) {
+            is_const = true; // record that this variable is const
+        } else if self.match_token(TokenType::Global) {
+            is_global = true; // record that this variable is global
+        }
+
         // let type_token = self.advance();
         // let ident_token = self.expect(TokenType::Identifier)?;
         let var_type = self.parse_type()?;
@@ -550,6 +564,8 @@ impl Parser {
             var_type,
             name: ident_token.value,
             initializer,
+            is_const,
+            is_global,
             line: ident_token.line,
             column: ident_token.column,
         }))
@@ -700,35 +716,36 @@ impl Parser {
     fn parse_for_statement(&mut self) -> Result<ASTNode, ParseError> {
         let for_token = self.advance();
         self.expect(TokenType::LParen)?;
-
         // Init - only expressions allowed, NO variable declarations
         // Init: must be "type identifier = expression ;"
-let init = if self.is_type_token(self.current_token().token_type) {
-    let var_type = self.parse_type()?;
-    let name_token = self.expect(TokenType::Identifier)?;
+        let init = if self.is_type_token(self.current_token().token_type) {
+        let var_type = self.parse_type()?;
+        let name_token = self.expect(TokenType::Identifier)?;
 
-    if !self.match_token(TokenType::AssignOp) {
-        return Err(ParseError::new(
-            ParseErrorType::UnexpectedToken,
-            self.current_token().clone(),
-        ));
-    }
+        if !self.match_token(TokenType::AssignOp) {
+            return Err(ParseError::new(
+                ParseErrorType::UnexpectedToken,
+                self.current_token().clone(),
+            ));
+        }
 
-    let value = self.parse_expression(Precedence::Lowest)?;
-    self.expect(TokenType::Semicolon)?;
+        let value = self.parse_expression(Precedence::Lowest)?;
+        self.expect(TokenType::Semicolon)?;
 
-    Some(Box::new(ASTNode::VarDecl(VarDecl {
-        var_type,
-        name: name_token.value,
-        initializer: Some(Box::new(value)),
-        line: name_token.line,
-        column: name_token.column,
-    })))
-} else {
-    // No init allowed
-    self.expect(TokenType::Semicolon)?;
-    None
-};
+        Some(Box::new(ASTNode::VarDecl(VarDecl {
+                var_type,
+                name: name_token.value,
+                initializer: Some(Box::new(value)),
+                is_const: false,
+                is_global: false,
+                line: name_token.line,
+                column: name_token.column,
+            })))
+        } else {
+            // No init allowed
+            self.expect(TokenType::Semicolon)?;
+            None
+        };
 
         // Condition
         let condition = if !self.check(TokenType::Semicolon) {
@@ -909,7 +926,20 @@ let init = if self.is_type_token(self.current_token().token_type) {
                 TokenType::Main => self.parse_main_declaration()?,
                 TokenType::Print => self.parse_print_statement()?,
                 TokenType::Enum => self.parse_enum_declaration()?,
+                TokenType::Const | TokenType::Global => self.parse_variable_declaration()?,
                 _ if self.is_type_token(token_type) => self.parse_type_declaration()?,
+                TokenType::Identifier => {
+                    // Check if this is a user-defined type declaration
+                    let next = self.peek(1);
+                    if next.token_type == TokenType::Identifier {
+                        self.parse_type_declaration()?
+                    } else {
+                        return Err(ParseError::new(
+                            ParseErrorType::UnexpectedToken,
+                            self.current_token().clone(),
+                        ));
+                    }
+                }
                 _ => return Err(ParseError::new(
                     ParseErrorType::UnexpectedToken,
                     self.current_token().clone(),
