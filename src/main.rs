@@ -12,22 +12,24 @@ use std::fs;
 use std::process;
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    // let args: Vec<String> = env::args().collect();
 
-    if args.len() < 2 {
-        eprintln!("Usage: {} <input_file>", args[0]);
-        process::exit(1);
-    }
+    // if args.len() < 2 {
+    //     eprintln!("Usage: {} <input_file>", args[0]);
+    //     process::exit(1);
+    // }
 
-    let filename = &args[1];
+    // let filename = &args[1];
 
-    let source = match fs::read_to_string(filename) {
-        Ok(content) => content,
-        Err(err) => {
-            eprintln!("Error reading file '{}': {}", filename, err);
-            process::exit(1);
-        }
-    };
+    // let source = match fs::read_to_string(filename) {
+    //     Ok(content) => content,
+    //     Err(err) => {
+    //         eprintln!("Error reading file '{}': {}", filename, err);
+    //         process::exit(1);
+    //     }
+    // };
+    let source = fs::read_to_string("test_input.txt")
+.expect("failed to read test_input.txt");
     
     // Lexical Analysis
     let mut lexer = Lexer::new(source);
