@@ -72,7 +72,8 @@ pub struct CallExpr {
 
 #[derive(Debug, Clone)]
 pub struct VarDecl {
-    pub var_type: TokenType,
+    //pub var_type: TokenType,
+    pub var_type: TypeNode,
     pub name: String,
     pub initializer: Option<Box<ASTNode>>,
     pub line: usize,
@@ -81,7 +82,9 @@ pub struct VarDecl {
 
 #[derive(Debug, Clone)]
 pub struct FunctionProto {
-    pub return_type: TokenType,
+    //pub return_type: TokenType,
+
+    pub return_type: TypeNode,
     pub name: String,
     pub params: Vec<(TokenType, String)>,
     pub line: usize,
@@ -90,7 +93,9 @@ pub struct FunctionProto {
 
 #[derive(Debug, Clone)]
 pub struct FunctionDecl {
-    pub return_type: TokenType,
+    //pub return_type: TokenType,
+
+    pub return_type: TypeNode,
     pub name: String,
     pub params: Vec<(TokenType, String)>,
     pub body: Vec<ASTNode>,

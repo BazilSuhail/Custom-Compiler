@@ -1,4 +1,9 @@
 // Sample program demonstrating the updated grammar
+enum Color {
+    Red,
+    Green,
+    Blue
+};
 
 // Global variable declarations
 int globalCounter = 0;
@@ -24,7 +29,7 @@ main {
     
     // For loop - no declarations allowed in init
     int i = 0;
-    for (i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++) {
         print(i);
     }
     

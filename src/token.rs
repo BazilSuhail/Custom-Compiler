@@ -34,6 +34,13 @@ pub enum TokenType {
     Error, Eof,
 }
 
+#[derive(Debug, Clone)]
+pub enum TypeNode {
+    Builtin(TokenType),
+    UserDefined(String),
+}
+
+
 impl fmt::Display for TokenType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match self {

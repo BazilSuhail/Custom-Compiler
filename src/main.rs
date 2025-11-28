@@ -7,7 +7,7 @@ mod ast_printer;
 use lexer::Lexer;
 use parser::Parser;
 use ast_printer::print_ast;
-use std::env;
+//use std::env;
 use std::fs;
 use std::process;
 

@@ -657,14 +657,34 @@ impl Parser {
         self.expect(TokenType::LParen)?;
 
         // Init - only expressions allowed, NO variable declarations
-        let init = if !self.check(TokenType::Semicolon) {
-            let expr = self.parse_expression(Precedence::Lowest)?;
-            self.consume_semicolon()?;
-            Some(Box::new(expr))
-        } else {
-            self.advance();
-            None
-        };
+        // Init: must be "type identifier = expression ;"
+let init = if self.is_type_token(self.current_token().token_type) {
+    let type_token = self.advance();
+    let name_token = self.expect(TokenType::Identifier)?;
+
+    if !self.match_token(TokenType::AssignOp) {
+        return Err(ParseError::new(
+            ParseErrorType::UnexpectedToken,
+            self.current_token().clone(),
+        ));
+    }
+
+    let value = self.parse_expression(Precedence::Lowest)?;
+    self.expect(TokenType::Semicolon)?;
+
+    Some(Box::new(ASTNode::VarDecl(VarDecl {
+        var_type: type_token.token_type,
+        name: name_token.value,
+        initializer: Some(Box::new(value)),
+        line: type_token.line,
+        column: type_token.column,
+    })))
+} else {
+    // No init allowed
+    self.expect(TokenType::Semicolon)?;
+    None
+};
+
 
         // Condition
         let condition = if !self.check(TokenType::Semicolon) {
