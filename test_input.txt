@@ -10,8 +10,14 @@ int globalCounter = 0;
 float pi = 3.14159;
 
 // Function declaration
-int add(Color a, int b) {
+string add(Color a, int b) {
+    Color myColor = Red;
+    const char a = 'a';
     return a + b;
+}
+
+int compareColors(Color c1, Color c2) {
+    return 1;
 }
 
 // Function prototype
@@ -19,6 +25,8 @@ void printMessage(int code);
 
 // Main block (no parentheses needed)
 main {
+    global Color myColor = Red;
+    global int a = 44;
     int x = 42;
     float y = 3.14;
     Color color = Red;
@@ -28,8 +36,6 @@ main {
         x++;
     }
     
-    // For loop - no declarations allowed in init
-    int i = 0;
     for (int i = 0; i < 10; i++) {
         print(i);
     }

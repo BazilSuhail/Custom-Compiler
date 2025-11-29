@@ -87,7 +87,6 @@ pub struct VarDecl {
 #[derive(Debug, Clone)]
 pub struct FunctionProto {
     //pub return_type: TokenType,
-
     pub return_type: TypeNode,
     pub name: String,
     pub params: Vec<(TypeNode, String)>,
