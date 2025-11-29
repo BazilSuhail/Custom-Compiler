@@ -1,4 +1,4 @@
-use crate::token::{Token, TokenType};
+use crate::core::token::{Token, TokenType};
 use std::collections::HashMap;
 
 pub struct Lexer {

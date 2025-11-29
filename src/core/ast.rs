@@ -1,5 +1,5 @@
-use crate::token::TokenType;
-use crate::token::TypeNode;
+use crate::core::token::TokenType;
+use crate::core::token::TypeNode;
 
 // === AST Node Types ===
 

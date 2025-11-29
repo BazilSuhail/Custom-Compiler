@@ -1,5 +1,5 @@
-use crate::token::{Token, TokenType, TypeNode};
-use crate::ast::*;
+use crate::core::token::{Token, TokenType, TypeNode};
+use crate::core::ast::*;
 
 // === Parse Errors ===
 #[derive(Debug, Clone)]

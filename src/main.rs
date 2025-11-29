@@ -1,12 +1,9 @@
-mod token;
-mod lexer;
-mod ast;
-mod parser;
-mod ast_printer;
+// main.rs - using lib.rs for module organization
+use compiler::lexer::Lexer;
+use compiler::core::token::TokenType;
+use compiler::parser::parser::Parser;
+use compiler::parser::ast_printer::print_ast;
 
-use lexer::Lexer;
-use parser::Parser;
-use ast_printer::print_ast;
 //use std::env;
 use std::fs;
 use std::process;
@@ -36,11 +33,11 @@ fn main() {
     let tokens = lexer.tokenize();
 
     // Check for lexical errors
-    let has_lex_errors = tokens.iter().any(|t| t.token_type == token::TokenType::Error);
+    let has_lex_errors = tokens.iter().any(|t| t.token_type == TokenType::Error);
     if has_lex_errors {
         eprintln!("\n❌ Lexical errors found:");
         for token in &tokens {
-            if token.token_type == token::TokenType::Error {
+            if token.token_type == TokenType::Error {
                 eprintln!("  Error at line {}, col {}: {}", token.line, token.column, token.value);
             }
         }

@@ -1,5 +1,5 @@
-use crate::ast::*;
-use crate::token::{TokenType, TypeNode};
+use crate::core::ast::*;
+use crate::core::token::{TokenType, TypeNode};
 
 const RESET: &str = "\x1b[0m";
 const BOLD: &str = "\x1b[1m";
