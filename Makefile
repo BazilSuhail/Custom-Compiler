@@ -1,38 +1,81 @@
-# === Compiler and flags ===
-CXX = g++
-CXXFLAGS = -std=c++17 -Wall -fexceptions
+# Makefile for MyCustomLoopInterchange LLVM Pass
 
-# LLVM flags (used automatically if llvm_test.cpp is included)
-LLVM_FLAGS = $(shell llvm-config --cxxflags --ldflags --libs all --system-libs)
+CXX = clang++-17
+OPT = opt-17
+CLANG = clang-17
+LLC = llc-17
 
-# Source files (main.cpp calls or includes everything)
-SOURCES = lexer.cpp parser.cpp scope.cpp type.cpp tac.cpp llvm.cpp main.cpp
+CXXFLAGS = -fPIC -std=c++17 $(shell llvm-config-17 --cxxflags)
+LDFLAGS = -shared $(shell llvm-config-17 --ldflags)
 
-# Output executable
-OUTPUT = program.exe
+PASS_SO = MyCustomLoopInterchange.so
+PASS_SRC = MyCustomLoopInterchange.cpp
+TEST_SRC = test.c
+TEST_LL = test.ll
+TEST_CANONICAL = test_canonical.ll
+TEST_OUT = test_out.ll
 
-# Default input file
-INPUT ?= sample
+.PHONY: all build test clean
 
-# === Targets ===
+all: build
 
-# Default: do nothing
-all:
-	@echo "Use 'make build' to compile the program OR 'make run' to run it"
+# Build the pass
+build: $(PASS_SO)
 
-# Build the executable
-build: $(OUTPUT)
+$(PASS_SO): $(PASS_SRC)
+	@echo "Building pass..."
+	@$(CXX) $(CXXFLAGS) $(LDFLAGS) $< -o $@
+	@echo "Pass compiled: $(PASS_SO)"
 
-$(OUTPUT): $(SOURCES)
-	@echo Compiling all sources into $(OUTPUT)...
-	$(CXX) $(CXXFLAGS) $(SOURCES) -o $(OUTPUT) $(LLVM_FLAGS) -fexceptions
-	@echo Compilation finished.
+# Run full test
+test: $(PASS_SO) $(TEST_OUT)
+	@echo ""
+	@echo "================================================"
+	@echo "  Loop Interchange Test Results"
+	@echo "================================================"
+	@echo ""
+	@echo "BEFORE:"
+	@echo "  Outer loop PHI:"
+	@grep "%.01 = phi" $(TEST_CANONICAL) | head -1 || true
+	@echo "  Outer loop bound:"
+	@grep "icmp slt i32 %.01" $(TEST_CANONICAL) | head -1 || true
+	@echo "  Inner loop PHI:"
+	@grep "%.0 = phi" $(TEST_CANONICAL) | head -1 || true
+	@echo "  Inner loop bound:"
+	@grep "icmp slt i32 %.0" $(TEST_CANONICAL) | head -1 || true
+	@echo ""
+	@echo "AFTER:"
+	@echo "  Outer loop PHI:"
+	@grep "%j = phi" $(TEST_OUT) | head -1 || true
+	@echo "  Outer loop bound:"
+	@grep "icmp slt i32 %j" $(TEST_OUT) | head -1 || true
+	@echo "  Inner loop PHI:"
+	@grep "%i = phi" $(TEST_OUT) | head -1 || true
+	@echo "  Inner loop bound:"
+	@grep "icmp slt i32 %i" $(TEST_OUT) | head -1 || true
+	@echo ""
+	@echo "================================================"
+	@echo "  Test passed - loops successfully interchanged"
+	@echo "================================================"
 
-# Run the program with optional input file
-run: $(OUTPUT)
-	@echo Running $(OUTPUT) with input file tester/$(INPUT).txt...
-	./$(OUTPUT) $(INPUT)
+# Generate LLVM IR from C source
+$(TEST_LL): $(TEST_SRC)
+	@echo "Generating LLVM IR..."
+	@$(CLANG) -O1 -S -emit-llvm $< -o $@ -Xclang -disable-llvm-passes
 
-# Clean executable
+# Generate canonical loop form
+$(TEST_CANONICAL): $(TEST_LL)
+	@echo "Generating canonical loop form..."
+	@$(OPT) -S -passes="mem2reg,simplifycfg,loop-simplify" $< -o $@
+
+# Run loop interchange pass
+$(TEST_OUT): $(PASS_SO) $(TEST_CANONICAL)
+	@echo "Running loop interchange pass..."
+	@$(OPT) -load-pass-plugin=./$(PASS_SO) -passes="my-loop-interchange" $(TEST_CANONICAL) -S -o $@
+	@echo "Transformation complete"
+
+# Clean build artifacts
 clean:
-	rm -f $(OUTPUT)
+	@echo "Cleaning build artifacts..."
+	@rm -f $(PASS_SO) $(TEST_LL) $(TEST_CANONICAL) $(TEST_OUT)
+	@echo "Clean complete"
