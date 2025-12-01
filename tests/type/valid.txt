@@ -1,5 +1,8 @@
+// ============================================
+// TYPE VALID/ ERRORS FREE TEST FILE
 // Clean test program - NO TYPE ERRORS
 // This file demonstrates correct usage of types, operations, and control flow.
+// ============================================
 
 enum Status {
     Active,
