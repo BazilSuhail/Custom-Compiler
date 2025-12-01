@@ -1,0 +1,132 @@
+// ============================================
+// SCOPE VALID/ERROR FREE TEST FILE
+// Clean test program - NO SCOPE ERRORS
+// This should pass scope analysis successfully
+// ============================================
+
+enum Color {
+    Red,
+    Green,
+    Blue
+};
+
+enum Status {
+    Active,
+    Inactive,
+    Pending
+};
+
+// Global variable declarations
+int globalCounter = 0;
+float pi = 3.14159;
+
+// Function prototypes
+void printMessage(int code);
+int add(int a, int b);
+
+// Function definitions
+int add(int a, int b) {
+    int result = a + b;
+    return result;
+}
+
+int multiply(int x, int y) {
+    return x * y;
+}
+
+Color getColor(int index) {
+    if (index == 0) {
+        return Red;
+    }
+    if (index == 1) {
+        return Green;
+    }
+    return Blue;
+}
+
+// Main block
+main {
+    int x = 42;
+    float y = 3.14;
+    Color myColor = Red;
+    
+    if (x > 10) {
+        print("x is greater than 10");
+        x++;
+    } else {
+        print("x is not greater than 10");
+    }
+    
+    // For loop
+    for (int i = 0; i < 10; i++) {
+        print(i);
+        
+        if (i == 5) {
+            break;
+        }
+    }
+    
+    // While loop
+    int counter = 0;
+    while (counter < 5) {
+        print(counter);
+        counter++;
+    }
+    
+    // Do-while loop
+    int j = 0;
+    do {
+        print(j);
+        j++;
+    } while (j < 3);
+    
+    // Switch statement
+    int choice = 2;
+    switch (choice) {
+        case 1:
+            print("Choice is 1");
+            break;
+        case 2:
+            print("Choice is 2");
+            break;
+        default:
+            print("Unknown choice");
+            break;
+    }
+    
+    // Function calls
+    int sum = add(10, 20);
+    int product = multiply(5, 6);
+    Color selectedColor = getColor(1);
+    
+    printMessage(0);
+}
+
+// Function implementation
+void printMessage(int code) {
+    if (code == 0) {
+        print("Success");
+    } else {
+        print("Error");
+    }
+}
+
+// Nested scopes
+void testNesting() {
+    int outer = 10;
+    
+    if (outer > 5) {
+        int inner = 20;
+        print(inner);
+        
+        if (inner > 15) {
+            int deepest = 30;
+            print(deepest);
+        }
+    }
+    
+    for (int i = 0; i < 5; i++) {
+        int loopVar = i * 2;
+        print(loopVar);
+    }
+}
