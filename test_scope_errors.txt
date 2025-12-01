@@ -27,7 +27,6 @@ enum Status {
 // --- ERROR 3: InvalidStorageClassUsage ---
 // Enum declared in non-global scope (inside function)
 main {
-    
     enum LocalEnum {  // ERROR: Invalid storage class usage (enums must be global)
         Value1,
         Value2

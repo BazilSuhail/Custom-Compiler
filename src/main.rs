@@ -1,8 +1,9 @@
 // main.rs - using lib.rs for module organization
-use compiler::lexer::Lexer;
+use compiler::lexer::lexer::Lexer;
 use compiler::core::token::TokenType;
 use compiler::parser::parser::Parser;
 use compiler::parser::ast_printer::print_ast;
+use compiler::semantics::scope::ScopeAnalyzer;
 
 //use std::env;
 use std::fs;
@@ -46,13 +47,31 @@ fn main() {
 
     // Syntax Analysis (Parsing)
     let mut parser = Parser::new(tokens);
-    match parser.parse_program() {
+    let ast = match parser.parse_program() {
         Ok(ast) => {
             print_ast(&ast);
             println!("✅ Parsing completed successfully!");
+            ast
         }
         Err(err) => {
             eprintln!("\n❌ {}", err);
+            process::exit(1);
+        }
+    };
+
+    // Scope Analysis
+    let mut scope_analyzer = ScopeAnalyzer::new();
+    match scope_analyzer.analyze(&ast) {
+        Ok(()) => {
+            println!("\n✅ Scope analysis completed successfully!");
+            println!("No scope errors found.");
+        }
+        Err(errors) => {
+            eprintln!("\n❌ Scope analysis errors found:");
+            for error in &errors {
+                eprintln!("  [Scope Error] {}", error.message);
+            }
+            eprintln!("Scope analysis failed with {} error(s)", errors.len());
             process::exit(1);
         }
     }
