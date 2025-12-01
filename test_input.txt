@@ -1,161 +1,87 @@
-// ============================================
-// SCOPE ERROR TEST FILE
-// This file contains examples of all scope errors
-// ============================================
+// Test file for TYPE ERRORS
+// This file contains instances of all 17 type error types
 
-// --- ERROR 1: EnumRedefinition ---
-// Declaring the same enum twice
-enum Color {
-    Red,
-    Green,
-    Blue
-};
+enum Color { Red, Green };
 
-enum Color {  // ERROR: Enum redefinition
-    Yellow,
-    Purple
-};
+// 1. ErroneousVarDecl: Variable declared as void
+void invalidVar;
 
-// --- ERROR 2: EnumVariantRedefinition ---
-// Same value name used twice in one enum
-enum Status {
-    Active,
-    Inactive,
-    Active  // ERROR: Enum variant redefinition
-};
+int add(int a, int b) {
+    return a + b;
+}
 
-// --- ERROR 3: InvalidStorageClassUsage ---
-// Enum declared in non-global scope (inside function)
+void voidFunc() {
+    print("hello");
+}
+
 main {
-    
-    enum LocalEnum {  // ERROR: Invalid storage class usage (enums must be global)
-        Value1,
-        Value2
-    };
-}
+    int i = 10;
+    float f = 3.14;
+    bool b = true;
 
-// --- ERROR 4: ConflictingDeclaration ---
-// Variable name conflicts with enum name
-enum Size {
-    Small,
-    Large
-};
+    // 2. FnCallParamCount: Calling 'add' (2 params) with 1 arg
+    add(10);
 
-int Size = 10;  // ERROR: Conflicting declaration (Size is already an enum)
+    // 3. FnCallParamType: Passing float to int parameter
+    add(10, f);
 
-// --- ERROR 5: ConflictingDeclaration (enum value conflict) ---
-// Variable name conflicts with enum value
-int Red = 5;  // ERROR: Conflicting declaration (Red is an enum value from Color)
+    // 4. ErroneousReturnType (Checked inside functions, but let's demo more)
+    // 5. ExpressionTypeMismatch: Assigning float to int
+    i = 3.14;
 
-// --- ERROR 6: VariableRedefinition ---
-// Variable declared twice in same scope
-int testVar = 10;
-int testVar = 20;  // ERROR: Variable redefinition
+    // 6. ErroneousBreak: break outside loop or switch
+    break;
 
-// --- ERROR 7: FunctionPrototypeRedefinition ---
-// Same function prototype declared multiple times
-void helper(int x);
-void helper(int x);  // ERROR: Function prototype redefinition
-
-// --- ERROR 8: ConflictingFunctionDefinition ---
-// Function defined with different signature than prototype
-void process(int a);
-
-void process(float a) {  // ERROR: Conflicting function definition (different parameter type)
-    print(a);
-}
-
-// --- ERROR 9: ConflictingFunctionDefinition (return type) ---
-// Function with same name but different return type
-int calculate(int x) {
-    return x * 2;
-}
-
-float calculate(int x) {  // ERROR: Conflicting function definition (different return type)
-    return x * 2.5;
-}
-
-// --- ERROR 10: ParameterRedefinition ---
-// Same parameter name used twice in function
-int duplicate(int x, float x) {  // ERROR: Parameter redefinition
-    return x;
-}
-
-// --- ERROR 11: UndeclaredVariableAccessed ---
-// Using variable that was never declared
-int useUndeclared() {
-    return unknownVar + 5;  // ERROR: Undeclared variable accessed
-}
-
-// --- ERROR 12: UndefinedFunctionCalled ---
-// Calling function that doesn't exist
-main {
-    int result = nonExistentFunc(10);  // ERROR: Undefined function called
-}
-
-// --- ERROR 13: InvalidForwardReference ---
-// Using variable before it's declared (but it exists later)
-int earlyUser() {
-    return laterDeclared;  // ERROR: Invalid forward reference
-}
-
-int laterDeclared = 100;
-
-// --- ERROR 14: InvalidForwardReference (function) ---
-// Calling function before declaration (without prototype)
-int caller() {
-    return callee();  // ERROR: Invalid forward reference
-}
-
-int callee() {
-    return 42;
-}
-
-// --- ERROR 15: ConflictingDeclaration (variable vs function) ---
-// Variable name conflicts with function name
-void myFunc() {
-    print("Hello");
-}
-
-int myFunc = 5;  // ERROR: Conflicting declaration
-
-// --- CORRECT EXAMPLES (for comparison) ---
-
-// Correct: Function prototype followed by definition
-void correctFunc(int x);
-
-void correctFunc(int x) {
-    print(x);
-}
-
-// Correct: Using declared variables
-int validVar = 10;
-
-int useValidVar() {
-    return validVar + 5;  // OK: validVar is declared
-}
-
-// Correct: Enum values can be used as variables
-enum Direction {
-    North,
-    South,
-    East,
-    West
-};
-
-int useEnumValue() {
-    int dir = North;  // OK: North is an enum value
-    return dir;
-}
-
-// Correct: Nested scopes with same variable name (shadowing is allowed)
-int outer = 10;
-
-void testScoping() {
-    int inner = 20;
-    
-    if (inner > 0) {
-        int inner = 30;  // OK: Different scope, shadows outer 'inner'
-        print(inner);
+    // 7. NonBooleanCondStmt: if condition is int, not bool
+    if (i) {
+        print("wont work");
     }
+
+    // 8. AttemptedBoolOpOnNonBools: && on integers
+    int result = 10 && 20;
+
+    // 9. AttemptedBitOpOnNonInt: & on floats
+    float bitResult = f & 2.2;
+
+    // 10. AttemptedShiftOnNonInt: << on floats
+    float shiftResult = f << 2;
+
+    // 11. AttemptedAddOpOnNonNumeric: Arithmetic on non-numeric (if supported in grammar)
+    // Note: Assuming 'print' is a statement, not an expression.
+
+    // 12. ReturnStmtInVoid: Handled in a separate function below
+    
+    // 13. NonBooleanSwitchExpression: switch on float
+    switch (f) {
+        case 1.0: break;
+    }
+
+    // 14. InvalidCaseValueType: switch int, case char (strict check)
+    switch (i) {
+        case 'a': break; 
+    }
+
+    // 15. IncrementDecrementOnNonInt: float increment
+    f++;
+
+    // 16. NotOnNonBool: ! on int
+    bool notResult = !i;
+
+    // 17. AttemptedAddOpOnNonNumeric: Demo with mismatched numeric types (strict)
+    int addMismatch = i + f;
+}
+
+// 12. ReturnStmtInVoid
+void returningInVoid() {
+    return 10;
+}
+
+// 4. ErroneousReturnType (Missing return)
+int missingReturn() {
+    print("no return statement here");
+}
+
+// 4. ErroneousReturnType (Wrong return type)
+int wrongReturn() {
+    return 3.14;
 }

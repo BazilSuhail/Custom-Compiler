@@ -385,7 +385,7 @@ Identifier       ::= (Letter | "_") (Letter | Digit | "_" | UnicodeChar)*
 
 ---
 
-## 🎓 What We've Built
+## 🎓 What I've Built
 
 ### Lexer Achievements
 1. ✅ Added `const` and `global` keyword support
@@ -415,7 +415,7 @@ Identifier       ::= (Letter | "_") (Letter | Digit | "_" | UnicodeChar)*
 
 - [x] ~~Lexical analysis (Lexer)~~ ✅ **Completed**
 - [x] ~~Syntax analysis (Parser)~~ ✅ **Completed**
-- [ ] Semantic analysis
+- [x] ~~Semantic analysis~~        ✅ **Completed**
 - [ ] Intermediate code generation
 - [ ] Code optimization
 - [ ] Target code generation

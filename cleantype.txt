@@ -1,0 +1,90 @@
+// Clean test program - NO TYPE ERRORS
+// This file demonstrates correct usage of types, operations, and control flow.
+
+enum Status {
+    Active,
+    Inactive,
+    Pending
+};
+
+// Global declarations
+int globalId = 100;
+float threshold = 0.75;
+
+// Function Prototypes
+int calculateArea(int width, int height);
+bool isPassing(float score);
+void logStatus(int s);
+
+// Implementation
+int calculateArea(int width, int height) {
+    int area = width * height;
+    return area;
+}
+
+bool isPassing(float score) {
+    if (score >= threshold) {
+        return true;
+    }
+    return false;
+}
+
+void logStatus(int s) {
+    switch (s) {
+        case 1:
+            print("Status is Active");
+            break;
+        case 2:
+            print("Status is Inactive");
+            break;
+        default:
+            print("Status is Pending");
+            break;
+    }
+    // Void function doesn't need return, or can use return;
+    return;
+}
+
+main {
+    int w = 10;
+    int h = 20;
+    int area = calculateArea(w, h);
+    
+    float myScore = 0.85;
+    bool result = isPassing(myScore);
+    
+    if (result) {
+        print("Test Passed");
+    } else {
+        print("Test Failed");
+    }
+    
+    int current = Active;
+    logStatus(current);
+    
+    // Testing loops with correct types
+    for (int i = 0; i < 5; i++) {
+        print(i);
+        if (i == 3) {
+            break; 
+        }
+    }
+    
+    int counter = 0;
+    while (counter < 3) {
+        counter++;
+    }
+    
+    do {
+        print("Looping...");
+        counter--;
+    } while (counter > 0);
+    
+    // Correct arithmetic
+    int sum = 10 + w;
+    float ratio = 3.14 / 2.0;
+    
+    // Correct logic
+    bool flag = (w > 5) && (area < 500);
+    bool check = !flag;
+}

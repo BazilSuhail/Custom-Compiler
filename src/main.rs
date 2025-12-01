@@ -4,30 +4,14 @@ use compiler::core::token::TokenType;
 use compiler::parser::parser::Parser;
 use compiler::parser::ast_printer::print_ast;
 use compiler::semantics::scope::ScopeAnalyzer;
+use compiler::semantics::typeChecker::TypeChecker;
 
-//use std::env;
 use std::fs;
 use std::process;
 
 fn main() {
-    // let args: Vec<String> = env::args().collect();
-
-    // if args.len() < 2 {
-    //     eprintln!("Usage: {} <input_file>", args[0]);
-    //     process::exit(1);
-    // }
-
-    // let filename = &args[1];
-
-    // let source = match fs::read_to_string(filename) {
-    //     Ok(content) => content,
-    //     Err(err) => {
-    //         eprintln!("Error reading file '{}': {}", filename, err);
-    //         process::exit(1);
-    //     }
-    // };
     let source = fs::read_to_string("test_input.txt") 
-    .expect("failed to read test_input.txt");
+        .expect("failed to read test_input.txt");
     
     // Lexical Analysis
     let mut lexer = Lexer::new(source);
@@ -64,7 +48,23 @@ fn main() {
     match scope_analyzer.analyze(&ast) {
         Ok(()) => {
             println!("\n✅ Scope analysis completed successfully!");
-            println!("No scope errors found.");
+            
+            // Type Analysis
+            let mut type_checker = TypeChecker::new(scope_analyzer.get_global_scope());
+            match type_checker.check(&ast) {
+                Ok(()) => {
+                    println!("✅ Type checking completed successfully!");
+                    println!("No semantic errors found.");
+                }
+                Err(errors) => {
+                    eprintln!("\n❌ Type checking errors found:");
+                    for error in &errors {
+                        eprintln!("  [Type Error] {}", error.message);
+                    }
+                    eprintln!("Type checking failed with {} error(s)", errors.len());
+                    process::exit(1);
+                }
+            }
         }
         Err(errors) => {
             eprintln!("\n❌ Scope analysis errors found:");

@@ -4,7 +4,6 @@ pub mod lexer {
     pub mod lexer; 
 }
 
-
 pub mod core {
     pub mod ast;
     pub mod token;
@@ -17,4 +16,5 @@ pub mod parser {
 
 pub mod semantics {
     pub mod scope;
+    pub mod typeChecker;
 }
