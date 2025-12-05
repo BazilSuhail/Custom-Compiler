@@ -18,3 +18,7 @@ pub mod semantics {
     pub mod scope;
     pub mod typeChecker;
 }
+
+pub mod ir_pipeline {
+    pub mod tac;
+}

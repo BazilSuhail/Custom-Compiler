@@ -5,6 +5,7 @@ use compiler::parser::parser::Parser;
 use compiler::parser::ast_printer::print_ast;
 use compiler::semantics::scope::ScopeAnalyzer;
 use compiler::semantics::typeChecker::TypeChecker;
+use compiler::ir_pipeline::tac::TACGenerator;
 
 use std::fs;
 use std::process;
@@ -55,6 +56,16 @@ fn main() {
                 Ok(()) => {
                     println!("✅ Type checking completed successfully!");
                     println!("No semantic errors found.");
+
+                    // IR Generation (Three-Address Code)
+                    println!("\n🚀 Generating Three-Address Code (TAC)...");
+                    let mut tac_gen = TACGenerator::new();
+                    tac_gen.generate(&ast);
+                    
+                    match tac_gen.save_to_file("tac.txt") {
+                        Ok(()) => println!("✅ IR generation completed! Output saved to 'tac.txt'"),
+                        Err(e) => eprintln!("❌ Failed to save TAC to file: {}", e),
+                    }
                 }
                 Err(errors) => {
                     eprintln!("\n❌ Type checking errors found:");

@@ -1,87 +1,36 @@
-// Test file for TYPE ERRORS
-// This file contains instances of all 17 type error types
+enum State { IDLE, RUNNING, STOPPED };
 
-enum Color { Red, Green };
-
-// 1. ErroneousVarDecl: Variable declared as void
-void invalidVar;
-
-int add(int a, int b) {
-    return a + b;
-}
-
-void voidFunc() {
-    print("hello");
+int square(int n) {
+    return n * n;
 }
 
 main {
-    int i = 10;
-    float f = 3.14;
-    bool b = true;
+    int x = 10;
+    float pi = 3.14;
+    bool active = true;
+    //State s = RUNNING;
 
-    // 2. FnCallParamCount: Calling 'add' (2 params) with 1 arg
-    add(10);
-
-    // 3. FnCallParamType: Passing float to int parameter
-    add(10, f);
-
-    // 4. ErroneousReturnType (Checked inside functions, but let's demo more)
-    // 5. ExpressionTypeMismatch: Assigning float to int
-    i = 3.14;
-
-    // 6. ErroneousBreak: break outside loop or switch
-    break;
-
-    // 7. NonBooleanCondStmt: if condition is int, not bool
-    if (i) {
-        print("wont work");
+    if (active && x > 5) {
+        print("Active", x);
     }
 
-    // 8. AttemptedBoolOpOnNonBools: && on integers
-    int result = 10 && 20;
-
-    // 9. AttemptedBitOpOnNonInt: & on floats
-    float bitResult = f & 2.2;
-
-    // 10. AttemptedShiftOnNonInt: << on floats
-    float shiftResult = f << 2;
-
-    // 11. AttemptedAddOpOnNonNumeric: Arithmetic on non-numeric (if supported in grammar)
-    // Note: Assuming 'print' is a statement, not an expression.
-
-    // 12. ReturnStmtInVoid: Handled in a separate function below
-    
-    // 13. NonBooleanSwitchExpression: switch on float
-    switch (f) {
-        case 1.0: break;
+    int i = 0;
+    while (i < 3) {
+        print(i);
+        i++;
     }
 
-    // 14. InvalidCaseValueType: switch int, case char (strict check)
-    switch (i) {
-        case 'a': break; 
+    do {
+        x--;
+    } while (x > 8);
+
+    for (int k = 0; k < 2; k++) {
+        print(square(k));
     }
 
-    // 15. IncrementDecrementOnNonInt: float increment
-    f++;
-
-    // 16. NotOnNonBool: ! on int
-    bool notResult = !i;
-
-    // 17. AttemptedAddOpOnNonNumeric: Demo with mismatched numeric types (strict)
-    int addMismatch = i + f;
-}
-
-// 12. ReturnStmtInVoid
-void returningInVoid() {
-    return 10;
-}
-
-// 4. ErroneousReturnType (Missing return)
-int missingReturn() {
-    print("no return statement here");
-}
-
-// 4. ErroneousReturnType (Wrong return type)
-int wrongReturn() {
-    return 3.14;
+    switch (s) {
+        case IDLE:    print("Idle"); break;
+        case RUNNING: print("Running"); break;
+        default:      print("Unknown");
+    }
 }
