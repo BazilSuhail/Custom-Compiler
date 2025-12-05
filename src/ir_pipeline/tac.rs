@@ -32,28 +32,25 @@ impl fmt::Display for Operand {
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
-    // Typed assignment for declarations: "type var = src"
     Declare(String, String, Option<Operand>),
-    // Standard assignment: "dest = src"
     Assign(Operand, Operand),
     Binary(Operand, TokenType, Operand, Operand),
     Unary(Operand, TokenType, Operand),
     Label(String),
     Goto(String),
-    IfGoto(Operand, TokenType, Operand, String),
+    IfTrue(Operand, String),
+    IfFalse(Operand, String),
     Param(Operand),
-    // Call(Dest, FuncName, ArgCount)
     Call(Option<Operand>, String, usize),
     Return(Option<Operand>),
-    // FuncStart(Name, ReturnType, Params)
     FuncStart(String, String, Vec<(String, String)>),
     FuncEnd,
     Print(Vec<Operand>),
     Comment(String),
 }
 
-fn type_node_to_str(t: &TypeNode) -> String {
-    match t {
+fn type_node_to_str(t: &TypeNode, is_const: bool) -> String {
+    let mut s = match t {
         TypeNode::Builtin(tok) => match tok {
             TokenType::Int => "int".to_string(),
             TokenType::Float => "float".to_string(),
@@ -65,39 +62,32 @@ fn type_node_to_str(t: &TypeNode) -> String {
             _ => "unknown".to_string(),
         },
         TypeNode::UserDefined(name) => name.clone(),
-    }
+    };
+    if is_const { s = format!("const {}", s); }
+    s
 }
 
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Instruction::Declare(t, name, init) => {
-                if let Some(val) = init {
-                    write!(f, "{} {} = {}", t, name, val)
-                } else {
-                    write!(f, "{} {}", t, name)
-                }
+                if let Some(val) = init { write!(f, "{} {} = {}", t, name, val) } 
+                else { write!(f, "{} {}", t, name) }
             }
             Instruction::Assign(dest, src) => write!(f, "{} = {}", dest, src),
             Instruction::Binary(dest, op, l, r) => write!(f, "{} = {} {:?} {}", dest, l, op, r),
             Instruction::Unary(dest, op, src) => write!(f, "{} = {:?} {}", dest, op, src),
             Instruction::Label(l) => write!(f, "{}:", l),
             Instruction::Goto(l) => write!(f, "goto {}", l),
-            Instruction::IfGoto(l, op, r, lbl) => write!(f, "if {} {:?} {} goto {}", l, op, r, lbl),
+            Instruction::IfTrue(cond, lbl) => write!(f, "ifTrue {} goto {}", cond, lbl),
+            Instruction::IfFalse(cond, lbl) => write!(f, "ifFalse {} goto {}", cond, lbl),
             Instruction::Param(p) => write!(f, "param {}", p),
             Instruction::Call(dest, func, n) => {
-                if let Some(d) = dest {
-                    write!(f, "{} = call {}, {}", d, func, n)
-                } else {
-                    write!(f, "call {}, {}", func, n)
-                }
+                if let Some(d) = dest { write!(f, "{} = call {}, {}", d, func, n) } 
+                else { write!(f, "call {}, {}", func, n) }
             }
             Instruction::Return(val) => {
-                if let Some(v) = val {
-                    write!(f, "return {}", v)
-                } else {
-                    write!(f, "return")
-                }
+                if let Some(v) = val { write!(f, "return {}", v) } else { write!(f, "return") }
             }
             Instruction::FuncStart(name, ret, params) => {
                 let p_str: Vec<String> = params.iter().map(|(t, n)| format!("{} {}", t, n)).collect();
@@ -118,7 +108,6 @@ pub struct TACGenerator {
     temp_count: usize,
     label_count: usize,
     break_stack: Vec<String>,
-    // Enum value mapping: ConstantName -> IntegerID
     enum_map: HashMap<String, i64>,
 }
 
@@ -150,13 +139,8 @@ impl TACGenerator {
     }
 
     pub fn generate(&mut self, ast: &[ASTNode]) -> Vec<Instruction> {
-        // Pass 1: Collect Enums
         self.pre_scan_enums(ast);
-
-        // Pass 2: Generate Code
-        for node in ast {
-            self.gen_node(node);
-        }
+        for node in ast { self.gen_node(node); }
         self.instructions.clone()
     }
 
@@ -180,12 +164,8 @@ impl TACGenerator {
             ASTNode::CharLiteral(n) => Some(Operand::Char(n.value)),
             ASTNode::BoolLiteral(n) => Some(Operand::Bool(n.value)),
             ASTNode::Identifier(n) => {
-                // If it's an enum constant, replace with its ID
-                if let Some(&id) = self.enum_map.get(&n.name) {
-                    Some(Operand::Int(id))
-                } else {
-                    Some(Operand::Var(n.name.clone()))
-                }
+                if let Some(&id) = self.enum_map.get(&n.name) { Some(Operand::Int(id)) } 
+                else { Some(Operand::Var(n.name.clone())) }
             }
 
             ASTNode::BinaryExpr(b) => {
@@ -197,45 +177,36 @@ impl TACGenerator {
             }
 
             ASTNode::UnaryExpr(u) => {
-                if u.is_postfix {
-                    let operand = self.gen_node(&u.operand)?;
-                    let t = self.new_temp();
-                    self.emit(Instruction::Assign(t.clone(), operand.clone()));
+                let operand = self.gen_node(&u.operand)?;
+                if u.op == TokenType::Increment || u.op == TokenType::Decrement {
                     let op = if u.op == TokenType::Increment { TokenType::Plus } else { TokenType::Minus };
-                    self.emit(Instruction::Binary(operand.clone(), op, operand, Operand::Int(1)));
-                    Some(t)
-                } else {
-                    let operand = self.gen_node(&u.operand)?;
-                    if u.op == TokenType::Increment || u.op == TokenType::Decrement {
-                        let op = if u.op == TokenType::Increment { TokenType::Plus } else { TokenType::Minus };
+                    if u.is_postfix {
+                        let t = self.new_temp();
+                        self.emit(Instruction::Assign(t.clone(), operand.clone()));
+                        self.emit(Instruction::Binary(operand.clone(), op, operand, Operand::Int(1)));
+                        Some(t)
+                    } else {
                         self.emit(Instruction::Binary(operand.clone(), op, operand.clone(), Operand::Int(1)));
                         Some(operand)
-                    } else {
-                        let dest = self.new_temp();
-                        self.emit(Instruction::Unary(dest.clone(), u.op, operand));
-                        Some(dest)
                     }
+                } else {
+                    let dest = self.new_temp();
+                    self.emit(Instruction::Unary(dest.clone(), u.op, operand));
+                    Some(dest)
                 }
             }
 
             ASTNode::VarDecl(d) => {
-                let t_str = type_node_to_str(&d.var_type);
-                let init = if let Some(init_node) = &d.initializer {
-                    self.gen_node(init_node)
-                } else {
-                    None
-                };
+                let t_str = type_node_to_str(&d.var_type, d.is_const);
+                let init = if let Some(init_node) = &d.initializer { self.gen_node(init_node) } else { None };
                 self.emit(Instruction::Declare(t_str, d.name.clone(), init));
                 None
             }
 
             ASTNode::CallExpr(c) => {
                 let mut arg_ops = Vec::new();
-                for arg in &c.args {
-                    if let Some(op) = self.gen_node(arg) { arg_ops.push(op); }
-                }
+                for arg in &c.args { if let Some(op) = self.gen_node(arg) { arg_ops.push(op); } }
                 for arg in &arg_ops { self.emit(Instruction::Param(arg.clone())); }
-                
                 let func_name = if let ASTNode::Identifier(i) = c.callee.as_ref() { i.name.clone() } else { "unknown".to_string() };
                 let dest = self.new_temp();
                 self.emit(Instruction::Call(Some(dest.clone()), func_name, arg_ops.len()));
@@ -243,8 +214,8 @@ impl TACGenerator {
             }
 
             ASTNode::FunctionDecl(d) => {
-                let ret_t = type_node_to_str(&d.return_type);
-                let params = d.params.iter().map(|(t, n)| (type_node_to_str(t), n.clone())).collect();
+                let ret_t = type_node_to_str(&d.return_type, false);
+                let params = d.params.iter().map(|(t, n)| (type_node_to_str(t, false), n.clone())).collect();
                 self.emit(Instruction::FuncStart(d.name.clone(), ret_t, params));
                 for stmt in &d.body { self.gen_node(stmt); }
                 self.emit(Instruction::FuncEnd);
@@ -259,15 +230,22 @@ impl TACGenerator {
             }
 
             ASTNode::IfStmt(d) => {
-                let l_else = self.new_label();
-                let l_end = self.new_label();
                 let cond = self.gen_node(&d.condition)?;
-                self.emit(Instruction::IfGoto(cond, TokenType::EqualOp, Operand::Bool(false), l_else.clone()));
-                for stmt in &d.if_body { self.gen_node(stmt); }
-                self.emit(Instruction::Goto(l_end.clone()));
-                self.emit(Instruction::Label(l_else));
-                for stmt in &d.else_body { self.gen_node(stmt); }
-                self.emit(Instruction::Label(l_end));
+                if d.else_body.is_empty() {
+                    let l_end = self.new_label();
+                    self.emit(Instruction::IfFalse(cond, l_end.clone()));
+                    for stmt in &d.if_body { self.gen_node(stmt); }
+                    self.emit(Instruction::Label(l_end));
+                } else {
+                    let l_else = self.new_label();
+                    let l_end = self.new_label();
+                    self.emit(Instruction::IfFalse(cond, l_else.clone()));
+                    for stmt in &d.if_body { self.gen_node(stmt); }
+                    self.emit(Instruction::Goto(l_end.clone()));
+                    self.emit(Instruction::Label(l_else));
+                    for stmt in &d.else_body { self.gen_node(stmt); }
+                    self.emit(Instruction::Label(l_end));
+                }
                 None
             }
 
@@ -277,7 +255,7 @@ impl TACGenerator {
                 self.break_stack.push(l_end.clone());
                 self.emit(Instruction::Label(l_start.clone()));
                 let cond = self.gen_node(&d.condition)?;
-                self.emit(Instruction::IfGoto(cond, TokenType::EqualOp, Operand::Bool(false), l_end.clone()));
+                self.emit(Instruction::IfFalse(cond, l_end.clone()));
                 for stmt in &d.body { self.gen_node(stmt); }
                 self.emit(Instruction::Goto(l_start));
                 self.emit(Instruction::Label(l_end));
@@ -292,7 +270,7 @@ impl TACGenerator {
                 self.emit(Instruction::Label(l_start.clone()));
                 self.gen_node(&d.body);
                 let cond = self.gen_node(&d.condition)?;
-                self.emit(Instruction::IfGoto(cond, TokenType::EqualOp, Operand::Bool(true), l_start));
+                self.emit(Instruction::IfTrue(cond, l_start));
                 self.emit(Instruction::Label(l_end));
                 self.break_stack.pop();
                 None
@@ -306,7 +284,7 @@ impl TACGenerator {
                 self.emit(Instruction::Label(l_start.clone()));
                 if let Some(cond) = &d.condition {
                     let c = self.gen_node(cond)?;
-                    self.emit(Instruction::IfGoto(c, TokenType::EqualOp, Operand::Bool(false), l_end.clone()));
+                    self.emit(Instruction::IfFalse(c, l_end.clone()));
                 }
                 self.gen_node(&d.body);
                 if let Some(update) = &d.update { self.gen_node(update); }
@@ -324,7 +302,9 @@ impl TACGenerator {
                     if let ASTNode::CaseBlock(cb) = case {
                         let val = self.gen_node(&cb.value)?;
                         let l_next = self.new_label();
-                        self.emit(Instruction::IfGoto(expr.clone(), TokenType::Ne, val, l_next.clone()));
+                        let t_match = self.new_temp();
+                        self.emit(Instruction::Binary(t_match.clone(), TokenType::EqualOp, expr.clone(), val));
+                        self.emit(Instruction::IfFalse(t_match, l_next.clone()));
                         for stmt in &cb.body { self.gen_node(stmt); }
                         self.emit(Instruction::Label(l_next));
                     }
@@ -351,37 +331,21 @@ impl TACGenerator {
 
             ASTNode::PrintStmt(d) => {
                 let mut ops = Vec::new();
-                for arg in &d.args {
-                    if let Some(op) = self.gen_node(arg) { ops.push(op); }
-                }
+                for arg in &d.args { if let Some(op) = self.gen_node(arg) { ops.push(op); } }
                 self.emit(Instruction::Print(ops));
                 None
             }
 
-            ASTNode::BlockStmt(d) => {
-                for stmt in &d.body { self.gen_node(stmt); }
-                None
-            }
-
-            ASTNode::ExpressionStmt(d) => {
-                self.gen_node(&d.expr);
-                None
-            }
-
-            ASTNode::EnumDecl(d) => {
-                self.emit(Instruction::Comment(format!("Enum {} Defined", d.name)));
-                None
-            }
-            
+            ASTNode::BlockStmt(d) => { for stmt in &d.body { self.gen_node(stmt); } None }
+            ASTNode::ExpressionStmt(d) => { self.gen_node(&d.expr); None }
+            ASTNode::EnumDecl(d) => { self.emit(Instruction::Comment(format!("Enum {} Defined", d.name))); None }
             _ => None,
         }
     }
 
     pub fn save_to_file(&self, filename: &str) -> std::io::Result<()> {
         let mut content = String::new();
-        for instr in &self.instructions {
-            content.push_str(&format!("{}\n", instr));
-        }
+        for instr in &self.instructions { content.push_str(&format!("{}\n", instr)); }
         std::fs::write(filename, content)
     }
 }
