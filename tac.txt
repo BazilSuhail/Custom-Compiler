@@ -1,32 +1,59 @@
+; Enum State Defined
+int a = 10
 
-add begin:
-t0 = a Plus b
+int square(int n) begin:
+t0 = n Multiply n
 return t0
 end
 
 
-main begin:
-x = 10
-y = 20
-param x
-param y
-t1 = call add, 2
-z = t1
-t2 = z Gt 25
+void main() begin:
+int x = 10
+float pi = 3.14
+bool active = true
+State s = 1
+t1 = x Gt 5
+t2 = active And t1
 if t2 EqualOp false goto L0
-print "Greater than 25"
+print "Active", x
 goto L1
 L0:
-print "Less than or equal to 25"
 L1:
-i = 0
+int i = 0
 L2:
-t3 = i Lt 5
+t3 = i Lt 3
 if t3 EqualOp false goto L3
 print i
 t4 = i
 i = i Plus 1
 goto L2
 L3:
+L4:
+t5 = x
+x = x Minus 1
+t6 = x Gt 8
+if t6 EqualOp true goto L4
+L5:
+int k = 0
+L6:
+t7 = k Lt 2
+if t7 EqualOp false goto L7
+param k
+t8 = call square, 1
+print t8
+t9 = k
+k = k Plus 1
+goto L6
+L7:
+if s Ne 0 goto L9
+print "Idle"
+goto L8
+L9:
+if s Ne 1 goto L10
+print "Running"
+goto L8
+L10:
+print "Unknown"
+L8:
 end
 

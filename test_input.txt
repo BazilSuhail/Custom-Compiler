@@ -1,5 +1,5 @@
 enum State { IDLE, RUNNING, STOPPED };
-
+const int a = 10;
 int square(int n) {
     return n * n;
 }
@@ -8,7 +8,7 @@ main {
     int x = 10;
     float pi = 3.14;
     bool active = true;
-    //State s = RUNNING;
+    State s = RUNNING;
 
     if (active && x > 5) {
         print("Active", x);

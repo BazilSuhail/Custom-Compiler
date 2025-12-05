@@ -16,7 +16,7 @@ pub mod parser {
 
 pub mod semantics {
     pub mod scope;
-    pub mod typeChecker;
+    pub mod type_checker;
 }
 
 pub mod ir_pipeline {

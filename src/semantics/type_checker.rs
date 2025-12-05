@@ -92,13 +92,23 @@ impl<'a> TypeChecker<'a> {
 
     // --- Type Helpers ---
     fn is_numeric(&self, t: &TypeNode) -> bool {
-        matches!(t, TypeNode::Builtin(TokenType::Int) | TypeNode::Builtin(TokenType::Float))
+        matches!(t, TypeNode::Builtin(TokenType::Int) | TypeNode::Builtin(TokenType::Float) | TypeNode::UserDefined(_))
     }
 
     fn are_types_equal(&self, t1: &TypeNode, t2: &TypeNode) -> bool {
         match (t1, t2) {
             (TypeNode::Builtin(a), TypeNode::Builtin(b)) => a == b,
             (TypeNode::UserDefined(a), TypeNode::UserDefined(b)) => a == b,
+            _ => false,
+        }
+    }
+
+    fn are_types_compatible(&self, t1: &TypeNode, t2: &TypeNode) -> bool {
+        if self.are_types_equal(t1, t2) { return true; }
+        // Enum compatibility: UserDefined (Enum) <-> Builtin Int
+        match (t1, t2) {
+            (TypeNode::UserDefined(_), TypeNode::Builtin(TokenType::Int)) => true,
+            (TypeNode::Builtin(TokenType::Int), TypeNode::UserDefined(_)) => true,
             _ => false,
         }
     }
@@ -139,7 +149,7 @@ impl<'a> TypeChecker<'a> {
                 }
                 if let Some(init) = &d.initializer {
                     self.check_expr(init);
-                    if !self.are_types_equal(&d.var_type, &self.infer(init)) {
+                    if !self.are_types_compatible(&d.var_type, &self.infer(init)) {
                         self.add_error(TypeErrorType::ExpressionTypeMismatch, d.line, d.column, format!("Type mismatch in declaration of '{}'", d.name));
                     }
                 }
@@ -176,6 +186,15 @@ impl<'a> TypeChecker<'a> {
                 }
                 self.loop_depth += 1; self.enter_scope(); for s in &d.body { self.check_node(s); } self.exit_scope(); self.loop_depth -= 1;
             }
+            ASTNode::DoWhileStmt(d) => {
+                self.enter_scope();
+                self.check_node(&d.body);
+                self.exit_scope();
+                self.check_expr(&d.condition);
+                if !matches!(self.infer(&d.condition), TypeNode::Builtin(TokenType::Bool)) {
+                    self.add_error(TypeErrorType::NonBooleanCondStmt, d.line, d.column, "Do-while condition must be boolean".into());
+                }
+            }
             ASTNode::ForStmt(d) => {
                 self.enter_scope();
                 if let Some(init) = &d.init { self.check_node(init); }
@@ -192,13 +211,14 @@ impl<'a> TypeChecker<'a> {
             ASTNode::SwitchStmt(d) => {
                 self.check_expr(&d.expression);
                 let et = self.infer(&d.expression);
-                if !matches!(et, TypeNode::Builtin(TokenType::Int | TokenType::Char)) {
-                    self.add_error(TypeErrorType::NonBooleanSwitchExpression, d.line, d.column, "Switch expression must be int/char".into());
+                if !matches!(et, TypeNode::Builtin(TokenType::Int | TokenType::Char) | TypeNode::UserDefined(_)) {
+                    self.add_error(TypeErrorType::NonBooleanSwitchExpression, d.line, d.column, "Switch expression must be int/char/enum".into());
                 }
                 self.switch_depth += 1;
                 for case in &d.cases {
                     if let ASTNode::CaseBlock(cb) = case {
-                        if !self.are_types_equal(&et, &self.infer(&cb.value)) {
+                        let ct = self.infer(&cb.value);
+                        if !self.are_types_compatible(&et, &ct) {
                             self.add_error(TypeErrorType::InvalidCaseValueType, cb.line, cb.column, "Case value mismatch".into());
                         }
                         self.enter_scope(); for s in &cb.body { self.check_node(s); } self.exit_scope();
@@ -214,7 +234,7 @@ impl<'a> TypeChecker<'a> {
                     self.check_expr(val);
                     if matches!(expected, TypeNode::Builtin(TokenType::Void)) {
                         self.add_error(TypeErrorType::ReturnStmtInVoid, d.line, d.column, "Void function returning value".into());
-                    } else if !self.are_types_equal(&expected, &self.infer(val)) {
+                    } else if !self.are_types_compatible(&expected, &self.infer(val)) {
                         self.add_error(TypeErrorType::ErroneousReturnType, d.line, d.column, "Incorrect return type".into());
                     }
                 } else if !matches!(expected, TypeNode::Builtin(TokenType::Void)) {
@@ -224,6 +244,14 @@ impl<'a> TypeChecker<'a> {
             ASTNode::BreakStmt(d) => if self.loop_depth == 0 && self.switch_depth == 0 {
                 self.add_error(TypeErrorType::ErroneousBreak, d.line, d.column, "Break outside loop/switch".into());
             }
+            ASTNode::PrintStmt(d) => {
+                for arg in &d.args {
+                    self.check_expr(arg);
+                }
+            }
+            ASTNode::IncludeStmt(_) => {}
+            ASTNode::EnumDecl(_) => {}
+            ASTNode::EnumValueList(_) => {}
             ASTNode::ExpressionStmt(d) => self.check_expr(&d.expr),
             ASTNode::BlockStmt(d) => { self.enter_scope(); for s in &d.body { self.check_node(s); } self.exit_scope(); }
             _ => {}
@@ -250,9 +278,9 @@ impl<'a> TypeChecker<'a> {
                         else if !self.are_types_equal(&lt, &rt) { self.add_error(TypeErrorType::ExpressionTypeMismatch, b.line, b.column, "Arithmetic type mismatch".into()); }
                     }
                     TokenType::EqualOp | TokenType::Ne | TokenType::Gt | TokenType::Lt | TokenType::Ge | TokenType::Le => {
-                        if !self.are_types_equal(&lt, &rt) { self.add_error(TypeErrorType::ExpressionTypeMismatch, b.line, b.column, "Comparison type mismatch".into()); }
+                        if !self.are_types_compatible(&lt, &rt) { self.add_error(TypeErrorType::ExpressionTypeMismatch, b.line, b.column, "Comparison type mismatch".into()); }
                     }
-                    TokenType::AssignOp => if !self.are_types_equal(&lt, &rt) { self.add_error(TypeErrorType::ExpressionTypeMismatch, b.line, b.column, "Assignment type mismatch".into()); }
+                    TokenType::AssignOp => if !self.are_types_compatible(&lt, &rt) { self.add_error(TypeErrorType::ExpressionTypeMismatch, b.line, b.column, "Assignment type mismatch".into()); }
                     _ => {}
                 }
             }
@@ -273,7 +301,7 @@ impl<'a> TypeChecker<'a> {
                     else {
                         for (i, arg) in c.args.iter().enumerate() {
                             self.check_expr(arg);
-                            if !self.are_types_equal(&self.infer(arg), &s.params[i].0) { self.add_error(TypeErrorType::FnCallParamType, c.line, c.column, format!("Arg {} type mismatch", i+1)); }
+                            if !self.are_types_compatible(&self.infer(arg), &s.params[i].0) { self.add_error(TypeErrorType::FnCallParamType, c.line, c.column, format!("Arg {} type mismatch", i+1)); }
                         }
                     }
                 }

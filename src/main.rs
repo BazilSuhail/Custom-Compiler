@@ -4,7 +4,7 @@ use compiler::core::token::TokenType;
 use compiler::parser::parser::Parser;
 use compiler::parser::ast_printer::print_ast;
 use compiler::semantics::scope::ScopeAnalyzer;
-use compiler::semantics::typeChecker::TypeChecker;
+use compiler::semantics::type_checker::TypeChecker;
 use compiler::ir_pipeline::tac::TACGenerator;
 
 use std::fs;
