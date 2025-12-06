@@ -5,7 +5,7 @@ int square(int n) {
 }
 
 main {
-    int x = 10;
+    global int x = 10;
     float pi = 3.14;
     bool active = true;
     State s = RUNNING;

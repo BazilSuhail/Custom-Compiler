@@ -49,7 +49,7 @@ pub enum Instruction {
     Comment(String),
 }
 
-fn type_node_to_str(t: &TypeNode, is_const: bool) -> String {
+fn type_node_to_str(t: &TypeNode, is_const: bool, is_global: bool) -> String {
     let mut s = match t {
         TypeNode::Builtin(tok) => match tok {
             TokenType::Int => "int".to_string(),
@@ -64,6 +64,7 @@ fn type_node_to_str(t: &TypeNode, is_const: bool) -> String {
         TypeNode::UserDefined(name) => name.clone(),
     };
     if is_const { s = format!("const {}", s); }
+    if is_global { s = format!("global {}", s); }
     s
 }
 
@@ -197,7 +198,7 @@ impl TACGenerator {
             }
 
             ASTNode::VarDecl(d) => {
-                let t_str = type_node_to_str(&d.var_type, d.is_const);
+                let t_str = type_node_to_str(&d.var_type, d.is_const, d.is_global);
                 let init = if let Some(init_node) = &d.initializer { self.gen_node(init_node) } else { None };
                 self.emit(Instruction::Declare(t_str, d.name.clone(), init));
                 None
@@ -214,8 +215,8 @@ impl TACGenerator {
             }
 
             ASTNode::FunctionDecl(d) => {
-                let ret_t = type_node_to_str(&d.return_type, false);
-                let params = d.params.iter().map(|(t, n)| (type_node_to_str(t, false), n.clone())).collect();
+                let ret_t = type_node_to_str(&d.return_type, false, false);
+                let params = d.params.iter().map(|(t, n)| (type_node_to_str(t, false, false), n.clone())).collect();
                 self.emit(Instruction::FuncStart(d.name.clone(), ret_t, params));
                 for stmt in &d.body { self.gen_node(stmt); }
                 self.emit(Instruction::FuncEnd);
