@@ -346,7 +346,10 @@ impl TACGenerator {
 
     pub fn save_to_file(&self, filename: &str) -> std::io::Result<()> {
         let mut content = String::new();
-        for instr in &self.instructions { content.push_str(&format!("{}\n", instr)); }
+        for instr in &self.instructions 
+        { 
+            content.push_str(&format!("{}\n", instr)); 
+        }
         std::fs::write(filename, content)
     }
 }
