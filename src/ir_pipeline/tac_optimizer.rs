@@ -27,7 +27,23 @@ impl IROptimizer {
     /// Evaluates expressions with constants at compile time.
     /// Example: t0 = 5 + 10 -> t0 = 15
     fn constant_folding(&mut self) {
-     // constant foling
+           for instr in &mut self.instructions {
+            if let Instruction::Binary(dest, op, l, r) = instr {
+                if let (Operand::Int(lv), Operand::Int(rv)) = (l, r) {
+                    let result = match op {
+                        TokenType::Plus => Some(Operand::Int(lv + rv)),
+                        TokenType::Minus => Some(Operand::Int(lv - rv)),
+                        TokenType::Multiply => Some(Operand::Int(lv * rv)),
+                        TokenType::Divide => if *rv != 0 { Some(Operand::Int(lv / rv)) } else { None },
+                        _ => None,
+                    };
+
+                    if let Some(res_op) = result {
+                        *instr = Instruction::Assign(dest.clone(), res_op);
+                    }
+                }
+            }
+        }
     }
 
     /// Placeholder for Constant Propagation.
