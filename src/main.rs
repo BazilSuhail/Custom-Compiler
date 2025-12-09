@@ -6,6 +6,7 @@ use compiler::parser::ast_printer::print_ast;
 use compiler::semantics::scope::ScopeAnalyzer;
 use compiler::semantics::type_checker::TypeChecker;
 use compiler::ir_pipeline::tac::TACGenerator;
+use compiler::ir_pipeline::tac_optimizer::IROptimizer;
 
 use std::fs;
 use std::process;
@@ -60,11 +61,22 @@ fn main() {
                     // IR Generation (Three-Address Code)
                     println!("\n🚀 Generating Three-Address Code (TAC)...");
                     let mut tac_gen = TACGenerator::new();
-                    tac_gen.generate(&ast);
+                    let raw_tac = tac_gen.generate(&ast);
                     
-                    match tac_gen.save_to_file("tac.txt") {
-                        Ok(()) => println!("✅ IR generation completed! Output saved to 'tac.txt'"),
-                        Err(e) => eprintln!("❌ Failed to save TAC to file: {}", e),
+                    if let Err(e) = tac_gen.save_to_file("tac.txt") {
+                        eprintln!("❌ Failed to save raw TAC: {}", e);
+                    } else {
+                        println!("✅ Raw TAC saved to 'tac.txt'");
+                    }
+
+                    // IR Optimization
+                    println!("✨ Optimizing IR...");
+                    let mut optimizer = IROptimizer::new(raw_tac);
+                    optimizer.run();
+                    
+                    match optimizer.save_to_file("optimized_tac.txt") {
+                        Ok(()) => println!("✅ Optimization completed! Output saved to 'optimized_tac.txt'"),
+                        Err(e) => eprintln!("❌ Failed to save optimized TAC: {}", e),
                     }
                 }
                 Err(errors) => {

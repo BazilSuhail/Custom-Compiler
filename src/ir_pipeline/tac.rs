@@ -299,6 +299,7 @@ impl TACGenerator {
                 let l_end = self.new_label();
                 let expr = self.gen_node(&d.expression)?;
                 self.break_stack.push(l_end.clone());
+                
                 for case in &d.cases {
                     if let ASTNode::CaseBlock(cb) = case {
                         let val = self.gen_node(&cb.value)?;

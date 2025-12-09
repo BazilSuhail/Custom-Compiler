@@ -21,4 +21,5 @@ pub mod semantics {
 
 pub mod ir_pipeline {
     pub mod tac;
+    pub mod tac_optimizer;
 }
