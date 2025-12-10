@@ -150,8 +150,21 @@ impl IROptimizer {
     /// Simplifies local instruction patterns.
     /// Example: t0 = t1 + 0 -> t0 = t1
     fn peephole_optimization(&mut self) {
-        // TOFO peephole optimzation
-        
+        for instr in &mut self.instructions {
+            if let Instruction::Binary(dest, op, l, r) = instr {
+                let simplified = match (op, l, r) {
+                    (TokenType::Plus, val, Operand::Int(0)) => Some(Instruction::Assign(dest.clone(), val.clone())),
+                    (TokenType::Plus, Operand::Int(0), val) => Some(Instruction::Assign(dest.clone(), val.clone())),
+                    (TokenType::Multiply, val, Operand::Int(1)) => Some(Instruction::Assign(dest.clone(), val.clone())),
+                    (TokenType::Multiply, Operand::Int(1), val) => Some(Instruction::Assign(dest.clone(), val.clone())),
+                    _ => None,
+                };
+
+                if let Some(new_instr) = simplified {
+                    *instr = new_instr;
+                }
+            }
+        }        
     }
 
     pub fn save_to_file(&self, filename: &str) -> std::io::Result<()> {
