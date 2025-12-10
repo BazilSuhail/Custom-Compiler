@@ -31,10 +31,10 @@ impl IROptimizer {
             if let Instruction::Binary(dest, op, l, r) = instr {
                 if let (Operand::Int(lv), Operand::Int(rv)) = (l, r) {
                     let result = match op {
-                        TokenType::Plus => Some(Operand::Int(lv + rv)),
-                        TokenType::Minus => Some(Operand::Int(lv - rv)),
-                        TokenType::Multiply => Some(Operand::Int(lv * rv)),
-                        TokenType::Divide => if *rv != 0 { Some(Operand::Int(lv / rv)) } else { None },
+                        TokenType::Plus => Some(Operand::Int(*lv + *rv)),
+                        TokenType::Minus => Some(Operand::Int(*lv - *rv)),
+                        TokenType::Multiply => Some(Operand::Int(*lv * *rv)),
+                        TokenType::Divide => if *rv != 0 { Some(Operand::Int(*lv / *rv)) } else { None },
                         _ => None,
                     };
 

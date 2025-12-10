@@ -12,10 +12,10 @@ global int x = 10
 float pi = 3.14
 bool active = true
 State s = 1
-t1 = x Gt 5
-t2 = active And t1
+t1 = 10 Gt 5
+t2 = true And t1
 ifFalse t2 goto L0
-print "Active", x
+print "Active", 10
 L0:
 int i = 0
 L1:
