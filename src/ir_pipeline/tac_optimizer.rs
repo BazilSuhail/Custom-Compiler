@@ -147,24 +147,56 @@ impl IROptimizer {
         // TODO: Perform liveness analysis and remove dead assignments.
     }
 
-    /// Simplifies local instruction patterns.
-    /// Example: t0 = t1 + 0 -> t0 = t1
+    /// Simplifies local instruction patterns and removes redundant jumps.
     fn peephole_optimization(&mut self) {
-        for instr in &mut self.instructions {
-            if let Instruction::Binary(dest, op, l, r) = instr {
+        let mut i = 0;
+        while i < self.instructions.len() {
+            let mut modified = false;
+
+            // 1. Algebraic Identities
+            if let Instruction::Binary(dest, op, l, r) = &self.instructions[i] {
                 let simplified = match (op, l, r) {
-                    (TokenType::Plus, val, Operand::Int(0)) => Some(Instruction::Assign(dest.clone(), val.clone())),
-                    (TokenType::Plus, Operand::Int(0), val) => Some(Instruction::Assign(dest.clone(), val.clone())),
-                    (TokenType::Multiply, val, Operand::Int(1)) => Some(Instruction::Assign(dest.clone(), val.clone())),
-                    (TokenType::Multiply, Operand::Int(1), val) => Some(Instruction::Assign(dest.clone(), val.clone())),
+                    // Addition: x + 0 = x, 0 + x = x
+                    (TokenType::Plus, val, Operand::Int(0)) | (TokenType::Plus, Operand::Int(0), val) => 
+                        Some(Instruction::Assign(dest.clone(), val.clone())),
+                    
+                    // Subtraction: x - 0 = x, x - x = 0
+                    (TokenType::Minus, val, Operand::Int(0)) => Some(Instruction::Assign(dest.clone(), val.clone())),
+                    (TokenType::Minus, Operand::Var(v1), Operand::Var(v2)) if v1 == v2 => Some(Instruction::Assign(dest.clone(), Operand::Int(0))),
+                    (TokenType::Minus, Operand::Temp(t1), Operand::Temp(t2)) if t1 == t2 => Some(Instruction::Assign(dest.clone(), Operand::Int(0))),
+
+                    // Multiplication: x * 1 = x, 1 * x = x, x * 0 = 0, 0 * x = 0
+                    (TokenType::Multiply, val, Operand::Int(1)) | (TokenType::Multiply, Operand::Int(1), val) => 
+                        Some(Instruction::Assign(dest.clone(), val.clone())),
+                    (TokenType::Multiply, _, Operand::Int(0)) | (TokenType::Multiply, Operand::Int(0), _) => 
+                        Some(Instruction::Assign(dest.clone(), Operand::Int(0))),
+
+                    // Division: x / 1 = x
+                    (TokenType::Divide, val, Operand::Int(1)) => Some(Instruction::Assign(dest.clone(), val.clone())),
+                    
                     _ => None,
                 };
 
                 if let Some(new_instr) = simplified {
-                    *instr = new_instr;
+                    self.instructions[i] = new_instr;
+                    modified = true;
                 }
             }
-        }        
+
+            // 2. Redundant Jump Elimination (jump to next instruction)
+            if i + 1 < self.instructions.len() {
+                if let Instruction::Goto(target) = &self.instructions[i] {
+                    if let Instruction::Label(label_name) = &self.instructions[i+1] {
+                        if target == label_name {
+                            self.instructions.remove(i);
+                            continue; // Don't increment i
+                        }
+                    }
+                }
+            }
+
+            if !modified { i += 1; }
+        }
     }
 
     pub fn save_to_file(&self, filename: &str) -> std::io::Result<()> {
