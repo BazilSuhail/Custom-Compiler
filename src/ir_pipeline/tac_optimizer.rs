@@ -137,9 +137,102 @@ impl IROptimizer {
         }
     }
 
-    /// Placeholder for Copy Propagation.
+    /// Replaces uses of variables/temporaries that are direct copies of others.
+    /// Example: t1 = t0; t2 = t1 + 5 -> t2 = t0 + 5
     fn copy_propagation(&mut self) {
-        // TODO: Replace temporaries that are direct copies (t1 = t0; t2 = t1 + 5 -> t2 = t0 + 5).
+        use std::collections::HashMap;
+        let mut copies: HashMap<String, Operand> = HashMap::new();
+
+        fn get_key(op: &Operand) -> Option<String> {
+            match op {
+                Operand::Var(name) => Some(name.clone()),
+                Operand::Temp(id) => Some(format!("t{}", id)),
+                _ => None,
+            }
+        }
+
+        for instr in &mut self.instructions {
+            match instr {
+                Instruction::Declare(_, name, init) => {
+                    // Substitue use in init
+                    if let Some(val) = init {
+                        if let Some(key) = get_key(val) {
+                            if let Some(orig) = copies.get(&key) { *val = orig.clone(); }
+                        }
+                        // Track new copy
+                        if let Some(_) = get_key(val) { copies.insert(name.clone(), val.clone()); }
+                    }
+                    // If name is redefined, it can't be a source for others anymore
+                    copies.retain(|_, v| get_key(v) != Some(name.clone()));
+                }
+
+                Instruction::Assign(dest, src) => {
+                    // 1. Substitute Use
+                    if let Some(src_key) = get_key(src) {
+                        if let Some(orig) = copies.get(&src_key) { *src = orig.clone(); }
+                    }
+                    // 2. Track / Invalidate
+                    if let Some(d_key) = get_key(dest) {
+                        if let Some(_) = get_key(src) { copies.insert(d_key.clone(), src.clone()); } 
+                        else { copies.remove(&d_key); }
+                        // Anything holding the old dest is no longer a valid copy
+                        copies.retain(|_, v| get_key(v) != Some(d_key.clone()));
+                    }
+                }
+
+                Instruction::Binary(dest, _, l, r) => {
+                    if let Some(lk) = get_key(l) { if let Some(orig) = copies.get(&lk) { *l = orig.clone(); } }
+                    if let Some(rk) = get_key(r) { if let Some(orig) = copies.get(&rk) { *r = orig.clone(); } }
+                    if let Some(dk) = get_key(dest) {
+                        copies.remove(&dk);
+                        copies.retain(|_, v| get_key(v) != Some(dk.clone()));
+                    }
+                }
+
+                Instruction::Unary(dest, _, src) => {
+                    if let Some(sk) = get_key(src) { if let Some(orig) = copies.get(&sk) { *src = orig.clone(); } }
+                    if let Some(dk) = get_key(dest) {
+                        copies.remove(&dk);
+                        copies.retain(|_, v| get_key(v) != Some(dk.clone()));
+                    }
+                }
+
+                Instruction::IfTrue(cond, _) | Instruction::IfFalse(cond, _) => {
+                    if let Some(ck) = get_key(cond) { if let Some(orig) = copies.get(&ck) { *cond = orig.clone(); } }
+                }
+
+                Instruction::Param(p) => {
+                    if let Some(pk) = get_key(p) { if let Some(orig) = copies.get(&pk) { *p = orig.clone(); } }
+                }
+
+                Instruction::Return(val) => {
+                    if let Some(v) = val {
+                        if let Some(vk) = get_key(v) { if let Some(orig) = copies.get(&vk) { *v = orig.clone(); } }
+                    }
+                }
+
+                Instruction::Print(args) => {
+                    for arg in args {
+                        if let Some(ak) = get_key(arg) { if let Some(orig) = copies.get(&ak) { *arg = orig.clone(); } }
+                    }
+                }
+
+                Instruction::Call(dest, _, _) => {
+                    if let Some(d) = dest {
+                        if let Some(dk) = get_key(d) { 
+                            copies.remove(&dk); 
+                            copies.retain(|_, v| get_key(v) != Some(dk.clone()));
+                        }
+                    }
+                }
+
+                Instruction::Label(_) | Instruction::FuncStart(_, _, _) => {
+                    copies.clear();
+                }
+
+                _ => {}
+            }
+        }
     }
 
     /// Removes instructions whose results are never used.
