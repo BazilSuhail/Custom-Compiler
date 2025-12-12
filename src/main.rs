@@ -7,6 +7,7 @@ use compiler::semantics::scope::ScopeAnalyzer;
 use compiler::semantics::type_checker::TypeChecker;
 use compiler::ir_pipeline::tac::TACGenerator;
 use compiler::ir_pipeline::tac_optimizer::IROptimizer;
+use compiler::codegen::execution::ExecutionEngine;
 
 use std::fs;
 use std::process;
@@ -73,11 +74,22 @@ fn main() {
                     println!("✨ Optimizing IR...");
                     let mut optimizer = IROptimizer::new(raw_tac);
                     optimizer.run();
+                    let optimized_tac = optimizer.get_instructions();
                     
                     match optimizer.save_to_file("optimized_tac.txt") {
                         Ok(()) => println!("✅ Optimization completed! Output saved to 'optimized_tac.txt'"),
                         Err(e) => eprintln!("❌ Failed to save optimized TAC: {}", e),
                     }
+
+                    // Execution
+                    println!("\n🖥️  Executing Program Output:");
+                    println!("------------------------------");
+                    let engine = ExecutionEngine::new(optimized_tac);
+                    if let Err(e) = engine.execute() {
+                        eprintln!("\n❌ {}", e);
+                    }
+                    println!("------------------------------");
+                    println!("✅ Execution finished.");
                 }
                 Err(errors) => {
                     eprintln!("\n❌ Type checking errors found:");

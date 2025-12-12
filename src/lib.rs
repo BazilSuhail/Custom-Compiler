@@ -23,3 +23,7 @@ pub mod ir_pipeline {
     pub mod tac;
     pub mod tac_optimizer;
 }
+
+pub mod codegen {
+    pub mod execution;
+}

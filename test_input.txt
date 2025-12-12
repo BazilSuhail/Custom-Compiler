@@ -1,33 +1,50 @@
-main{
-    // 1. Constant Folding (Evaluates 10 * 2 + 5 -> 25)
-    int folding = 10 * 2 + 5; 
+main {
+    // --- PART 1: OPTIMIZATION CHECK ---
+    // The optimizer should resolve all of these at compile-time.
+    
+    // 1. Constant Folding: 100 / 2 + 50 * 2 -> 50 + 100 -> 150
+    int fold = 100 / 2 + 50 * 2; 
 
-    // 2. Constant Propagation (Replaces 'base' with 10)
-    const int base = 10;
-    int propagated = base + 5; 
+    // 2. Constant Propagation: x is 10, so y = 10 + 5 -> 15
+    const int x = 10;
+    int y = x + 5; 
 
-    // 3. Copy Propagation (Replaces copy2 -> copy1 -> source)
-    int source = 100;
-    int copy1 = source;
-    int copy2 = copy1;
-    int result_copy = copy2 + 10; 
+    // 3. Copy Propagation: c2 -> c1 -> fold. 
+    // result = 150 + 15 -> 165
+    int c1 = fold;
+    int c2 = c1;
+    int result = c2 + y;
 
-    // 4. Peephole Optimizations (Algebraic Identities)
-    int val = 50;
-    int p_add = val + 0;      // Should become: p_add = val
-    int p_mul = p_add * 1;    // Should become: p_mul = val
-    int p_zero = p_mul * 0;   // Should become: p_zero = 0
-    int p_sub = val - val;    // Should become: p_sub = 0
-    int p_div = val / 1;      // Should become: p_div = val
+    // 4. Peephole (Algebraic Identities)
+    int base = 77;
+    int id1 = base + 0;   // base
+    int id2 = id1 * 1;    // base
+    int id3 = id2 - id2;  // 0
+    int id4 = base / 1;   // base
 
     // 5. Dead Code Elimination
-    int dead_val = 999;       // This definition should disappear entirely
-    int logic = result_copy + p_zero; // Note: p_zero becomes 0, so logic = result_copy
+    int unused_var = 999;    // This should be pruned from the optimized TAC
+    int partial = id1 + id3; // Should simplify to: partial = base + 0 -> base
 
-    // 6. Redundant Jump Elimination
-    if (folding > 0) {
-        print("Optimized logic reached:", logic);
+    print("--- Optimization Results ---");
+    print("Folded (150):", fold);
+    print("Propagated (15):", y);
+    print("Final Result (165):", result);
+    print("Identities (77, 0, 77):", id1, id3, id4);
+    print("");
+
+    // --- PART 2: WHILE LOOP (Right Triangle) ---
+    print("--- Printing Right Triangle ---");
+    
+    for (int i = 1; i <= 5; ++i) {
+        // Inner loop to print stars in each row
+        for (int j = 1; j <= i; ++j) {
+            print("* ");
+        }
+        // Move to the next line after printing each row
+        print("\n");
     }
 
-    print(logic);
+    print("------------------------------");
+    print("Test Execution Complete.");
 }

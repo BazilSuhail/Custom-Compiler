@@ -1,34 +1,52 @@
 
 void main() begin:
-t0 = 10 Multiply 2
-t1 = t0 Plus 5
-int folding = t1
-const int base = 10
-t2 = base Plus 5
-int propagated = t2
-int source = 100
-int copy1 = source
-int copy2 = copy1
-t3 = copy2 Plus 10
-int result_copy = t3
-int val = 50
-t4 = val Plus 0
-int p_add = t4
-t5 = p_add Multiply 1
-int p_mul = t5
-t6 = p_mul Multiply 0
-int p_zero = t6
-t7 = val Minus val
-int p_sub = t7
-t8 = val Divide 1
-int p_div = t8
-int dead_val = 999
-t9 = result_copy Plus p_zero
-int logic = t9
-t10 = folding Gt 0
-ifFalse t10 goto L0
-print "Optimized logic reached:", logic
+t0 = 100 Divide 2
+t1 = 50 Multiply 2
+t2 = t0 Plus t1
+int fold = t2
+const int x = 10
+t3 = x Plus 5
+int y = t3
+int c1 = fold
+int c2 = c1
+t4 = c2 Plus y
+int result = t4
+int base = 77
+t5 = base Plus 0
+int id1 = t5
+t6 = id1 Multiply 1
+int id2 = t6
+t7 = id2 Minus id2
+int id3 = t7
+t8 = base Divide 1
+int id4 = t8
+int unused_var = 999
+t9 = id1 Plus id3
+int partial = t9
+print "--- Optimization Results ---"
+print "Folded (150):", fold
+print "Propagated (15):", y
+print "Final Result (165):", result
+print "Identities (77, 0, 77):", id1, id3, id4
+print ""
+print "--- Printing Right Triangle ---"
+int i = 1
 L0:
-print logic
+t10 = i Le 5
+ifFalse t10 goto L1
+int j = 1
+L2:
+t11 = j Le i
+ifFalse t11 goto L3
+print "* "
+j = j Plus 1
+goto L2
+L3:
+print "\n"
+i = i Plus 1
+goto L0
+L1:
+print "------------------------------"
+print "Test Execution Complete."
 end
 

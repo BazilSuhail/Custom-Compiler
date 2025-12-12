@@ -1,14 +1,35 @@
 
 void main() begin:
-t1 = 20 Plus 5
-t3 = 100 Plus 10
-t6 = 0
-t9 = t3 Plus t6
-int logic = t9
-t10 = t1 Gt 0
-ifFalse t10 goto L0
-print "Optimized logic reached:", t9
+t2 = 50 Plus 100
+t3 = 10 Plus 5
+t4 = t2 Plus t3
+t5 = 77
+t7 = 0
+t8 = 77
+print "--- Optimization Results ---"
+print "Folded (150):", t2
+print "Propagated (15):", t3
+print "Final Result (165):", t4
+print "Identities (77, 0, 77):", t5, t7, t8
+print ""
+print "--- Printing Right Triangle ---"
+int i = 1
 L0:
-print logic
+t10 = i Le 5
+ifFalse t10 goto L1
+int j = 1
+L2:
+t11 = j Le i
+ifFalse t11 goto L3
+print "* "
+j = j Plus 1
+goto L2
+L3:
+print "\n"
+i = i Plus 1
+goto L0
+L1:
+print "------------------------------"
+print "Test Execution Complete."
 end
 
