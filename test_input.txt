@@ -1,4 +1,4 @@
-main {
+main{
     // 1. Constant Folding (Evaluates 10 * 2 + 5 -> 25)
     int folding = 10 * 2 + 5; 
 
