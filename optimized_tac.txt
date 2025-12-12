@@ -1,5 +1,4 @@
 ; Enum State Defined
-const int a = 10
 
 int square(int n) begin:
 t0 = n Multiply n
@@ -9,8 +8,6 @@ end
 
 void main() begin:
 global int x = 10
-float pi = 3.14
-bool active = true
 State s = 1
 t1 = 10 Gt 5
 t2 = true And t1
@@ -22,12 +19,10 @@ L1:
 t3 = i Lt 3
 ifFalse t3 goto L2
 print i
-t4 = i
 i = i Plus 1
 goto L1
 L2:
 L3:
-t5 = x
 x = x Minus 1
 t6 = x Gt 8
 ifTrue t6 goto L3
@@ -39,7 +34,6 @@ ifFalse t7 goto L6
 param k
 t8 = call square, 1
 print t8
-t9 = k
 k = k Plus 1
 goto L5
 L6:

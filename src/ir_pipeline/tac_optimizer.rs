@@ -1,6 +1,7 @@
 use crate::core::token::TokenType;
 use crate::ir_pipeline::tac::{Instruction, Operand};
 use std::fs;
+use std::collections::HashSet;
 
 pub struct IROptimizer {
     instructions: Vec<Instruction>,
@@ -237,7 +238,90 @@ impl IROptimizer {
 
     /// Removes instructions whose results are never used.
     fn dead_code_elimination(&mut self) {
-        // TODO: Perform liveness analysis and remove dead assignments.
+        use std::collections::HashSet;
+        let mut modified = true;
+
+        while modified {
+            modified = false;
+            let mut used = HashSet::new();
+
+            // Pass 1: Mark all used variables and temporaries
+            for instr in &self.instructions {
+                match instr {
+                    Instruction::Declare(_, _, init) => {
+                        if let Some(op) = init { self.mark_used(op, &mut used); }
+                    }
+                    Instruction::Assign(_, src) => self.mark_used(src, &mut used),
+                    Instruction::Binary(_, _, l, r) => {
+                        self.mark_used(l, &mut used);
+                        self.mark_used(r, &mut used);
+                    }
+                    Instruction::Unary(_, _, src) => self.mark_used(src, &mut used),
+                    Instruction::IfTrue(cond, _) | Instruction::IfFalse(cond, _) => self.mark_used(cond, &mut used),
+                    Instruction::Param(p) => self.mark_used(p, &mut used),
+                    // Note: Call arguments are handled by Param instructions produced before the Call.
+                    Instruction::Return(val) => {
+                        if let Some(v) = val { self.mark_used(v, &mut used); }
+                    }
+                    Instruction::Print(args) => {
+                        for arg in args { self.mark_used(arg, &mut used); }
+                    }
+                    _ => {}
+                }
+            }
+
+            // Pass 2: Sweep unused definitions
+            let mut i = 0;
+            while i < self.instructions.len() {
+                let mut is_dead = false;
+                match &self.instructions[i] {
+                    Instruction::Assign(dest, _) | 
+                    Instruction::Binary(dest, _, _, _) | 
+                    Instruction::Unary(dest, _, _) => {
+                        if let Some(key) = self.get_op_key(dest) {
+                            if !used.contains(&key) { is_dead = true; }
+                        }
+                    }
+                    Instruction::Declare(t, name, _) => {
+                        // Prismatically keep globals, but locals can be pruned
+                        if !t.contains("global") && !used.contains(name) { is_dead = true; }
+                    }
+                    Instruction::Call(Some(dest), func, n) => {
+                        if let Some(key) = self.get_op_key(dest) {
+                            if !used.contains(&key) {
+                                // Function might have side effects, so keep the call but remove the destination
+                                let f_name = func.clone();
+                                let n_args = *n;
+                                self.instructions[i] = Instruction::Call(None, f_name, n_args);
+                                modified = true;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+
+                if is_dead {
+                    self.instructions.remove(i);
+                    modified = true;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    }
+
+    fn mark_used(&self, op: &Operand, set: &mut HashSet<String>) {
+        if let Some(key) = self.get_op_key(op) {
+            set.insert(key);
+        }
+    }
+
+    fn get_op_key(&self, op: &Operand) -> Option<String> {
+        match op {
+            Operand::Var(name) => Some(name.clone()),
+            Operand::Temp(id) => Some(format!("t{}", id)),
+            _ => None,
+        }
     }
 
     /// Simplifies local instruction patterns and removes redundant jumps.
