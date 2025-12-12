@@ -1,53 +1,14 @@
-; Enum State Defined
-
-int square(int n) begin:
-t0 = n Multiply n
-return t0
-end
-
 
 void main() begin:
-global int x = 10
-State s = 1
-t1 = 10 Gt 5
-t2 = true And t1
-ifFalse t2 goto L0
-print "Active", 10
+t1 = 20 Plus 5
+t3 = 100 Plus 10
+t6 = 0
+t9 = t3 Plus t6
+int logic = t9
+t10 = t1 Gt 0
+ifFalse t10 goto L0
+print "Optimized logic reached:", t9
 L0:
-int i = 0
-L1:
-t3 = i Lt 3
-ifFalse t3 goto L2
-print i
-i = i Plus 1
-goto L1
-L2:
-L3:
-x = x Minus 1
-t6 = x Gt 8
-ifTrue t6 goto L3
-L4:
-int k = 0
-L5:
-t7 = k Lt 2
-ifFalse t7 goto L6
-param k
-t8 = call square, 1
-print t8
-k = k Plus 1
-goto L5
-L6:
-t10 = s EqualOp 0
-ifFalse t10 goto L8
-print "Idle"
-goto L7
-L8:
-t11 = s EqualOp 1
-ifFalse t11 goto L9
-print "Running"
-goto L7
-L9:
-print "Unknown"
-L7:
+print logic
 end
 

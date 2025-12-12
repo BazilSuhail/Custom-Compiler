@@ -1,59 +1,34 @@
-; Enum State Defined
-const int a = 10
-
-int square(int n) begin:
-t0 = n Multiply n
-return t0
-end
-
 
 void main() begin:
-global int x = 10
-float pi = 3.14
-bool active = true
-State s = 1
-t1 = x Gt 5
-t2 = active And t1
-ifFalse t2 goto L0
-print "Active", x
+t0 = 10 Multiply 2
+t1 = t0 Plus 5
+int folding = t1
+const int base = 10
+t2 = base Plus 5
+int propagated = t2
+int source = 100
+int copy1 = source
+int copy2 = copy1
+t3 = copy2 Plus 10
+int result_copy = t3
+int val = 50
+t4 = val Plus 0
+int p_add = t4
+t5 = p_add Multiply 1
+int p_mul = t5
+t6 = p_mul Multiply 0
+int p_zero = t6
+t7 = val Minus val
+int p_sub = t7
+t8 = val Divide 1
+int p_div = t8
+int dead_val = 999
+t9 = result_copy Plus p_zero
+int logic = t9
+t10 = folding Gt 0
+ifFalse t10 goto L0
+print "Optimized logic reached:", logic
 L0:
-int i = 0
-L1:
-t3 = i Lt 3
-ifFalse t3 goto L2
-print i
-t4 = i
-i = i Plus 1
-goto L1
-L2:
-L3:
-t5 = x
-x = x Minus 1
-t6 = x Gt 8
-ifTrue t6 goto L3
-L4:
-int k = 0
-L5:
-t7 = k Lt 2
-ifFalse t7 goto L6
-param k
-t8 = call square, 1
-print t8
-t9 = k
-k = k Plus 1
-goto L5
-L6:
-t10 = s EqualOp 0
-ifFalse t10 goto L8
-print "Idle"
-goto L7
-L8:
-t11 = s EqualOp 1
-ifFalse t11 goto L9
-print "Running"
-goto L7
-L9:
-print "Unknown"
-L7:
+print logic
 end
 
