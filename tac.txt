@@ -38,7 +38,7 @@ int j = 1
 L2:
 t11 = j Le i
 ifFalse t11 goto L3
-print "* "
+print "*"
 j = j Plus 1
 goto L2
 L3:

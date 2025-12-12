@@ -39,7 +39,7 @@ main {
     for (int i = 1; i <= 5; ++i) {
         // Inner loop to print stars in each row
         for (int j = 1; j <= i; ++j) {
-            print("* ");
+            print("*");
         }
         // Move to the next line after printing each row
         print("\n");

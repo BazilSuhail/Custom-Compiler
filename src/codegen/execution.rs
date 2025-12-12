@@ -13,6 +13,31 @@ pub enum Value {
     Unit,
 }
 
+fn unescape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('t') => out.push('\t'),
+                Some('r') => out.push('\r'),
+                Some('\\') => out.push('\\'),
+                Some('\"') => out.push('\"'),
+                Some('\'') => out.push('\''),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
 #[derive(Debug)]
 pub enum RuntimeError {
     UndefinedVariable(String),
@@ -43,7 +68,7 @@ impl fmt::Display for Value {
             Value::Float(v) => write!(f, "{}", v),
             Value::Bool(v) => write!(f, "{}", v),
             Value::Char(v) => write!(f, "{}", v),
-            Value::String(v) => write!(f, "{}", v),
+            Value::String(v) => write!(f, "{}", unescape(v)),
             Value::Unit => write!(f, "unit"),
         }
     }
@@ -170,7 +195,10 @@ impl ExecutionEngine {
                     let output: Vec<String> = args.iter()
                         .map(|a| state.resolve(a).map(|v| v.to_string()))
                         .collect::<Result<_, _>>()?;
-                    println!("{}", output.join(" "));
+                    // Manual newline control via escape sequences only
+                    print!("{}", output.join(" "));
+                    use std::io::Write;
+                    std::io::stdout().flush().map_err(|e| RuntimeError::Other(e.to_string()))?;
                 }
 
                 Instruction::Goto(lbl) => {
