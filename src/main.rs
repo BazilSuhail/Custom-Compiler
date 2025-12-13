@@ -2,7 +2,7 @@
 use compiler::lexer::lexer::Lexer;
 use compiler::core::token::TokenType;
 use compiler::parser::parser::Parser;
-use compiler::parser::ast_printer::print_ast;
+//use compiler::parser::ast_printer::print_ast;
 use compiler::semantics::scope::ScopeAnalyzer;
 use compiler::semantics::type_checker::TypeChecker;
 use compiler::ir_pipeline::tac::TACGenerator;
@@ -51,7 +51,7 @@ fn main() {
         for error in &errors {
             reporter.report_scope(&error.message, error.line, error.column);
         }
-        eprintln!("Scope analysis failed with {} error(s)", errors.len());
+        eprintln!("Scope analysis failed with \x1b[1;31m{} error(s)\x1b[0m", errors.len());
         return;
     }
     println!("✅ Scope analysis completed successfully!");
@@ -62,7 +62,7 @@ fn main() {
         for error in &errors {
             reporter.report_type(&error.message, error.line, error.column);
         }
-        eprintln!("Type checking failed with {} error(s)", errors.len());
+        eprintln!("Type checking failed with \x1b[1;31m{} error(s)\x1b[0m", errors.len());
         return;
     }
     println!("✅ Type checking completed successfully!");
