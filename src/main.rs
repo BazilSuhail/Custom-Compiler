@@ -64,10 +64,10 @@ fn main() {
                     let mut tac_gen = TACGenerator::new();
                     let raw_tac = tac_gen.generate(&ast);
                     
-                    if let Err(e) = tac_gen.save_to_file("tac.txt") {
+                    if let Err(e) = tac_gen.save_to_file("three-address-code.txt") {
                         eprintln!("❌ Failed to save raw TAC: {}", e);
                     } else {
-                        println!("✅ Raw TAC saved to 'tac.txt'");
+                        println!("✅ Raw TAC saved to 'three-address-code.txt'");
                     }
 
                     // IR Optimization
@@ -76,8 +76,8 @@ fn main() {
                     optimizer.run();
                     let optimized_tac = optimizer.get_instructions();
                     
-                    match optimizer.save_to_file("optimized_tac.txt") {
-                        Ok(()) => println!("✅ Optimization completed! Output saved to 'optimized_tac.txt'"),
+                    match optimizer.save_to_file("optimal-three-address-code.txt") {
+                        Ok(()) => println!("✅ Optimization completed! Output saved to 'optimal-three-address-code.txt'"),
                         Err(e) => eprintln!("❌ Failed to save optimized TAC: {}", e),
                     }
 

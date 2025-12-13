@@ -18,3 +18,7 @@ Cargo.lock
 
 # But allow all txt files inside tests/ and its subfolders
 !tests/**/*.txt
+
+
+optimal-three-address-code.txt
+three-address-code.txt
