@@ -16,39 +16,56 @@ impl<'a> ErrorReporter<'a> {
     /// - `message`: The error message
     /// - `line`: 1-based line number
     /// - `column`: 1-based column number
-    pub fn report(&self, stage: &str, message: &str, line: usize, column: usize) {
-        println!("\n❌ {} Error:", stage);
-        println!("  {}", message);
-        println!("  at line {}, col {}", line, column);
 
-        if line == 0 || line > self.lines.len() {
-            println!("  (Source location unavailable)");
-            return;
-        }
 
-        let line_idx = line - 1;
-        
-        // Context lines
-        let start_line = if line_idx > 0 { line_idx - 1 } else { line_idx };
-        let end_line = cmp::min(line_idx + 1, self.lines.len() - 1);
+pub fn report(&self, stage: &str, message: &str, line: usize, column: usize) {
+    println!("\n❌ {} Error:", stage);
+    println!("  {}", message);
+    println!("  at line {}, col {}", line, column);
 
-        println!(""); // Padding
-
-        for i in start_line..=end_line {
-            let line_content = self.lines[i];
-            let indicator = if i == line_idx { ">" } else { " " };
-            
-            // Print line number and content
-            println!("{:>4} {} | {}", i + 1, indicator, line_content);
-
-            // Print caret if it's the error line
-            if i == line_idx {
-                let padding = " ".repeat(7 + column - 1); // 4 (line num) + 1 (space) + 1 (indicator) + 1 (space) + col - 1
-                println!("{}  ^", padding);
-            }
-        }
-        println!(""); // Padding
+    if line == 0 || line > self.lines.len() {
+        println!("  (Source location unavailable)");
+        return;
     }
+
+    let line_idx = line - 1;
+
+    let start_line = if line_idx > 0 { line_idx - 1 } else { line_idx };
+    let end_line = cmp::min(line_idx + 1, self.lines.len() - 1);
+
+    println!("");
+
+    for i in start_line..=end_line {
+        let indicator = if i == line_idx { ">" } else { " " };
+        let content = self.lines[i];
+
+        if i == line_idx {
+    let content = self.lines[i];
+
+    let col_idx = column.saturating_sub(1).min(content.len());
+    let left = &content[..col_idx];
+    let right = &content[col_idx..];
+
+    println!(
+        "{:>4} {} | {}{}{}\x1b[0m",
+        i + 1,
+        indicator,
+        left,
+        "\x1b[1;31m",
+        right
+    );
+
+    let padding = " ".repeat(7 + column - 1);
+    println!("{}  \x1b[31m^\x1b[0m", padding);
+} else {
+    println!("{:>4} {} | {}", i + 1, indicator, content);
+}
+
+    }
+
+    println!("");
+}
+
 
     /// Reports a lexical error
     pub fn report_lexical(&self, message: &str, line: usize, column: usize) {
