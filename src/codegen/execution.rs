@@ -271,6 +271,7 @@ impl ExecutionEngine {
                 TokenType::Gt => Ok(Value::Bool(a > b)),
                 TokenType::Le => Ok(Value::Bool(a <= b)),
                 TokenType::Ge => Ok(Value::Bool(a >= b)),
+                TokenType::AssignOp => Ok(Value::Int(b)),
                 _ => Err(RuntimeError::TypeMismatch(format!("Invalid int op {:?}", op))),
             },
             (Value::Float(a), Value::Float(b)) => match op {

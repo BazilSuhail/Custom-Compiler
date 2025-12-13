@@ -1,50 +1,69 @@
+enum Color { RED, GREEN, BLUE };
+
+// Function to print a separator line
+void print_separator(int count) {
+    print("\n");
+    for (int i = 0; i < count; i++) {
+        print("=");
+    }
+    print("\n");
+}
+
 main {
-    // --- PART 1: OPTIMIZATION CHECK ---
-    // The optimizer should resolve all of these at compile-time.
+    print("--- 🚀 THE ULTIMATE LANGUAGE POWER TEST ---\n");
+
+    // 1. The Numerical Diamond (Nested For Loops)
+    int size = 5;
+    print("\n[1] Generating Numeric Diamond:\n");
     
-    // 1. Constant Folding: 100 / 2 + 50 * 2 -> 50 + 100 -> 150
-    int fold = 100 / 2 + 50 * 2; 
-
-    // 2. Constant Propagation: x is 10, so y = 10 + 5 -> 15
-    const int x = 10;
-    int y = x + 5; 
-
-    // 3. Copy Propagation: c2 -> c1 -> fold. 
-    // result = 150 + 15 -> 165
-    int c1 = fold;
-    int c2 = c1;
-    int result = c2 + y;
-
-    // 4. Peephole (Algebraic Identities)
-    int base = 77;
-    int id1 = base + 0;   // base
-    int id2 = id1 * 1;    // base
-    int id3 = id2 - id2;  // 0
-    int id4 = base / 1;   // base
-
-    // 5. Dead Code Elimination
-    int unused_var = 999;    // This should be pruned from the optimized TAC
-    int partial = id1 + id3; // Should simplify to: partial = base + 0 -> base
-
-    print("--- Optimization Results ---");
-    print("Folded (150):", fold);
-    print("Propagated (15):", y);
-    print("Final Result (165):", result);
-    print("Identities (77, 0, 77):", id1, id3, id4);
-    print("");
-
-    // --- PART 2: WHILE LOOP (Right Triangle) ---
-    print("--- Printing Right Triangle ---");
-    
-    for (int i = 1; i <= 5; ++i) {
-        // Inner loop to print stars in each row
-        for (int j = 1; j <= i; ++j) {
-            print("*");
-        }
-        // Move to the next line after printing each row
+    // Top Half
+    for (int i = 1; i <= size; i++) {
+        for (int s = 1; s <= (size - i); s++) { print(" "); }
+        for (int j = 1; j <= i; j++) { 
+            print(" ");
+            print(i); 
+         }
+        print("\n");
+    }
+    // Bottom Half
+    for (int i = (size - 1); i >= 1; i--) {
+        for (int s = 1; s <= (size - i); s++) { print(" "); }
+        for (int j = 1; j <= i; j++) {
+            print(" ");
+            print(i); 
+         }
         print("\n");
     }
 
-    print("------------------------------");
-    print("Test Execution Complete.");
+    print_separator(40);
+
+    // 2. Do-While Loop (Diagnostics)
+    print("[2] Running Sensor Calibration:\n");
+    int attempt = 1;
+    bool sensor_ready = false;
+
+    do {
+        print("Probe #", attempt, ":\t");
+        if (attempt < 10) {
+            print("Warming up...\t[WAIT...]\n");
+        } else {
+            print("Calibration Complete!\t[READY]\n");
+            sensor_ready = true;
+        }
+        attempt = attempt + 1;
+    } while (!sensor_ready);
+
+    print_separator(40);
+
+    // 3. Enum & Switch Implementation
+    print("[3] System Final Status:\n");
+    int status_color = GREEN;
+    
+    switch (status_color) {
+        case RED:   print("SYSTEM FATAL (RED)\n"); break;
+        case GREEN: print("SYSTEM OPTIMAL (GREEN)\n"); break;
+        case BLUE:  print("SYSTEM RECOVERY (BLUE)\n"); break;
+    }
+
+    print("\n--- ✅ TEST SUITE COMPLETE ---\n");
 }

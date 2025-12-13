@@ -90,10 +90,19 @@ impl IROptimizer {
                     }
                 }
 
-                Instruction::Binary(dest, _, l, r) => {
-                    if let Some(lk) = get_key(l) { if let Some(c) = constants.get(&lk) { *l = c.clone(); } }
-                    if let Some(rk) = get_key(r) { if let Some(c) = constants.get(&rk) { *r = c.clone(); } }
+                Instruction::Binary(dest, op, l, r) => {
+                    if let Some(lk) = get_key(l) { 
+                        if let Some(c) = constants.get(&lk) { *l = c.clone(); }
+                    }
+                    if let Some(rk) = get_key(r) { 
+                        if let Some(c) = constants.get(&rk) { *r = c.clone(); }
+                    }
                     if let Some(dk) = get_key(dest) { constants.remove(&dk); }
+                    
+                    // If this is an assignment operation, the left operand is modified
+                    if *op == TokenType::AssignOp {
+                        if let Some(lk) = get_key(l) { constants.remove(&lk); }
+                    }
                 }
 
                 Instruction::Unary(dest, _, src) => {
@@ -181,12 +190,21 @@ impl IROptimizer {
                     }
                 }
 
-                Instruction::Binary(dest, _, l, r) => {
+                Instruction::Binary(dest, op, l, r) => {
                     if let Some(lk) = get_key(l) { if let Some(orig) = copies.get(&lk) { *l = orig.clone(); } }
                     if let Some(rk) = get_key(r) { if let Some(orig) = copies.get(&rk) { *r = orig.clone(); } }
+                    
                     if let Some(dk) = get_key(dest) {
                         copies.remove(&dk);
                         copies.retain(|_, v| get_key(v) != Some(dk.clone()));
+                    }
+
+                    // If this is an assignment operation, the left operand is modified
+                    if *op == TokenType::AssignOp {
+                        if let Some(lk) = get_key(l) {
+                            copies.remove(&lk);
+                            copies.retain(|_, v| get_key(v) != Some(lk.clone()));
+                        }
                     }
                 }
 
@@ -252,7 +270,11 @@ impl IROptimizer {
                         if let Some(op) = init { self.mark_used(op, &mut used); }
                     }
                     Instruction::Assign(_, src) => self.mark_used(src, &mut used),
-                    Instruction::Binary(_, _, l, r) => {
+                    Instruction::Binary(_dest, _op, l, r) => {
+                        // In an assignment binary op (e.g., t = x AssignOp y), 
+                        // x is treated as both a source and a destination conceptually,
+                        // but for 'used' calculation, we need to know if the result 't' is used
+                        // OR if 'x' is used later. The side-effect is handled in the sweep phase.
                         self.mark_used(l, &mut used);
                         self.mark_used(r, &mut used);
                     }
@@ -276,10 +298,17 @@ impl IROptimizer {
                 let mut is_dead = false;
                 match &self.instructions[i] {
                     Instruction::Assign(dest, _) | 
-                    Instruction::Binary(dest, _, _, _) | 
                     Instruction::Unary(dest, _, _) => {
                         if let Some(key) = self.get_op_key(dest) {
                             if !used.contains(&key) { is_dead = true; }
+                        }
+                    }
+                    Instruction::Binary(dest, op, _, _) => {
+                        if let Some(key) = self.get_op_key(dest) {
+                            // Only consider binary ops dead if they have no side effects
+                            if !used.contains(&key) && *op != TokenType::AssignOp { 
+                                is_dead = true; 
+                            }
                         }
                     }
                     Instruction::Declare(t, name, _) => {

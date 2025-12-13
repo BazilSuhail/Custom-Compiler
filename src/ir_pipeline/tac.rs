@@ -169,13 +169,31 @@ impl TACGenerator {
                 else { Some(Operand::Var(n.name.clone())) }
             }
 
+            // ASTNode::BinaryExpr(b) => {
+            //     let left = self.gen_node(&b.left)?;
+            //     let right = self.gen_node(&b.right)?;
+            //     let dest = self.new_temp();
+            //     self.emit(Instruction::Binary(dest.clone(), b.op, left, right));
+            //     Some(dest)
+            // }
             ASTNode::BinaryExpr(b) => {
+            // 1. Generate the right-hand side first
+            let right = self.gen_node(&b.right)?;
+
+            // 2. Check if this is an assignment operation (=)
+            if b.op == TokenType::AssignOp {
                 let left = self.gen_node(&b.left)?;
-                let right = self.gen_node(&b.right)?;
-                let dest = self.new_temp();
-                self.emit(Instruction::Binary(dest.clone(), b.op, left, right));
-                Some(dest)
+                // Emit Instruction::Assign instead of Instruction::Binary
+                self.emit(Instruction::Assign(left.clone(), right));
+                return Some(left); // Return the variable as the result
             }
+
+            // 3. Otherwise, treat it as a normal math/logic binary op
+            let left = self.gen_node(&b.left)?;
+            let dest = self.new_temp();
+            self.emit(Instruction::Binary(dest.clone(), b.op, left, right));
+            Some(dest)
+        }
 
             ASTNode::UnaryExpr(u) => {
                 let operand = self.gen_node(&u.operand)?;

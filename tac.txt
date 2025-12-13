@@ -1,52 +1,123 @@
+; Enum Color Defined
 
-void main() begin:
-t0 = 100 Divide 2
-t1 = 50 Multiply 2
-t2 = t0 Plus t1
-int fold = t2
-const int x = 10
-t3 = x Plus 5
-int y = t3
-int c1 = fold
-int c2 = c1
-t4 = c2 Plus y
-int result = t4
-int base = 77
-t5 = base Plus 0
-int id1 = t5
-t6 = id1 Multiply 1
-int id2 = t6
-t7 = id2 Minus id2
-int id3 = t7
-t8 = base Divide 1
-int id4 = t8
-int unused_var = 999
-t9 = id1 Plus id3
-int partial = t9
-print "--- Optimization Results ---"
-print "Folded (150):", fold
-print "Propagated (15):", y
-print "Final Result (165):", result
-print "Identities (77, 0, 77):", id1, id3, id4
-print ""
-print "--- Printing Right Triangle ---"
-int i = 1
-L0:
-t10 = i Le 5
-ifFalse t10 goto L1
-int j = 1
-L2:
-t11 = j Le i
-ifFalse t11 goto L3
-print "*"
-j = j Plus 1
-goto L2
-L3:
+void print_separator(int count) begin:
 print "\n"
+int i = 0
+L0:
+t0 = i Lt count
+ifFalse t0 goto L1
+print "="
+t1 = i
 i = i Plus 1
 goto L0
 L1:
-print "------------------------------"
-print "Test Execution Complete."
+print "\n"
+end
+
+
+void main() begin:
+print "--- 🚀 THE ULTIMATE LANGUAGE POWER TEST ---\n"
+int size = 5
+print "\n[1] Generating Numeric Diamond:\n"
+int i = 1
+L2:
+t2 = i Le size
+ifFalse t2 goto L3
+int s = 1
+L4:
+t3 = size Minus i
+t4 = s Le t3
+ifFalse t4 goto L5
+print " "
+t5 = s
+s = s Plus 1
+goto L4
+L5:
+int j = 1
+L6:
+t6 = j Le i
+ifFalse t6 goto L7
+print " "
+print i
+t7 = j
+j = j Plus 1
+goto L6
+L7:
+print "\n"
+t8 = i
+i = i Plus 1
+goto L2
+L3:
+t9 = size Minus 1
+int i = t9
+L8:
+t10 = i Ge 1
+ifFalse t10 goto L9
+int s = 1
+L10:
+t11 = size Minus i
+t12 = s Le t11
+ifFalse t12 goto L11
+print " "
+t13 = s
+s = s Plus 1
+goto L10
+L11:
+int j = 1
+L12:
+t14 = j Le i
+ifFalse t14 goto L13
+print " "
+print i
+t15 = j
+j = j Plus 1
+goto L12
+L13:
+print "\n"
+t16 = i
+i = i Minus 1
+goto L8
+L9:
+param 40
+t17 = call print_separator, 1
+print "[2] Running Sensor Calibration:\n"
+int attempt = 1
+bool sensor_ready = false
+L14:
+print "Probe #", attempt, ":\t"
+t18 = attempt Lt 10
+ifFalse t18 goto L16
+print "Warming up...\t[WAIT...]\n"
+goto L17
+L16:
+print "Calibration Complete!\t[READY]\n"
+sensor_ready = true
+L17:
+t19 = attempt Plus 1
+attempt = t19
+t20 = Not sensor_ready
+ifTrue t20 goto L14
+L15:
+param 40
+t21 = call print_separator, 1
+print "[3] System Final Status:\n"
+int status_color = 1
+t22 = status_color EqualOp 0
+ifFalse t22 goto L19
+print "SYSTEM FATAL (RED)\n"
+goto L18
+L19:
+t23 = status_color EqualOp 1
+ifFalse t23 goto L20
+print "SYSTEM OPTIMAL (GREEN)\n"
+goto L18
+L20:
+t24 = status_color EqualOp 2
+ifFalse t24 goto L21
+print "SYSTEM RECOVERY (BLUE)\n"
+goto L18
+L21:
+L18:
+print "\n--- ✅ TEST SUITE COMPLETE ---\n"
 end
 
