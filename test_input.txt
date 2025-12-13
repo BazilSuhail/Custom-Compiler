@@ -3,6 +3,7 @@ enum Color { RED, GREEN, BLUE };
 // Function to print a separator line
 void print_separator(int count) {
     print("\n");
+    print(aa);
     for (int i = 0; i < count; i++) {
         print("=");
     }
@@ -64,6 +65,4 @@ main {
         case GREEN: print("SYSTEM OPTIMAL (GREEN)\n"); break;
         case BLUE:  print("SYSTEM RECOVERY (BLUE)\n"); break;
     }
-
-    print("\n--- ✅ TEST SUITE COMPLETE ---\n");
 }

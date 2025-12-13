@@ -114,8 +114,7 @@ impl<'a> TypeChecker<'a> {
     }
 
     fn add_error(&mut self, et: TypeErrorType, ln: usize, col: usize, msg: String) {
-        let formatted_msg = format!("{} at line {}, col {}", msg, ln, col);
-        self.errors.push(TypeError { error_type: et, line: ln, column: col, message: formatted_msg });
+        self.errors.push(TypeError { error_type: et, line: ln, column: col, message: msg });
     }
 
     // --- Type Inference ---

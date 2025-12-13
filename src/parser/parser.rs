@@ -47,7 +47,7 @@ impl ParseError {
         ParseError {
             error_type,
             token: token.clone(),
-            message: format!("{} (line: {}, col: {})", message, token.line, token.column),
+            message,
         }
     }
 }

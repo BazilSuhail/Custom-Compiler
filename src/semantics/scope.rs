@@ -97,7 +97,7 @@ impl ScopeError {
             ScopeErrorType::EnumVariantRedefinition => format!("Enum variant redefinition: '{}'", name),
         };
 
-        ScopeError { error_type, name, line, column, message: format!("{} at line {}, col {}", message, line, column) }
+        ScopeError { error_type, name, line, column, message }
     }
 }
 
