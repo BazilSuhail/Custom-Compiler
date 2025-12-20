@@ -265,6 +265,7 @@ impl ExecutionEngine {
                 TokenType::Minus => Ok(Value::Int(a - b)),
                 TokenType::Multiply => Ok(Value::Int(a * b)),
                 TokenType::Divide => if b != 0 { Ok(Value::Int(a / b)) } else { Err(RuntimeError::DivisionByZero) },
+                TokenType::Modulo => if b != 0 { Ok(Value::Int(a % b)) } else { Err(RuntimeError::DivisionByZero) },
                 TokenType::EqualOp => Ok(Value::Bool(a == b)),
                 TokenType::Ne => Ok(Value::Bool(a != b)),
                 TokenType::Lt => Ok(Value::Bool(a < b)),

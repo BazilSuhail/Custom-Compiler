@@ -52,6 +52,8 @@ impl IROptimizer {
     fn constant_propagation(&mut self) {
         use std::collections::HashMap;
         let mut constants: HashMap<String, Operand> = HashMap::new();
+        let mut immutable_vars: HashSet<String> = HashSet::new();
+        let mut global_vars: HashSet<String> = HashSet::new();
 
         fn get_key(op: &Operand) -> Option<String> {
             match op {
@@ -68,7 +70,14 @@ impl IROptimizer {
         for instr in &mut self.instructions {
             match instr {
                 // Tracking Definitions
-                Instruction::Declare(_, name, init) => {
+                Instruction::Declare(type_str, name, init) => {
+                    if type_str.contains("const") {
+                        immutable_vars.insert(name.clone());
+                    }
+                    if type_str.contains("global") {
+                        global_vars.insert(name.clone());
+                    }
+
                     if let Some(val) = init {
                         if let Some(key) = get_key(val) {
                             if let Some(c) = constants.get(&key) { *val = c.clone(); }
@@ -86,7 +95,10 @@ impl IROptimizer {
                     // 2. Track Definition
                     if let Some(dest_key) = get_key(dest) {
                         if is_literal(src) { constants.insert(dest_key, src.clone()); } 
-                        else { constants.remove(&dest_key); }
+                        else { 
+                            constants.remove(&dest_key); 
+                            immutable_vars.remove(&dest_key); // If reassigned, it's not immutable (safety check)
+                        }
                     }
                 }
 
@@ -97,17 +109,26 @@ impl IROptimizer {
                     if let Some(rk) = get_key(r) { 
                         if let Some(c) = constants.get(&rk) { *r = c.clone(); }
                     }
-                    if let Some(dk) = get_key(dest) { constants.remove(&dk); }
+                    if let Some(dk) = get_key(dest) { 
+                        constants.remove(&dk); 
+                        immutable_vars.remove(&dk);
+                    }
                     
                     // If this is an assignment operation, the left operand is modified
                     if *op == TokenType::AssignOp {
-                        if let Some(lk) = get_key(l) { constants.remove(&lk); }
+                        if let Some(lk) = get_key(l) { 
+                            constants.remove(&lk); 
+                            immutable_vars.remove(&lk);
+                        }
                     }
                 }
 
                 Instruction::Unary(dest, _, src) => {
                     if let Some(sk) = get_key(src) { if let Some(c) = constants.get(&sk) { *src = c.clone(); } }
-                    if let Some(dk) = get_key(dest) { constants.remove(&dk); }
+                    if let Some(dk) = get_key(dest) { 
+                        constants.remove(&dk); 
+                        immutable_vars.remove(&dk);
+                    }
                 }
 
                 // Replacing Uses in Control Flow and IO
@@ -121,7 +142,10 @@ impl IROptimizer {
 
                 Instruction::Call(dest, _, _) => {
                     if let Some(d) = dest {
-                        if let Some(dk) = get_key(d) { constants.remove(&dk); }
+                        if let Some(dk) = get_key(d) { 
+                            constants.remove(&dk); 
+                            immutable_vars.remove(&dk);
+                        }
                     }
                 }
 
@@ -138,14 +162,22 @@ impl IROptimizer {
                 }
 
                 // Invalidate tracking on labels/function boundaries
-                Instruction::Label(_) | Instruction::FuncStart(_, _, _) => {
-                    constants.clear();
+                Instruction::Label(_) => {
+                    // Preserve immutable constants across labels
+                    constants.retain(|name, _| immutable_vars.contains(name));
+                }
+
+                Instruction::FuncStart(_, _, _) => {
+                    // Functions reset everything except global constants
+                    constants.retain(|name, _| global_vars.contains(name) && immutable_vars.contains(name));
+                    immutable_vars.retain(|name| global_vars.contains(name));
                 }
 
                 _ => {}
             }
         }
     }
+
 
     /// Replaces uses of variables/temporaries that are direct copies of others.
     /// Example: t1 = t0; t2 = t1 + 5 -> t2 = t0 + 5

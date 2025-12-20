@@ -1,9 +1,12 @@
 enum Color { RED, GREEN, BLUE };
 
+const int TARGET = 5;
+
 // Function to print a separator line
 void print_separator(int count) {
+
     print("\n");
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < TARGET; i++) {
         print("=");
     }
     print("\n");
@@ -13,8 +16,9 @@ main {
     print("--- 🚀 THE ULTIMATE LANGUAGE POWER TEST ---\n");
 
     // 1. The Numerical Diamond (Nested For Loops)
-    int size = 5 + 'x';
-    int size1 = 5 + "sd";
+    //int size = 5 + 'x';
+    int size = 5 ;
+    //int size1 = 5 + "sd";
     print("\n[1] Generating Numeric Diamond:\n");
     
     // Top Half
