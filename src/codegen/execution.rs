@@ -119,6 +119,21 @@ impl RuntimeState {
             Operand::Temp(id) => format!("t{}", id),
             _ => return Err(RuntimeError::Other("Invalid assignment destination".into())),
         };
+
+        // If it's a variable, check if it's already in global_vars
+        if let Operand::Var(name) = dest {
+            // Check if it shadows in the current stack frame
+            if self.stack.last().map(|frame| frame.contains_key(name)).unwrap_or(false) {
+                self.stack.last_mut().unwrap().insert(name.clone(), val);
+                return Ok(());
+            }
+            // Otherwise check if it's a global
+            if self.global_vars.contains_key(name) {
+                self.global_vars.insert(name.clone(), val);
+                return Ok(());
+            }
+        }
+
         self.stack.last_mut().unwrap().insert(key, val);
         Ok(())
     }
@@ -145,6 +160,44 @@ impl ExecutionEngine {
 
     pub fn execute(&self) -> Result<(), RuntimeError> {
         let mut state = RuntimeState::new();
+        
+        // Phase 1: Initialize Globals (Top-level scope)
+        let mut pc = 0;
+        while pc < self.instructions.len() {
+            match &self.instructions[pc] {
+                Instruction::FuncStart(_, _, _) => {
+                    // Skip function bodies
+                    let mut depth = 1;
+                    pc += 1;
+                    while pc < self.instructions.len() && depth > 0 {
+                        match &self.instructions[pc] {
+                            Instruction::FuncStart(_, _, _) => depth += 1,
+                            Instruction::FuncEnd => depth -= 1,
+                            _ => {}
+                        }
+                        pc += 1;
+                    }
+                    continue; // Continue from the instruction AFTER FuncEnd
+                }
+                Instruction::Declare(_, name, init) => {
+                    let val = match init {
+                        Some(op) => state.resolve(op)?,
+                        None => Value::Int(0),
+                    };
+                    state.global_vars.insert(name.clone(), val);
+                }
+                Instruction::Assign(dest, src) => {
+                    if let Operand::Var(name) = dest {
+                        let val = state.resolve(src)?;
+                        state.global_vars.insert(name.clone(), val);
+                    }
+                }
+                _ => {}
+            }
+            pc += 1;
+        }
+
+        // Phase 2: Run Main
         let main_idx = *self.labels.get("main").ok_or(RuntimeError::MainNotFound)?;
         self.run_from(&mut state, main_idx)?;
         Ok(())
